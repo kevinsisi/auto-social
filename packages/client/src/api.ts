@@ -1,4 +1,4 @@
-import type { CandidateStatus, PatrolCard, PatrolCardDetail } from './types'
+import type { CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail } from './types'
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -41,6 +41,21 @@ export const api = {
     return request(`/api/candidates/${candidateId}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status })
+    })
+  },
+  async getKeyStatus() {
+    return request<{ keys: KeyStatus[] }>('/api/admin/keys/status')
+  },
+  async importKeys(text: string) {
+    return request<{ parsed: number; inserted: number; duplicate: number }>('/api/admin/keys/batch-import', {
+      method: 'POST',
+      body: JSON.stringify({ text })
+    })
+  },
+  async syncKeys() {
+    return request<{ synced: boolean; imported: number; warning: string | null }>('/api/admin/keys/sync', {
+      method: 'POST',
+      body: JSON.stringify({})
     })
   }
 }

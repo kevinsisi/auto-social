@@ -13,7 +13,7 @@
 - ✅ OpenSpec change `add-keyword-patrol-cards`（舊版 MVP，已實作完成）
 - 🚧 **新方向 OpenSpec change：[`openspec/changes/add-social-patrol-station`](openspec/changes/add-social-patrol-station)** — Phase 0 實作中
 - ✅ **Phase 0 Batch 1（rebrand + deps + DB + v1.0.0）已完成** — 改名「社群海巡工作站」、引入 `@kevinsisi/ai-core` + `playwright` + `node-cron`、新增 9 張 DB table、版本 0.1.0 → 1.0.0、`APP_VERSION` 由各 package 自己的 `package.json` 動態讀（不再硬寫常數）
-- 🚧 Phase 0 Batch 2（AI backbone — KeyPool + GeminiClient + 4 步 pipeline + Voice Studio）下一步
+- 🚧 Phase 0 Batch 2（AI backbone）進行中：已加入 KeyPool admin API、key-manager sync 骨架、GeminiClient wrapper、4 步 pipeline 骨架與 parsing/short-circuit 測試；Voice Studio 尚未開始
 - ✅ 本機 Docker 可建可跑（`docker compose up -d --build`；公司網路需 `DOCKER_BUILDKIT=0`）
 
 ## Phase 0 規劃重點（社群海巡工作站）
@@ -57,6 +57,14 @@ npm run build
 Server 預設：`http://localhost:4323`
 
 Client 預設：`http://localhost:5173`
+
+Key Pool API（Batch 2 起）：
+
+- `GET /api/admin/keys/status`
+- `POST /api/admin/keys/batch-import`，body: `{ "text": "一行一把 key，可用 # 註解" }`
+- `POST /api/admin/keys/sync`，從 `KEY_MANAGER_URL/api/keys/export?trusted_only=1` 同步
+
+安全限制：若設定 `ADMIN_TOKEN`，以上 API 需要 `Authorization: Bearer <token>`；未設定時僅允許 loopback 本機請求。
 
 Docker 預覽：
 

@@ -27,22 +27,22 @@
 
 ## 4. Key Pool & key-manager Integration
 
-- [ ] 4.1 Add `key-pool/key-pool.ts` that constructs `ai-core` `KeyPool` over `SqliteAdapter`. Inject default cooldowns and lease durations from env.
-- [ ] 4.2 Add `key-pool/key-manager-sync.ts` that polls `${KEY_MANAGER_URL}/api/keys/export?trusted_only=1` on startup and every hour, replacing local `api_keys`. Surface `unscoped_keys > 0` or `mixed_buckets > 0` as a warning, do not silently trust raw counts.
-- [ ] 4.3 Add `key-pool/report.ts` `reportToManager(key, status)` and wire it after every Gemini call result (success / cooldown / auth failure).
-- [ ] 4.4 Add `/api/admin/keys/sync` POST endpoint for manual sync trigger.
-- [ ] 4.5 Add `/api/admin/keys/status` GET endpoint that returns the pool state (counts by health bucket) for the UI.
+- [x] 4.1 Add `key-pool/key-pool.ts` that constructs `ai-core` `KeyPool` over `SqliteAdapter`. Inject default cooldowns and lease durations from env.
+- [~] 4.2 Add `key-pool/key-manager-sync.ts` that polls `${KEY_MANAGER_URL}/api/keys/export?trusted_only=1` on startup and every hour, replacing local `api_keys`. Surface `unscoped_keys > 0` or `mixed_buckets > 0` as a warning, do not silently trust raw counts. (Manual sync endpoint exists; startup/hourly scheduling deferred to scheduler batch.)
+- [x] 4.3 Add `key-pool/report.ts` `reportToManager(key, status)` and wire it after every Gemini call result (success / cooldown / auth failure).
+- [x] 4.4 Add `/api/admin/keys/sync` POST endpoint for manual sync trigger.
+- [x] 4.5 Add `/api/admin/keys/status` GET endpoint that returns the pool state (counts by health bucket) for the UI.
 
 ## 5. AI Pipeline
 
-- [ ] 5.1 Add `ai/gemini-client.ts` that wires `ai-core` `GeminiClient` to the `KeyPool`. Default model `gemini-2.5-flash`; allow override via env.
-- [ ] 5.2 Add `ai/prompt-builder.ts` that loads the active `voice_profile` and produces `systemInstruction` + per-step prompt sections.
-- [ ] 5.3 Add `ai/steps/classify.ts` (returns structured `{ topic, sensitivity, voiceFit, reason }`).
-- [ ] 5.4 Add `ai/steps/score.ts` (returns `{ engagementWorth, risk, timeliness, shouldDraft, reason }`; short-circuits when `shouldDraft=false`).
-- [ ] 5.5 Add `ai/steps/draft.ts` (returns 3 variants `{ angle, text, length }`).
-- [ ] 5.6 Add `ai/steps/meme.ts` (returns `{ memePrompt, sceneIdea }`).
-- [ ] 5.7 Add `ai/pipeline.ts` that composes the four steps via `ai-core` `StepRunner` with `planPreferredKeys`. Mark all steps `allowSharedFallback: true`; bubble `NoAvailableKeyError` as candidate status `pipeline_blocked`.
-- [ ] 5.8 Add unit tests for each step's JSON parsing and short-circuit behavior using Gemini response fixtures.
+- [x] 5.1 Add `ai/gemini-client.ts` that wires `ai-core` `GeminiClient` to the `KeyPool`. Default model `gemini-2.5-flash`; allow override via env.
+- [~] 5.2 Add `ai/prompt-builder.ts` that loads the active `voice_profile` and produces `systemInstruction` + per-step prompt sections. (Default profile injection exists; DB-backed voice loading lands with Voice Studio.)
+- [x] 5.3 Add `ai/steps/classify.ts` (returns structured `{ topic, sensitivity, voiceFit, reason }`).
+- [x] 5.4 Add `ai/steps/score.ts` (returns `{ engagementWorth, risk, timeliness, shouldDraft, reason }`; short-circuits when `shouldDraft=false`).
+- [x] 5.5 Add `ai/steps/draft.ts` (returns 3 variants `{ angle, text, length }`).
+- [x] 5.6 Add `ai/steps/meme.ts` (returns `{ memePrompt, sceneIdea }`).
+- [x] 5.7 Add `ai/pipeline.ts` that composes the four steps via `ai-core` `StepRunner` with `planPreferredKeys`. Mark all steps `allowSharedFallback: true`; bubble `NoAvailableKeyError` as candidate status `pipeline_blocked`.
+- [x] 5.8 Add unit tests for each step's JSON parsing and short-circuit behavior using Gemini response fixtures.
 
 ## 6. Voice Studio
 
@@ -119,9 +119,9 @@
 
 ## 12. Verification
 
-- [ ] 12.1 `npm run typecheck` passes for both packages.
-- [ ] 12.2 `npm run build` passes for both packages.
-- [ ] 12.3 `npm run test` covers: ai pipeline parsing, voice prompt builder, source adapter fingerprinting, throttle gate (mocked time + mocked killswitch), session encryption round-trip.
+- [x] 12.1 `npm run typecheck` passes for both packages.
+- [x] 12.2 `npm run build` passes for both packages.
+- [~] 12.3 `npm run test` covers: ai pipeline parsing, voice prompt builder, source adapter fingerprinting, throttle gate (mocked time + mocked killswitch), session encryption round-trip. (Batch 2 covers key import + AI pipeline parsing/short-circuit; source/throttle/session tests remain for later batches.)
 - [ ] 12.4 Local Docker `docker compose up -d --build` boots; `/api/health` reports OK; the Playwright base image is used; `~/.cache/ms-playwright` mount is intact.
 - [ ] 12.5 End-to-end smoke (manual, Phase 0): set voice profile → batch-import 2+ keys via Settings → trigger scan-now → verify trending Dcard candidates appear in `全網熱門` tab → trigger keyword-card scan-now → verify keyword candidates appear in `我的關鍵字` tab → start interactive Threads login (副帳號 acknowledgement) → trigger scan-now again → verify Threads candidates appear → `定稿` a draft → confirm clipboard copy + Threads opens in new tab → paste a fake Threads URL into `已發` → confirm draft moves to `posted_manually`.
 - [ ] 12.6 Confirm per-scan search quota enforcement by setting `perScanSearchLimit` to 1 and running a scan with 3+ keyword cards; only 1 Threads search per tick should fire, rest should record `quota` errors.
