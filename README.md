@@ -10,9 +10,11 @@
 
 - ✅ MVP 0.1.0 可跑（舊版「遇見好車海巡台」），UI 海巡語彙保留
 - ✅ 已完成官方 API 可行性盤點（見 [`openspec/specs/mvp/spec.md`](openspec/specs/mvp/spec.md)）
-- ✅ 已建立 OpenSpec change：[`openspec/changes/add-keyword-patrol-cards`](openspec/changes/add-keyword-patrol-cards)（舊版 MVP，已實作完成）
-- 🚧 **新方向 OpenSpec change：[`openspec/changes/add-social-patrol-station`](openspec/changes/add-social-patrol-station)** — Phase 0 計劃中
-- ✅ 本機 Docker 可建可跑（`docker compose up -d --build`）
+- ✅ OpenSpec change `add-keyword-patrol-cards`（舊版 MVP，已實作完成）
+- 🚧 **新方向 OpenSpec change：[`openspec/changes/add-social-patrol-station`](openspec/changes/add-social-patrol-station)** — Phase 0 實作中
+- ✅ **Phase 0 Batch 1（rebrand + deps + DB + v1.0.0）已完成** — 改名「社群海巡工作站」、引入 `@kevinsisi/ai-core` + `playwright` + `node-cron`、新增 9 張 DB table、版本 0.1.0 → 1.0.0、`APP_VERSION` 由各 package 自己的 `package.json` 動態讀（不再硬寫常數）
+- 🚧 Phase 0 Batch 2（AI backbone — KeyPool + GeminiClient + 4 步 pipeline + Voice Studio）下一步
+- ✅ 本機 Docker 可建可跑（`docker compose up -d --build`；公司網路需 `DOCKER_BUILDKIT=0`）
 
 ## Phase 0 規劃重點（社群海巡工作站）
 

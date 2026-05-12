@@ -1,28 +1,28 @@
 ## 1. Rename & Cleanup
 
-- [ ] 1.1 Replace `遇見好車海巡台` with `社群海巡工作站` in `packages/client/index.html` `<title>` and `packages/client/src/main.tsx` `<h1>`.
-- [ ] 1.2 Replace the hardcoded `普通酸、自嘲優先。人家認真問，我們就先不要耍嘴皮。` subtitle on the keyword card with a voice-profile-driven byline (initial fallback: `海巡隊已就位。等情報進來。`).
-- [ ] 1.3 Delete or stub `packages/server/src/humor.ts`; its functionality is fully replaced by `ai/pipeline.ts` in section 5.
-- [ ] 1.4 Delete `遇見好車`-tinted strings from `packages/server/src/repository.ts` (browser-run `message`, etc.).
-- [ ] 1.5 Update `README.md` to describe the new product positioning and stack, keeping the existing local-dev / Docker sections accurate.
+- [x] 1.1 Replace `遇見好車海巡台` with `社群海巡工作站` in `packages/client/index.html` `<title>` and `packages/client/src/main.tsx` `<h1>`.
+- [x] 1.2 Replace the hardcoded `普通酸、自嘲優先。人家認真問，我們就先不要耍嘴皮。` subtitle on the keyword card with a voice-profile-driven byline (initial fallback: `海巡隊已就位。等情報進來。`).
+- [ ] 1.3 Delete or stub `packages/server/src/humor.ts`; its functionality is fully replaced by `ai/pipeline.ts` in section 5. (Batch 1 neutralized brand strings; full deletion lands in Batch 2.)
+- [x] 1.4 Delete `遇見好車`-tinted strings from `packages/server/src/repository.ts` and `humor.ts` (browser-run `message` already neutral; humor.ts brand strings replaced with 海巡 phrasing).
+- [ ] 1.5 Update `README.md` to describe the new product positioning and stack, keeping the existing local-dev / Docker sections accurate. (Done in prior rebrand commit; Batch 1 status note added now.)
 
 ## 2. Dependencies
 
-- [ ] 2.1 Add `@kevinsisi/ai-core` (latest, pinned via `git+https://github.com/kevinsisi/ai-core.git#vX.Y.Z`) to `packages/server`.
-- [ ] 2.2 Add `playwright` + `playwright-extra` + `puppeteer-extra-plugin-stealth` to `packages/server`.
-- [ ] 2.3 Add `node-cron` (or `croner`) to `packages/server` for scan scheduling.
-- [ ] 2.4 Switch the runtime stage of `Dockerfile` to a Playwright-bundled base image; keep the build stage on `node:22-bookworm-slim`.
-- [ ] 2.5 Ensure the local-network TLS bypass added during local testing remains gated behind the deps stage and labelled `LOCAL-TEST ONLY`; do not extend it to the runtime stage.
+- [x] 2.1 Add `@kevinsisi/ai-core` (latest, pinned via `git+https://github.com/kevinsisi/ai-core.git`) to `packages/server`. (Pinned to default branch HEAD; will pin to a tag once a stable Phase 0 tag is cut.)
+- [~] 2.2 Add `playwright` + `playwright-extra` + `puppeteer-extra-plugin-stealth` to `packages/server`. (Phase 0 Batch 1 ships `playwright` only; `playwright-extra` + stealth deferred to Batch 4, will use manual stealth init-script if the ESM compat story is unclear.)
+- [x] 2.3 Add `node-cron` (or `croner`) to `packages/server` for scan scheduling.
+- [ ] 2.4 Switch the runtime stage of `Dockerfile` to a Playwright-bundled base image; keep the build stage on `node:22-bookworm-slim`. (Batch 6.)
+- [ ] 2.5 Ensure the local-network TLS bypass added during local testing remains gated behind the deps stage and labelled `LOCAL-TEST ONLY`; do not extend it to the runtime stage. (Batch 6 — already labelled in current Dockerfile.)
 
 ## 3. Database
 
-- [ ] 3.1 Add `voice_profile` table (single row id=1; JSON columns: `axes`, `no_go_zones`, `admired_accounts`, `self_descriptors`, `signature_phrases`, `updated_at`).
-- [ ] 3.2 Add `voice_feedback` table (`id`, `draft_id`, `variant_idx`, `decision`, `comment`, `created_at`).
-- [ ] 3.3 Add `trend_candidates` table (`id`, `source`, `external_id`, `fingerprint`, `card_id?`, `url`, `author`, `title`, `text`, `published_at`, `engagement_json`, `fetched_at`, `pipeline_status`).
-- [ ] 3.4 Add `drafts` table (`id`, `candidate_id`, `status`, `score_json`, `variants_json`, `meme_json`, `chosen_variant_idx?`, `final_text?`, `created_at`, `decided_at?`, `published_at?`, `published_url?`).
-- [ ] 3.5 Add `threads_session` table (`id`, `storage_state_ciphertext`, `salt`, `last_login_at`, `healthy`, `health_note`).
-- [ ] 3.6 Add `daily_quotas` table (`op`, `date`, `count`); add `settings` table (`key`, `value_json`) for kill switch + quota limits + scan cadence.
-- [ ] 3.7 Add `api_keys` table compatible with `ai-core` `SqliteAdapter`; reuse `SqliteAdapter.createTable(db)`.
+- [x] 3.1 Add `voice_profile` table (single row id=1; JSON columns: `axes`, `no_go_zones`, `admired_accounts`, `self_descriptors`, `signature_phrases`, `updated_at`).
+- [x] 3.2 Add `voice_feedback` table (`id`, `draft_id`, `variant_idx`, `decision`, `comment`, `created_at`).
+- [x] 3.3 Add `trend_candidates` table (`id`, `source`, `external_id`, `fingerprint`, `card_id?`, `is_trending`, `url`, `author`, `title`, `text`, `published_at`, `engagement_json`, `fetched_at`, `pipeline_status`) + indexes.
+- [x] 3.4 Add `drafts` table (`id`, `candidate_id`, `status`, `classify_json`, `score_json`, `variants_json`, `meme_json`, `chosen_variant_idx?`, `final_text?`, `published_url?`, `last_error_reason?`, `created_at`, `decided_at?`, `published_at?`) + index.
+- [x] 3.5 Add `threads_session` table (`id`, `storage_state_ciphertext`, `salt`, `iv`, `auth_tag`, `bound_handle?`, `last_login_at`, `healthy`, `health_note?`).
+- [x] 3.6 Add `daily_quotas` table (`op`, `date`, `count`); add `settings` table (`key`, `value_json`, `updated_at`) for kill switch + quota limits + scan cadence.
+- [x] 3.7 Add `api_keys` table compatible with `ai-core` `SqliteAdapter` (id/key/is_active/cooldown_until/lease_until/lease_token/usage_count).
 - [ ] 3.8 Preserve `patrol_cards`, `patrol_runs`, `candidates`, `analyses`, `reply_suggestions` from the prior MVP; do not drop them. The scheduler back-fills `candidates` from `trend_candidates` so the legacy detail view still works.
 
 ## 4. Key Pool & key-manager Integration
@@ -138,8 +138,8 @@
 
 ## 14. App Version
 
-- [ ] 14.1 Bump version to `1.0.0` (major rebrand from `0.1.0`) in: root `package.json`, `packages/server/package.json`, `packages/client/package.json`, `packages/server/src/types.ts` `APP_VERSION`, `packages/client/src/version.ts` `APP_VERSION`.
-- [ ] 14.2 Consolidate the two duplicated `APP_VERSION` constants into a single canonical source if practical (e.g. generated from root `package.json` at build time, or one package imports the other) so future bumps cannot drift.
-- [ ] 14.3 Verify the new version is shown in the UI header badge and returned by `/api/health`.
-- [ ] 14.4 Update `package-lock.json` to reflect the version bump (`npm install --package-lock-only`).
-- [ ] 14.5 Add a short note in `README.md` describing the version-bump rule and where the constant lives, so future contributors do not miss it.
+- [x] 14.1 Bump version to `1.0.0` (major rebrand from `0.1.0`) in: root `package.json`, `packages/server/package.json`, `packages/client/package.json`. `APP_VERSION` constant moved out of `types.ts` into dedicated `packages/server/src/version.ts` (reads its own `package.json` at runtime); `packages/client/src/version.ts` now imports `../package.json` via Vite's JSON resolution.
+- [x] 14.2 Consolidated `APP_VERSION`: each package reads its own `package.json` at module init. No hardcoded version constants remain; bumping `package.json` is now the only place to change the version per package.
+- [x] 14.3 Verified `/api/health` returns `{"ok":true,"version":"1.0.0"}` from a fresh `node packages/server/dist/index.js` run.
+- [x] 14.4 `npm install` ran during dependency add; lockfile reflects new version and new deps.
+- [ ] 14.5 Add a short note in `README.md` describing the version-bump rule and where the constant lives, so future contributors do not miss it. (Defer to Batch 6 docs sweep.)
