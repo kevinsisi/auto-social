@@ -73,6 +73,7 @@ export type ThreadsSessionStatus = {
 export type ThreadsLoginJob = {
   id: string
   url: string
+  vncUrl: string
   createdAt: string
   lastActivityAt: string
 }

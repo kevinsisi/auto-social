@@ -1,3 +1,4 @@
+import { spawn, type ChildProcess } from 'node:child_process'
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
 import { nanoid } from 'nanoid'
 import type { AppDatabase } from '../db.js'
@@ -6,6 +7,7 @@ import { saveThreadsStorageState } from './session.js'
 export type ThreadsLoginJobStatus = {
   id: string
   url: string
+  vncUrl: string
   createdAt: string
   lastActivityAt: string
 }
@@ -19,15 +21,24 @@ type LoginJob = ThreadsLoginJobStatus & {
 const LOGIN_URL = 'https://www.instagram.com/accounts/login/?next=https%3A%2F%2Fwww.threads.net%2Flogin'
 const LOGIN_JOB_TTL_MS = 15 * 60 * 1000
 const VIEWPORT = { width: 1280, height: 800 }
+const DISPLAY = ':99'
+const VNC_URL = '/browser/vnc.html?autoconnect=true&resize=scale&path=browser/websockify'
 
 const jobs = new Map<string, LoginJob>()
+let remoteBrowserProcesses: ChildProcess[] = []
+let remoteBrowserServicesStarted = false
 
 export async function startThreadsLoginJob(): Promise<ThreadsLoginJobStatus> {
   cleanupExpiredLoginJobs()
   const existing = [...jobs.values()][0]
   if (existing) return toStatus(existing)
 
-  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
+  await startRemoteBrowserServices()
+  const browser = await chromium.launch({
+    headless: false,
+    env: { ...process.env, DISPLAY },
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1280,800']
+  })
   const context = await browser.newContext({
     locale: 'zh-TW',
     timezoneId: 'Asia/Taipei',
@@ -37,7 +48,7 @@ export async function startThreadsLoginJob(): Promise<ThreadsLoginJobStatus> {
   const page = await context.newPage()
   await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 30_000 })
   const timestamp = new Date().toISOString()
-  const job: LoginJob = { id: nanoid(), browser, context, page, url: page.url(), createdAt: timestamp, lastActivityAt: timestamp }
+  const job: LoginJob = { id: nanoid(), browser, context, page, url: page.url(), vncUrl: VNC_URL, createdAt: timestamp, lastActivityAt: timestamp }
   jobs.set(job.id, job)
   return toStatus(job)
 }
@@ -128,5 +139,25 @@ async function closeJob(job: LoginJob) {
 }
 
 function toStatus(job: LoginJob): ThreadsLoginJobStatus {
-  return { id: job.id, url: job.url, createdAt: job.createdAt, lastActivityAt: job.lastActivityAt }
+  return { id: job.id, url: job.url, vncUrl: job.vncUrl, createdAt: job.createdAt, lastActivityAt: job.lastActivityAt }
+}
+
+async function startRemoteBrowserServices() {
+  if (remoteBrowserServicesStarted) return
+  remoteBrowserServicesStarted = true
+  remoteBrowserProcesses = [
+    spawnService('Xvfb', [DISPLAY, '-screen', '0', `${VIEWPORT.width}x${VIEWPORT.height}x24`, '-ac']),
+    spawnService('fluxbox', [], { DISPLAY }),
+    spawnService('x11vnc', ['-display', DISPLAY, '-forever', '-shared', '-nopw', '-rfbport', '5900']),
+    spawnService('websockify', ['--web', '/usr/share/novnc', '127.0.0.1:6080', '127.0.0.1:5900'])
+  ]
+  await new Promise((resolve) => setTimeout(resolve, 1_000))
+}
+
+function spawnService(command: string, args: string[], env: NodeJS.ProcessEnv = {}) {
+  const child = spawn(command, args, { stdio: 'ignore', env: { ...process.env, ...env } })
+  child.on('exit', () => {
+    remoteBrowserServicesStarted = false
+  })
+  return child
 }

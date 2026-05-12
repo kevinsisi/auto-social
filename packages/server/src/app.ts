@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { z } from 'zod'
 import { getAdminSessionStatus, loginAdmin, logoutAdmin, requireAdmin } from './admin-auth.js'
+import { browserProxy } from './browser-proxy.js'
 import type { AppDatabase } from './db.js'
 import { registerKeyPoolRoutes } from './key-pool/routes.js'
 import { getRadarTrends, scanRadarTrends } from './radar-trends.js'
@@ -59,6 +60,8 @@ export function createApp(db: AppDatabase) {
   app.post('/api/admin/session/logout', (_req, res) => {
     logoutAdmin(res)
   })
+
+  app.use('/browser', requireAdmin, browserProxy)
 
   const clientDist = resolve('packages/client/dist')
   if (existsSync(clientDist)) {

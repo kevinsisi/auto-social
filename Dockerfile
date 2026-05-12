@@ -18,6 +18,9 @@ RUN npm prune --omit=dev --workspace @auto-social/server
 
 FROM mcr.microsoft.com/playwright:v1.60.0-noble AS runtime
 WORKDIR /app
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends xvfb x11vnc fluxbox novnc websockify \
+  && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=4323

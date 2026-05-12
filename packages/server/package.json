@@ -16,6 +16,7 @@
     "better-sqlite3": "^11.9.1",
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "http-proxy-middleware": "^4.0.0",
     "nanoid": "^5.1.5",
     "node-cron": "^3.0.3",
     "playwright": "^1.50.0",
