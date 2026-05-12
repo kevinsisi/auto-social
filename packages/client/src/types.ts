@@ -70,6 +70,13 @@ export type ThreadsSessionStatus = {
   healthNote: string | null
 }
 
+export type ThreadsLoginJob = {
+  id: string
+  url: string
+  createdAt: string
+  lastActivityAt: string
+}
+
 export type RadarTerm = {
   word: string
   count: number
