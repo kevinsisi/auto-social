@@ -66,7 +66,7 @@ docker compose up -d --build
 
 開啟：`http://localhost:4323`
 
-> 公司網路測試備註：`docker compose build` 走 BuildKit 會被 SSL 攔截擋下，請改用 `DOCKER_BUILDKIT=0 docker compose build`（先 `docker pull node:22-bookworm-slim` 預先拉好基底映像）。Dockerfile `deps` stage 內有 `NODE_TLS_REJECT_UNAUTHORIZED=0` 等本地測試專用 TLS bypass，**不可隨此映像進 production**。詳見 `company-doc/skills/local-docker-corporate-network/`。
+> **公司網路內 build 一定要照固定步驟跑**：完整指令 + 各步驟為什麼必要 + 常見錯誤對照表都寫在 [`CLAUDE.md` 的 "Local Docker Build — Company Network" 區塊](CLAUDE.md#local-docker-build--company-network-read-first)，AI 接手會第一眼看到。摘要：先 `docker pull node:22-bookworm-slim` → 再 `DOCKER_BUILDKIT=0 docker compose build` → `docker compose up -d`。Dockerfile 內 `LOCAL-TEST ONLY` 標記的 TLS bypass 不可進 production。
 
 ## 原官方 API 技術棧備忘
 

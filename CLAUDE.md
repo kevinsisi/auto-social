@@ -4,6 +4,43 @@ This repository is a GitHub template. When a new project is generated from it, t
 
 Edit this file freely to add stack-, domain-, or team-specific rules for your project. Keep the Skill Activation section so the bundled `skills/` and `.github/skills/` stay wired in.
 
+## Local Docker Build — Company Network (READ FIRST)
+
+If you are about to run `docker compose build` / `docker compose up --build` on a development workstation **inside the company network** (Evertrust / HousePrice / 永慶 office Wi-Fi, wired, VPN, or `ohousefun`), the default build path **will fail** because of corporate TLS inspection. Use this exact sequence:
+
+```bash
+# 1. Make sure the node base image is already pulled (host CA trusts the company root cert, container doesn't).
+docker pull node:22-bookworm-slim     # do this on company net before step 2; once cached, step 2 won't refetch
+
+# 2. Use the LEGACY builder (NOT BuildKit). BuildKit re-resolves the manifest over HTTPS and fails on cert verification.
+DOCKER_BUILDKIT=0 docker compose build
+
+# 3. Start
+docker compose up -d
+
+# 4. Verify
+curl -s http://localhost:4323/api/health
+# expected: {"ok":true,"version":"1.0.0"}
+```
+
+Why each step exists:
+
+- **`docker pull` first**: on company net Docker Hub manifest fetch via BuildKit hits `tls: failed to verify certificate: x509: certificate signed by unknown authority`. A successful host-side `docker pull` lands the image into local cache where the legacy builder can pick it up without re-resolving the manifest.
+- **`DOCKER_BUILDKIT=0`**: forces Docker's legacy builder. BuildKit always re-validates registry TLS even when the image is local; the legacy builder is happy with the local cache.
+- **In-Dockerfile TLS bypass**: the `deps` stage of `Dockerfile` sets `NODE_TLS_REJECT_UNAUTHORIZED=0` + `npm config set strict-ssl false` so `npm install` inside the build container survives the same TLS inspection. These lines are clearly marked **LOCAL-TEST ONLY** and must not propagate to a production runtime image.
+
+Common symptoms and what they mean:
+
+| Error | Means |
+|-------|-------|
+| `Head "https://registry-1.docker.io/...": tls: failed to verify certificate` | You ran with BuildKit. Re-run with `DOCKER_BUILDKIT=0`. |
+| `npm error Exit handler never called` inside `RUN npm install` | `npm install` failed silently on TLS. The `Dockerfile` already adds the bypass; if you removed it, restore. |
+| Container restart loop with `invalid ELF header` on `better_sqlite3.node` | A previous compose accidentally bind-mounted host `node_modules` into the Linux container. `docker-compose.yml` here only mounts `./data:/app/data`; do not add `./:/app`. |
+
+Off-company-net (home, hotspot, RPi, etc.) the bypass is not needed but does no harm. **Do not** rebuild the image on a production host with these settings still active; switch to a Dockerfile variant that injects the corporate root CA via `update-ca-certificates` if you ever need to build from inside corporate net for a non-test deploy.
+
+For full reasoning see `D:\Projects\_HomeProject\company-doc\skills\local-docker-corporate-network\SKILL.md`.
+
 ## Global Working Rules
 
 - Read the current code, files, and runtime context before deciding on a change.
