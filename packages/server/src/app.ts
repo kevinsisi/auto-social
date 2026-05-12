@@ -3,6 +3,7 @@ import express from 'express'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { z } from 'zod'
+import { getAdminSessionStatus, loginAdmin, logoutAdmin, requireAdmin } from './admin-auth.js'
 import type { AppDatabase } from './db.js'
 import { registerKeyPoolRoutes } from './key-pool/routes.js'
 import { getRadarTrends, scanRadarTrends } from './radar-trends.js'
@@ -22,6 +23,7 @@ const addCandidateSchema = z.object({
 })
 const updateStatusSchema = z.object({ status: z.enum(['useful', 'ignored', 'replied', 'needs_follow_up']) })
 const importThreadsSessionSchema = z.object({ storageStateJson: z.string().min(2) })
+const adminLoginSchema = z.object({ token: z.string().min(1) })
 const clickThreadsLoginSchema = z.object({ x: z.number().min(0), y: z.number().min(0) })
 const typeThreadsLoginSchema = z.object({ text: z.string().min(1).max(512) })
 const pressThreadsLoginSchema = z.object({ key: z.enum(['Enter', 'Tab', 'Escape', 'Backspace']) })
@@ -39,6 +41,23 @@ export function createApp(db: AppDatabase) {
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, version: APP_VERSION })
+  })
+
+  app.get('/api/admin/session', (req, res) => {
+    res.json({ session: getAdminSessionStatus(req) })
+  })
+
+  app.post('/api/admin/session/login', (req, res) => {
+    try {
+      const body = adminLoginSchema.parse(req.body)
+      loginAdmin(req, res, body.token)
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.post('/api/admin/session/logout', (_req, res) => {
+    logoutAdmin(res)
   })
 
   const clientDist = resolve('packages/client/dist')
@@ -120,7 +139,7 @@ export function createApp(db: AppDatabase) {
     }
   })
 
-  app.post('/api/admin/scan/run-now', async (_req, res) => {
+  app.post('/api/admin/scan/run-now', requireAdmin, async (_req, res) => {
     try {
       assertThreadsSearchAllowed(db)
       res.status(202).json({ radar: await scanRadarTrends(db) })
@@ -133,7 +152,7 @@ export function createApp(db: AppDatabase) {
     res.json({ session: getThreadsSessionStatus(db) })
   })
 
-  app.post('/api/threads/session/start', async (_req, res) => {
+  app.post('/api/threads/session/start', requireAdmin, async (_req, res) => {
     try {
       res.status(202).json({ login: await startThreadsLoginJob(), message: '已啟動 headless Threads 登入。請在截圖上點擊並輸入帳密，登入完成後按「完成並保存」。' })
     } catch (error) {
@@ -141,72 +160,72 @@ export function createApp(db: AppDatabase) {
     }
   })
 
-  app.get('/api/threads/session/login/:jobId/status', (req, res) => {
-    const login = getThreadsLoginJobStatus(req.params.jobId)
+  app.get('/api/threads/session/login/:jobId/status', requireAdmin, (req, res) => {
+    const login = getThreadsLoginJobStatus(String(req.params.jobId))
     if (!login) return res.status(404).json({ error: '找不到 Threads 登入工作，請重新開始登入。' })
     res.json({ login })
   })
 
-  app.get('/api/threads/session/login/:jobId/screenshot', async (req, res) => {
+  app.get('/api/threads/session/login/:jobId/screenshot', requireAdmin, async (req, res) => {
     try {
-      const image = await screenshotThreadsLoginJob(req.params.jobId)
+      const image = await screenshotThreadsLoginJob(String(req.params.jobId))
       res.type('png').send(image)
     } catch (error) {
       sendError(res, error)
     }
   })
 
-  app.post('/api/threads/session/login/:jobId/click', async (req, res) => {
+  app.post('/api/threads/session/login/:jobId/click', requireAdmin, async (req, res) => {
     try {
       const body = clickThreadsLoginSchema.parse(req.body)
-      res.json({ login: await clickThreadsLoginJob(req.params.jobId, body.x, body.y) })
+      res.json({ login: await clickThreadsLoginJob(String(req.params.jobId), body.x, body.y) })
     } catch (error) {
       sendError(res, error)
     }
   })
 
-  app.post('/api/threads/session/login/:jobId/type', async (req, res) => {
+  app.post('/api/threads/session/login/:jobId/type', requireAdmin, async (req, res) => {
     try {
       const body = typeThreadsLoginSchema.parse(req.body)
-      res.json({ login: await typeThreadsLoginJob(req.params.jobId, body.text) })
+      res.json({ login: await typeThreadsLoginJob(String(req.params.jobId), body.text) })
     } catch (error) {
       sendError(res, error)
     }
   })
 
-  app.post('/api/threads/session/login/:jobId/press', async (req, res) => {
+  app.post('/api/threads/session/login/:jobId/press', requireAdmin, async (req, res) => {
     try {
       const body = pressThreadsLoginSchema.parse(req.body)
-      res.json({ login: await pressThreadsLoginJob(req.params.jobId, body.key) })
+      res.json({ login: await pressThreadsLoginJob(String(req.params.jobId), body.key) })
     } catch (error) {
       sendError(res, error)
     }
   })
 
-  app.post('/api/threads/session/login/:jobId/finish', async (req, res) => {
+  app.post('/api/threads/session/login/:jobId/finish', requireAdmin, async (req, res) => {
     try {
-      await finishThreadsLoginJob(db, req.params.jobId)
+      await finishThreadsLoginJob(db, String(req.params.jobId))
       res.json({ session: getThreadsSessionStatus(db) })
     } catch (error) {
       sendError(res, error)
     }
   })
 
-  app.post('/api/threads/session/login/:jobId/cancel', async (req, res) => {
+  app.post('/api/threads/session/login/:jobId/cancel', requireAdmin, async (req, res) => {
     try {
-      await cancelThreadsLoginJob(req.params.jobId)
+      await cancelThreadsLoginJob(String(req.params.jobId))
       res.json({ session: getThreadsSessionStatus(db) })
     } catch (error) {
       sendError(res, error)
     }
   })
 
-  app.post('/api/threads/session/clear', (_req, res) => {
+  app.post('/api/threads/session/clear', requireAdmin, (_req, res) => {
     clearThreadsSession(db)
     res.json({ session: getThreadsSessionStatus(db) })
   })
 
-  app.post('/api/threads/session/import', (req, res) => {
+  app.post('/api/threads/session/import', requireAdmin, (req, res) => {
     try {
       const body = importThreadsSessionSchema.parse(req.body)
       res.status(201).json({ session: importThreadsStorageState(db, body.storageStateJson) })

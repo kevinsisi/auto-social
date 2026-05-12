@@ -1,5 +1,6 @@
-import type { NextFunction, Request, Response, Router } from 'express'
+import type { Router } from 'express'
 import { z } from 'zod'
+import { requireAdmin } from '../admin-auth.js'
 import type { AppDatabase } from '../db.js'
 import { KeyPoolRepository } from './key-pool.js'
 import { syncFromKeyManager } from './key-manager-sync.js'
@@ -33,20 +34,4 @@ export function registerKeyPoolRoutes(router: Router, db: AppDatabase) {
       next(error)
     }
   })
-}
-
-function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  const token = process.env.ADMIN_TOKEN
-  if (token) {
-    const header = req.get('authorization') ?? ''
-    if (header === `Bearer ${token}`) return next()
-    return res.status(401).json({ error: '需要 ADMIN_TOKEN 授權。' })
-  }
-
-  if (isLoopback(req.ip ?? '') || isLoopback(req.socket.remoteAddress ?? '')) return next()
-  return res.status(403).json({ error: '未設定 ADMIN_TOKEN 時，key 管理 API 僅允許本機存取。' })
-}
-
-function isLoopback(value: string) {
-  return value === '127.0.0.1' || value === '::1' || value === '::ffff:127.0.0.1'
 }

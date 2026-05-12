@@ -77,6 +77,11 @@ export type ThreadsLoginJob = {
   lastActivityAt: string
 }
 
+export type AdminSession = {
+  configured: boolean
+  authenticated: boolean
+}
+
 export type RadarTerm = {
   word: string
   count: number

@@ -108,6 +108,7 @@
 ## 11A. Settings Page
 
 - [ ] 11A.1 Add `/settings` route in client with hash-routed tabs (`#quotas`, `#key-pool`, `#threads-session`, `#sources`, `#voice`, `#about`).
+- [x] 11A.1a Interim settings routes: `#settings/admin`, `#settings/keys`, `#settings/threads`, `#settings/pipeline` split the previous stacked page into explicit sections; admin auth uses a backend HttpOnly session cookie after token login instead of localStorage bearer storage.
 - [ ] 11A.2 `#quotas` tab: fields for `dailyPublishLimit`, `dailyReplyLimit`, `perScanSearchLimit`, `scanCadenceCron`, `jitterMinMs`, `jitterMaxMs`; save persists to `settings` table; scheduler re-registers cron on cadence change. Phase 0 disables publish/reply fields visually with `Phase 1 啟用` label.
 - [ ] 11A.3 `#key-pool` tab:
   - [ ] 11A.3.1 Multi-line textarea for batch import; one key per non-empty non-`#` line; accepts the exact format key-manager's `複製可用金鑰` produces.
