@@ -97,7 +97,7 @@
 
 ## 11. Dashboard & Keyword Management
 
-- [ ] 11.1 Rework Dashboard to show two tabs: `全網熱門` (candidates with `is_trending = true`) and `我的關鍵字` (candidates with `card_id` set); both sorted by score-by-engagement; both lead into the same per-draft view.
+- [~] 11.1 Rework Dashboard to show two tabs: `全網熱門` (candidates with `is_trending = true`) and `我的關鍵字` (candidates with `card_id` set); both sorted by score-by-engagement; both lead into the same per-draft view. Interim dashboard now has a hot keyword cloud plus keyword monitoring list.
 - [ ] 11.2 Dashboard header: today's draft count, per-source health, scan history button, pool status, kill-switch + (Phase 1) quota summary.
 - [ ] 11.3 Move keyword-card list management into a `Sources & Keywords` sub-page; cards remain the source of keyword input for scans.
 - [ ] 11.4 Preserve the existing manual link import path on a keyword card as a fallback when an interesting thread is found out-of-band.

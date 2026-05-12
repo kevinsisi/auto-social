@@ -21,6 +21,7 @@ const riskLabels: Record<RiskLevel, string> = {
 function App() {
   const [page, setPage] = useState<'dashboard' | 'settings'>('dashboard')
   const [cards, setCards] = useState<PatrolCard[]>([])
+  const [detailsById, setDetailsById] = useState<Record<string, PatrolCardDetail>>({})
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<PatrolCardDetail | null>(null)
   const [keyword, setKeyword] = useState('')
@@ -38,12 +39,15 @@ function App() {
   async function loadCards() {
     const data = await api.listCards()
     setCards(data.cards)
+    const detailEntries = await Promise.all(data.cards.map(async (card) => [card.id, (await api.getCard(card.id)).card] as const))
+    setDetailsById(Object.fromEntries(detailEntries))
     if (!selectedId && data.cards.length > 0) setSelectedId(data.cards[0].id)
   }
 
   async function loadDetail(cardId: string) {
     const data = await api.getCard(cardId)
     setDetail(data.card)
+    setDetailsById((current) => ({ ...current, [cardId]: data.card }))
   }
 
   async function createCard(event: React.FormEvent) {
@@ -101,20 +105,26 @@ function App() {
         </div>
       </header>
 
-      {page === 'settings' ? <SettingsPage /> : <section className="mx-auto grid max-w-7xl gap-4 px-4 py-6 lg:grid-cols-[300px_1fr]">
+      {page === 'settings' ? <SettingsPage /> : <section className="mx-auto grid max-w-7xl gap-4 px-4 py-6 lg:grid-cols-[320px_1fr]">
         <aside className="space-y-4">
           <form onSubmit={createCard} className="border-4 border-asphalt bg-[#fffaf2] p-4 shadow-[8px_8px_0_#171717]">
-            <label className="block text-sm font-bold">新增關鍵字卡</label>
+            <label className="block text-sm font-bold">新增監控關鍵字</label>
             <input
               className="mt-2 min-h-12 w-full border-2 border-asphalt bg-paper px-3 text-base outline-none focus:bg-white"
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
-              placeholder="例如：中古車收購"
+              placeholder="例如：AI 小編、Threads 經營"
             />
             <button className="mt-3 min-h-11 w-full bg-asphalt px-4 py-2 font-bold text-paper transition-colors hover:bg-signal" type="submit">
-              出勤海巡
+              加入監控雷達
             </button>
           </form>
+
+          <div className="border-2 border-asphalt bg-paper p-3">
+            <p className="font-mono text-xs uppercase tracking-[0.2em] text-signal">Watchlist</p>
+            <h2 className="text-xl font-black">關鍵字監控</h2>
+            <p className="mt-1 text-xs">每張卡都是一條巡邏線。點卡片後可立即 Threads 出勤。</p>
+          </div>
 
           <div className="space-y-2">
             {cards.map((card) => (
@@ -133,10 +143,46 @@ function App() {
         <section className="space-y-4">
           {notice && <Message tone="notice" text={notice} onClose={() => setNotice(null)} />}
           {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
+          <HotKeywordCloud cards={cards} details={Object.values(detailsById)} onSelect={(keyword) => setKeyword(keyword)} />
           {detail ? <PatrolDetail card={detail} onRefresh={() => loadDetail(detail.id)} onThreadsScan={scanThreads} onBrowserRun={startBrowserRun} /> : <EmptyState />}
         </section>
       </section>}
     </main>
+  )
+}
+
+function HotKeywordCloud({ cards, details, onSelect }: { cards: PatrolCard[]; details: PatrolCardDetail[]; onSelect: (keyword: string) => void }) {
+  const terms = buildHotTerms(cards, details).slice(0, 70)
+  return (
+    <section className="relative overflow-hidden border-4 border-asphalt bg-white p-5 shadow-[8px_8px_0_#171717]">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="font-mono text-xs uppercase tracking-[0.28em] text-signal">Patrol Radar</p>
+          <h2 className="text-4xl font-black">熱門關鍵字雲</h2>
+        </div>
+        <p className="max-w-xl text-sm">從監控關鍵字與 Threads 候選內容即時計算。字越大代表越常出現，點一下可帶入監控欄位。</p>
+      </div>
+      <div className="mt-5 min-h-[270px] rounded-[2rem] border-2 border-dashed border-asphalt/25 bg-[radial-gradient(circle_at_center,#fffaf2,white_62%)] p-5">
+        {terms.length > 0 ? (
+          <div className="flex h-full flex-wrap items-center justify-center gap-x-4 gap-y-2 leading-none">
+            {terms.map((term, index) => (
+              <button
+                key={`${term.word}-${index}`}
+                type="button"
+                onClick={() => onSelect(term.word)}
+                className="font-black transition-transform hover:scale-110"
+                style={{ color: cloudColor(index), fontSize: `${term.size}px`, transform: `rotate(${cloudRotate(index)}deg)` }}
+                title={`出現 ${term.count} 次`}
+              >
+                {term.word}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex min-h-[220px] items-center justify-center text-center text-xl font-black text-asphalt/50">先新增監控關鍵字，雷達才有東西可以掃。</div>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -466,6 +512,53 @@ function EmptyState() {
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('zh-TW', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
 }
+
+function buildHotTerms(cards: PatrolCard[], details: PatrolCardDetail[]) {
+  const counts = new Map<string, number>()
+  for (const card of cards) addTerm(counts, card.keyword, 5)
+  for (const detail of details) {
+    addTerm(counts, detail.keyword, 3)
+    for (const candidate of detail.candidates) {
+      for (const term of segmentText(`${candidate.title} ${candidate.excerpt}`)) addTerm(counts, term, 1)
+    }
+  }
+
+  const max = Math.max(1, ...counts.values())
+  return [...counts.entries()]
+    .filter(([word]) => !stopWords.has(word) && word.length >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .map(([word, count]) => ({ word, count, size: Math.round(18 + (count / max) * 54) }))
+}
+
+function addTerm(counts: Map<string, number>, raw: string, weight: number) {
+  for (const term of segmentText(raw)) counts.set(term, (counts.get(term) ?? 0) + weight)
+}
+
+function segmentText(text: string) {
+  const normalized = text.replace(/https?:\/\/\S+/g, ' ').replace(/[\p{P}\p{S}\d_]+/gu, ' ').trim()
+  const segmenter = typeof Intl !== 'undefined' && 'Segmenter' in Intl
+    ? new Intl.Segmenter('zh-TW', { granularity: 'word' })
+    : null
+  if (segmenter) {
+    return [...segmenter.segment(normalized)]
+      .filter((part) => part.isWordLike)
+      .map((part) => part.segment.trim())
+      .filter(Boolean)
+  }
+  return normalized.split(/\s+/).filter(Boolean)
+}
+
+function cloudColor(index: number) {
+  return ['#14b8a6', '#f97316', '#64748b', '#0f766e', '#94a3b8', '#d97706', '#2dd4bf'][index % 7]
+}
+
+function cloudRotate(index: number) {
+  return [-4, 2, 0, 5, -2, 3, -5][index % 7]
+}
+
+const stopWords = new Set([
+  'Threads', 'threads', '搜尋', '結果', '連結', '找到', '開頁', '確認', '原文', '互動', 'Google', 'google', 'https', 'www', 'com', 'net', '的', '了', '和', '與', '在', '是', '有', '我', '你', '他', '她', '它', '們', '這個', '那個', '目前', '可以', '不是', '沒有'
+])
 
 function getMessage(error: unknown) {
   return error instanceof Error ? error.message : '操作失敗，這很難評。'

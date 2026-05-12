@@ -13,7 +13,7 @@
 - ✅ OpenSpec change `add-keyword-patrol-cards`（舊版 MVP，已實作完成）
 - 🚧 **新方向 OpenSpec change：[`openspec/changes/add-social-patrol-station`](openspec/changes/add-social-patrol-station)** — Phase 0 實作中
 - ✅ **Phase 0 Batch 1（rebrand + deps + DB + v1.0.0）已完成** — 改名「社群海巡工作站」、引入 `@kevinsisi/ai-core` + `playwright` + `node-cron`、新增 9 張 DB table、版本 0.1.0 → 1.0.0、`APP_VERSION` 由各 package 自己的 `package.json` 動態讀（不再硬寫常數）
-- 🚧 Phase 0 Batch 2（AI backbone + Threads patrol）進行中：已加入 KeyPool admin API、key-manager sync 骨架、GeminiClient wrapper、4 步 pipeline 骨架、Settings key 頁、Threads Playwright 唯讀搜尋優先 + `site:threads.net` fallback；Voice Studio 尚未開始
+- 🚧 Phase 0 Batch 2（AI backbone + Threads patrol）進行中：已加入 KeyPool admin API、key-manager sync 骨架、GeminiClient wrapper、4 步 pipeline 骨架、Settings key 頁、熱門關鍵字雲、Threads Playwright 唯讀搜尋優先 + `site:threads.net` fallback；Voice Studio 尚未開始
 - ✅ 本機 Docker 可建可跑（`docker compose up -d --build`；公司網路需 `DOCKER_BUILDKIT=0`）
 
 ## Phase 0 規劃重點（社群海巡工作站）
@@ -24,7 +24,7 @@
 - Trend Sources：Dcard（公開 API）+ Threads（Playwright 用副帳號 session）；雙模式（trending + keyword）
 - 15 分鐘排程：trending 與 keyword 同時掃
 - Settings 頁：配額、Key Pool 批次匯入、Threads Session、Sources、About
-- Dashboard 兩 tab：`全網熱門` / `我的關鍵字`
+- Dashboard：熱門關鍵字雲 + 關鍵字監控清單；後續擴成兩 tab：`全網熱門` / `我的關鍵字`
 - Draft Inbox：3 角度草稿；Phase 0 = `定稿 + 複製 + 貼上 Threads`（手動發），Phase 1 才開放自動 `送出`
 
 完整規劃見 [`openspec/changes/add-social-patrol-station/`](openspec/changes/add-social-patrol-station/) 內的 `proposal.md`、`design.md`、`tasks.md`、`specs/`。
