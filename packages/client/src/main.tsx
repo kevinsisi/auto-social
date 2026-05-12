@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import './styles.css'
-import type { Candidate, CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RadarTerm, RiskLevel, ThreadsLoginJob, ThreadsSessionStatus } from './types'
+import type { AdminSession, Candidate, CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RadarTerm, RiskLevel, ThreadsLoginJob, ThreadsSessionStatus } from './types'
 import { APP_VERSION } from './version'
 
 const statusLabels: Record<CandidateStatus, string> = {
@@ -18,8 +18,25 @@ const riskLabels: Record<RiskLevel, string> = {
   high: '高風險'
 }
 
+type Page = 'dashboard' | 'settings'
+type SettingsSection = 'admin' | 'keys' | 'threads' | 'pipeline'
+
+function navigate(path: string) {
+  window.location.hash = path
+}
+
+function getPageFromHash(): Page {
+  return window.location.hash.startsWith('#settings') ? 'settings' : 'dashboard'
+}
+
+function getSettingsSection(): SettingsSection {
+  const section = window.location.hash.replace(/^#settings\/?/, '')
+  if (section === 'keys' || section === 'threads' || section === 'pipeline') return section
+  return 'admin'
+}
+
 function App() {
-  const [page, setPage] = useState<'dashboard' | 'settings'>('dashboard')
+  const [page, setPage] = useState<'dashboard' | 'settings'>(() => getPageFromHash())
   const [cards, setCards] = useState<PatrolCard[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<PatrolCardDetail | null>(null)
@@ -33,6 +50,9 @@ function App() {
   useEffect(() => {
     void loadCards()
     void loadRadarTrends()
+    const onHashChange = () => setPage(getPageFromHash())
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
 
   useEffect(() => {
@@ -147,8 +167,8 @@ function App() {
             <h1 className="font-display text-3xl font-black leading-none tracking-tight sm:whitespace-nowrap sm:text-2xl md:text-4xl">社群海巡工作站</h1>
           </div>
           <nav className="grid grid-cols-[1fr_1fr_auto] items-stretch gap-2 sm:flex sm:items-center">
-            <button onClick={() => setPage('dashboard')} className={`min-h-10 border-2 border-asphalt px-2 py-1 text-sm font-bold sm:px-3 sm:text-base ${page === 'dashboard' ? 'bg-asphalt text-paper' : 'bg-paper'}`}>Dashboard</button>
-            <button onClick={() => setPage('settings')} className={`min-h-10 border-2 border-asphalt px-2 py-1 text-sm font-bold sm:px-3 sm:text-base ${page === 'settings' ? 'bg-asphalt text-paper' : 'bg-paper'}`}>Settings</button>
+            <button onClick={() => navigate('dashboard')} className={`min-h-10 border-2 border-asphalt px-2 py-1 text-sm font-bold sm:px-3 sm:text-base ${page === 'dashboard' ? 'bg-asphalt text-paper' : 'bg-paper'}`}>Dashboard</button>
+            <button onClick={() => navigate('settings/admin')} className={`min-h-10 border-2 border-asphalt px-2 py-1 text-sm font-bold sm:px-3 sm:text-base ${page === 'settings' ? 'bg-asphalt text-paper' : 'bg-paper'}`}>Settings</button>
             <div className="flex min-h-10 items-center border-2 border-asphalt px-2 py-1 font-mono text-xs sm:px-3 sm:py-2 sm:text-sm">v{APP_VERSION}</div>
           </nav>
         </div>
@@ -242,21 +262,39 @@ function HotKeywordCloud({ terms, loading, meta, onRefresh, onSelect }: { terms:
 }
 
 function SettingsPage() {
+  const [section, setSection] = useState<SettingsSection>(() => getSettingsSection())
+  const [adminSession, setAdminSession] = useState<AdminSession | null>(null)
+  const [adminTokenInput, setAdminTokenInput] = useState('')
   const [keys, setKeys] = useState<KeyStatus[]>([])
   const [threadsSession, setThreadsSession] = useState<ThreadsSessionStatus | null>(null)
   const [threadsLogin, setThreadsLogin] = useState<ThreadsLoginJob | null>(null)
   const [threadsLoginText, setThreadsLoginText] = useState('')
   const [threadsScreenshotUrl, setThreadsScreenshotUrl] = useState<string | null>(null)
-  const [adminToken, setAdminToken] = useState(() => api.getAdminToken())
   const [keyText, setKeyText] = useState('')
   const [threadsStorageState, setThreadsStorageState] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    void refreshKeys()
+    void refreshAdminSession()
     void refreshThreadsSession()
+    const onHashChange = () => setSection(getSettingsSection())
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
+
+  useEffect(() => {
+    if (adminSession?.authenticated) void refreshKeys()
+  }, [adminSession?.authenticated])
+
+  async function refreshAdminSession() {
+    try {
+      const data = await api.getAdminSession()
+      setAdminSession(data.session)
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
 
   async function refreshKeys() {
     try {
@@ -291,10 +329,29 @@ function SettingsPage() {
     }
   }
 
-  function saveAdminToken() {
-    api.setAdminToken(adminToken)
-    setMessage(adminToken.trim() ? 'ADMIN_TOKEN 已保存在這台瀏覽器。' : 'ADMIN_TOKEN 已清除。')
-    void refreshKeys()
+  async function loginAdmin(event: React.FormEvent) {
+    event.preventDefault()
+    setError(null)
+    try {
+      const data = await api.loginAdmin(adminTokenInput)
+      setAdminSession(data.session)
+      setAdminTokenInput('')
+      setMessage('Admin session 已建立。')
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  async function logoutAdmin() {
+    setError(null)
+    try {
+      const data = await api.logoutAdmin()
+      setAdminSession(data.session)
+      setKeys([])
+      setMessage('Admin session 已登出。')
+    } catch (err) {
+      setError(getMessage(err))
+    }
   }
 
   async function refreshThreadsSession() {
@@ -419,30 +476,43 @@ function SettingsPage() {
   return (
     <section className="mx-auto max-w-7xl space-y-4 px-4 py-6">
       <div className="border-4 border-asphalt bg-[#fffaf2] p-5 shadow-[8px_8px_0_#171717]">
-        <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Settings / Key Pool</p>
+        <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Settings / {section}</p>
         <h2 className="mt-1 text-4xl font-black">設定不是裝飾品</h2>
-        <p className="mt-2">這頁現在可以匯入 Gemini keys、看 key pool 狀態、手動同步 key-manager。還沒做 Voice Studio，我不假裝有。</p>
+        <p className="mt-2">設定已拆成路由：Admin、Key Pool、Threads Session、Pipeline。不是全部堆在同一頁。</p>
       </div>
+
+      <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {(['admin', 'keys', 'threads', 'pipeline'] as SettingsSection[]).map((item) => (
+          <button key={item} type="button" onClick={() => navigate(`settings/${item}`)} className={`min-h-11 border-2 border-asphalt px-3 py-2 font-bold ${section === item ? 'bg-asphalt text-paper' : 'bg-paper'}`}>
+            {item}
+          </button>
+        ))}
+      </nav>
 
       {message && <Message tone="notice" text={message} onClose={() => setMessage(null)} />}
       {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
 
-      <div className="border-2 border-asphalt bg-paper p-4">
-        <h3 className="text-2xl font-black">Admin Token</h3>
-        <p className="mt-1 text-sm">管理 key pool 與掃描需要 `ADMIN_TOKEN`。Token 只存在這台瀏覽器的 localStorage，不會寫進前端程式。</p>
+      {section === 'admin' && <form onSubmit={loginAdmin} className="border-2 border-asphalt bg-paper p-4">
+        <h3 className="text-2xl font-black">Admin Login</h3>
+        <p className="mt-1 text-sm">`ADMIN_TOKEN` 已在伺服器環境設定；這裡只用它登入後端 admin session。Token 不存 localStorage，登入成功後由 HttpOnly cookie 授權。</p>
+        <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+          <Info label="ADMIN_TOKEN" value={adminSession?.configured ? 'server 已設定' : 'server 未設定'} />
+          <Info label="Admin Session" value={adminSession?.authenticated ? '已登入' : '未登入'} />
+        </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <input
             className="min-h-11 min-w-0 flex-1 border-2 border-asphalt bg-[#fffaf2] px-3 text-base outline-none"
-            value={adminToken}
-            onChange={(event) => setAdminToken(event.target.value)}
+            value={adminTokenInput}
+            onChange={(event) => setAdminTokenInput(event.target.value)}
             placeholder="貼上 ADMIN_TOKEN"
             type="password"
           />
-          <button className="min-h-11 bg-asphalt px-4 py-2 font-bold text-paper" type="button" onClick={saveAdminToken}>保存 Token</button>
+          <button className="min-h-11 bg-asphalt px-4 py-2 font-bold text-paper" type="submit">登入 Admin</button>
+          {adminSession?.authenticated && <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={logoutAdmin}>登出</button>}
         </div>
-      </div>
+      </form>}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+      {section === 'keys' && <div className="grid gap-4">
         <form onSubmit={importKeys} className="border-2 border-asphalt bg-paper p-4">
           <h3 className="text-2xl font-black">Key Pool 匯入</h3>
           <p className="mt-1 text-sm">一行一把 Gemini key，`#` 開頭會略過。沒有 key，AI pipeline 就只是骨架。</p>
@@ -458,21 +528,9 @@ function SettingsPage() {
             <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshKeys}>重新整理</button>
           </div>
         </form>
+      </div>}
 
-        <div className="border-2 border-asphalt bg-paper p-4">
-          <h3 className="text-2xl font-black">AI Pipeline 狀態</h3>
-          <div className="mt-3 grid gap-2 text-sm">
-            <Info label="classify" value="已建立 JSON parser + StepRunner step" />
-            <Info label="score" value="已建立 shouldDraft short-circuit" />
-            <Info label="draft" value="已限制 exactly 3 variants + no-go 過濾" />
-            <Info label="meme" value="已建立文字型 meme prompt step" />
-            <Info label="Threads" value="Playwright 搜尋優先；失敗時自動退回 site:threads.net 備援。" />
-            <Info label="尚未完成" value="Voice Studio、scheduler、Draft Inbox 還沒做。" />
-          </div>
-        </div>
-      </div>
-
-      <div className="border-2 border-asphalt bg-paper p-4">
+      {section === 'threads' && <div className="border-2 border-asphalt bg-paper p-4">
         <h3 className="text-2xl font-black">Threads Session</h3>
         <p className="mt-1 text-sm">Phase 0 先支援唯讀搜尋。可貼上 Playwright storageState JSON 保存 session；沒有 session 時會嘗試公開搜尋，失敗退回 `site:threads.net` 備援。</p>
         <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
@@ -530,9 +588,9 @@ function SettingsPage() {
           />
           <button className="mt-2 min-h-11 bg-asphalt px-4 py-2 font-bold text-paper" type="submit">加密保存 Session</button>
         </form>
-      </div>
+      </div>}
 
-      <div className="border-2 border-asphalt bg-[#fffaf2] p-4">
+      {section === 'keys' && <div className="border-2 border-asphalt bg-[#fffaf2] p-4">
         <h3 className="text-2xl font-black">目前 keys</h3>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[640px] border-collapse text-left text-sm">
@@ -559,7 +617,19 @@ function SettingsPage() {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
+
+      {section === 'pipeline' && <div className="border-2 border-asphalt bg-paper p-4">
+        <h3 className="text-2xl font-black">AI Pipeline 狀態</h3>
+        <div className="mt-3 grid gap-2 text-sm">
+          <Info label="classify" value="已建立 JSON parser + StepRunner step" />
+          <Info label="score" value="已建立 shouldDraft short-circuit" />
+          <Info label="draft" value="已限制 exactly 3 variants + no-go 過濾" />
+          <Info label="meme" value="已建立文字型 meme prompt step" />
+          <Info label="Threads" value="Playwright 搜尋優先；失敗時自動退回 site:threads.net 備援。" />
+          <Info label="尚未完成" value="Voice Studio、scheduler、Draft Inbox 還沒做。" />
+        </div>
+      </div>}
     </section>
   )
 }

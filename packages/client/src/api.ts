@@ -1,12 +1,11 @@
-import type { CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RadarTrend, ThreadsLoginJob, ThreadsSessionStatus } from './types'
+import type { AdminSession, CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RadarTrend, ThreadsLoginJob, ThreadsSessionStatus } from './types'
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers)
   headers.set('Content-Type', 'application/json')
-  const adminToken = getAdminToken()
-  if (adminToken) headers.set('Authorization', `Bearer ${adminToken}`)
   const response = await fetch(url, {
     ...options,
+    credentials: 'same-origin',
     headers
   })
   const text = await response.text()
@@ -31,21 +30,22 @@ function getErrorMessage(data: unknown, status: number) {
   return `操作失敗，HTTP ${status}`
 }
 
-const ADMIN_TOKEN_STORAGE_KEY = 'autoSocial.adminToken'
-
-function getAdminToken() {
-  return localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)?.trim() ?? ''
-}
-
-function setAdminToken(token: string) {
-  const trimmed = token.trim()
-  if (trimmed) localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, trimmed)
-  else localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY)
-}
-
 export const api = {
-  getAdminToken,
-  setAdminToken,
+  async getAdminSession() {
+    return request<{ session: AdminSession }>('/api/admin/session')
+  },
+  async loginAdmin(token: string) {
+    return request<{ session: AdminSession }>('/api/admin/session/login', {
+      method: 'POST',
+      body: JSON.stringify({ token })
+    })
+  },
+  async logoutAdmin() {
+    return request<{ session: AdminSession }>('/api/admin/session/logout', {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
+  },
   async listCards() {
     return request<{ cards: PatrolCard[] }>('/api/cards')
   },
