@@ -81,5 +81,9 @@ export type RadarTrend = {
   sampledQueries: number
   sampledCandidates: number
   errors: string[]
-  cachedUntil: string
+  scanRun?: {
+    id: string
+    status: 'completed' | 'failed'
+    candidatesAdded: number
+  }
 }

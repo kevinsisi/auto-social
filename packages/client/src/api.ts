@@ -61,6 +61,12 @@ export const api = {
   async getRadarTrends() {
     return request<{ radar: RadarTrend }>('/api/radar/trends')
   },
+  async runRadarScan() {
+    return request<{ radar: RadarTrend }>('/api/admin/scan/run-now', {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
+  },
   async updateCandidateStatus(candidateId: string, status: CandidateStatus) {
     return request(`/api/candidates/${candidateId}/status`, {
       method: 'PATCH',

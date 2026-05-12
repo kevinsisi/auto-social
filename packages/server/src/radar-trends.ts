@@ -1,6 +1,9 @@
+import { createHash } from 'node:crypto'
+import { nanoid } from 'nanoid'
 import type { AppDatabase } from './db.js'
 import { fetchThreadsSearchCandidates } from './sources/threads-search.js'
 import { searchThreadsWithPlaywright } from './threads-bot/search.js'
+import { nowIso } from './time.js'
 
 export type RadarTerm = {
   word: string
@@ -15,10 +18,32 @@ export type RadarTrendResult = {
   errors: string[]
 }
 
+export type RadarScanResult = RadarTrendResult & {
+  scanRun: {
+    id: string
+    status: 'completed' | 'failed'
+    candidatesAdded: number
+  }
+}
+
+type RadarCandidate = {
+  url: string
+  title: string
+  excerpt: string
+  source: 'threads_playwright' | 'threads_search'
+}
+
+type TrendCandidateRow = {
+  source: 'threads_playwright' | 'threads_search'
+  title: string | null
+  text: string
+}
+
 const RADAR_SAMPLE_QUERIES = ['台灣', '生活', 'AI', '社群']
 const CANDIDATES_PER_QUERY = 6
 const MAX_TERMS = 70
 const MIN_TERM_LENGTH = 2
+const RADAR_WINDOW_MS = 24 * 60 * 60 * 1000
 
 const stopWords = new Set([
   'Threads', 'threads', 'Thread', 'thread', 'Meta', 'meta', 'Instagram', 'instagram',
@@ -29,38 +54,95 @@ const stopWords = new Set([
   '的', '了', '和', '與', '在', '是', '有', '我', '你', '他', '她', '它', '們'
 ])
 
-export async function fetchRadarTrends(db: AppDatabase): Promise<RadarTrendResult> {
+export function getRadarTrends(db: AppDatabase): RadarTrendResult {
+  const since = new Date(Date.now() - RADAR_WINDOW_MS).toISOString()
+  const rows = db.prepare(`
+    SELECT source, title, text
+    FROM trend_candidates
+    WHERE is_trending = 1 AND fetched_at >= ?
+    ORDER BY fetched_at DESC
+    LIMIT 250
+  `).all(since) as TrendCandidateRow[]
+  const sourceCounts = new Map<'threads_playwright' | 'threads_search', number>()
+  const text = rows.map((row) => {
+    sourceCounts.set(row.source, (sourceCounts.get(row.source) ?? 0) + 1)
+    return `${row.title ?? ''} ${row.text}`
+  }).join(' ')
+  const sources = [...sourceCounts.keys()]
+  return {
+    terms: extractRadarTerms(text).slice(0, MAX_TERMS),
+    source: sources.length > 1 ? 'mixed' : sources[0] ?? 'threads_search',
+    sampledQueries: RADAR_SAMPLE_QUERIES.length,
+    sampledCandidates: rows.length,
+    errors: getLatestScanErrors(db)
+  }
+}
+
+export async function scanRadarTrends(db: AppDatabase): Promise<RadarScanResult> {
+  const scanId = nanoid()
+  const startedAt = nowIso()
+  db.prepare(`
+    INSERT INTO scan_runs (id, started_at, status, reason, sources_summary_json, errors_json)
+    VALUES (?, ?, 'running', 'manual_radar', ?, ?)
+  `).run(scanId, startedAt, JSON.stringify({ queries: RADAR_SAMPLE_QUERIES }), JSON.stringify([]))
+
   const batches = await Promise.allSettled(RADAR_SAMPLE_QUERIES.map((query) => fetchRadarCandidates(db, query)))
   const errors: string[] = []
-  const sourceCounts = new Map<'threads_playwright' | 'threads_search', number>()
-  const texts: string[] = []
+  let candidatesAdded = 0
 
-  for (const batch of batches) {
+  for (const [index, batch] of batches.entries()) {
+    const query = RADAR_SAMPLE_QUERIES[index] ?? 'unknown'
     if (batch.status === 'rejected') {
       errors.push(batch.reason instanceof Error ? batch.reason.message : 'Threads 雷達抓取失敗')
       continue
     }
     for (const candidate of batch.value) {
-      texts.push(`${candidate.title} ${candidate.excerpt}`)
-      sourceCounts.set(candidate.source, (sourceCounts.get(candidate.source) ?? 0) + 1)
+      candidatesAdded += insertTrendCandidate(db, query, candidate)
     }
   }
 
-  const sources = [...sourceCounts.keys()]
-  return {
-    terms: extractRadarTerms(texts.join(' ')).slice(0, MAX_TERMS),
-    source: sources.length > 1 ? 'mixed' : sources[0] ?? 'threads_search',
-    sampledQueries: RADAR_SAMPLE_QUERIES.length,
-    sampledCandidates: texts.length,
-    errors
-  }
+  const endedAt = nowIso()
+  const status = errors.length === RADAR_SAMPLE_QUERIES.length ? 'failed' : 'completed'
+  db.prepare(`
+    UPDATE scan_runs
+    SET ended_at = ?, status = ?, candidates_added = ?, errors_json = ?
+    WHERE id = ?
+  `).run(endedAt, status, candidatesAdded, JSON.stringify(errors), scanId)
+
+  return { ...getRadarTrends(db), errors, scanRun: { id: scanId, status, candidatesAdded } }
 }
 
-async function fetchRadarCandidates(db: AppDatabase, query: string) {
+async function fetchRadarCandidates(db: AppDatabase, query: string): Promise<RadarCandidate[]> {
   try {
     return await searchThreadsWithPlaywright(db, query, CANDIDATES_PER_QUERY)
   } catch {
     return await fetchThreadsSearchCandidates(query, CANDIDATES_PER_QUERY)
+  }
+}
+
+function insertTrendCandidate(db: AppDatabase, query: string, candidate: RadarCandidate) {
+  const fingerprint = createHash('sha256').update(`${candidate.source}:${candidate.url}`).digest('hex')
+  const result = db.prepare(`
+    INSERT OR IGNORE INTO trend_candidates (id, source, external_id, fingerprint, is_trending, url, title, text, fetched_at, pipeline_status)
+    VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, 'pending')
+  `).run(nanoid(), candidate.source, candidate.url, fingerprint, candidate.url, candidate.title, `${candidate.excerpt}\n\n觀察 query：${query}`, nowIso())
+  return result.changes
+}
+
+function getLatestScanErrors(db: AppDatabase) {
+  const row = db.prepare(`
+    SELECT errors_json
+    FROM scan_runs
+    WHERE reason = 'manual_radar'
+    ORDER BY started_at DESC
+    LIMIT 1
+  `).get() as { errors_json: string | null } | undefined
+  if (!row?.errors_json) return []
+  try {
+    const parsed = JSON.parse(row.errors_json)
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : []
+  } catch {
+    return []
   }
 }
 
