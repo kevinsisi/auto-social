@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import './styles.css'
-import type { Candidate, CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RiskLevel, ThreadsSessionStatus } from './types'
+import type { Candidate, CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RadarTerm, RiskLevel, ThreadsSessionStatus } from './types'
 import { APP_VERSION } from './version'
 
 const statusLabels: Record<CandidateStatus, string> = {
@@ -21,15 +21,18 @@ const riskLabels: Record<RiskLevel, string> = {
 function App() {
   const [page, setPage] = useState<'dashboard' | 'settings'>('dashboard')
   const [cards, setCards] = useState<PatrolCard[]>([])
-  const [detailsById, setDetailsById] = useState<Record<string, PatrolCardDetail>>({})
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<PatrolCardDetail | null>(null)
   const [keyword, setKeyword] = useState('')
+  const [radarTerms, setRadarTerms] = useState<RadarTerm[]>([])
+  const [radarLoading, setRadarLoading] = useState(false)
+  const [radarMeta, setRadarMeta] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
     void loadCards()
+    void loadRadarTrends()
   }, [])
 
   useEffect(() => {
@@ -39,15 +42,26 @@ function App() {
   async function loadCards() {
     const data = await api.listCards()
     setCards(data.cards)
-    const detailEntries = await Promise.all(data.cards.map(async (card) => [card.id, (await api.getCard(card.id)).card] as const))
-    setDetailsById(Object.fromEntries(detailEntries))
     if (!selectedId && data.cards.length > 0) setSelectedId(data.cards[0].id)
   }
 
   async function loadDetail(cardId: string) {
     const data = await api.getCard(cardId)
     setDetail(data.card)
-    setDetailsById((current) => ({ ...current, [cardId]: data.card }))
+  }
+
+  async function loadRadarTrends() {
+    setRadarLoading(true)
+    try {
+      const data = await api.getRadarTrends()
+      setRadarTerms(data.radar.terms)
+      setRadarMeta(`實際候選 ${data.radar.sampledCandidates} 筆；來源 ${formatRadarSource(data.radar.source)}`)
+    } catch (err) {
+      setRadarTerms([])
+      setRadarMeta(getMessage(err))
+    } finally {
+      setRadarLoading(false)
+    }
   }
 
   async function createCard(event: React.FormEvent) {
@@ -160,7 +174,7 @@ function App() {
         <section className="space-y-4">
           {notice && <Message tone="notice" text={notice} onClose={() => setNotice(null)} />}
           {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
-          <HotKeywordCloud cards={cards} details={Object.values(detailsById)} onSelect={(keyword) => void monitorRadarTerm(keyword)} />
+          <HotKeywordCloud terms={radarTerms} loading={radarLoading} meta={radarMeta} onRefresh={loadRadarTrends} onSelect={(keyword) => void monitorRadarTerm(keyword)} />
           {detail ? <PatrolDetail card={detail} onRefresh={() => loadDetail(detail.id)} onThreadsScan={scanThreads} onBrowserRun={startBrowserRun} /> : <EmptyState />}
         </section>
       </section>}
@@ -168,19 +182,25 @@ function App() {
   )
 }
 
-function HotKeywordCloud({ cards, details, onSelect }: { cards: PatrolCard[]; details: PatrolCardDetail[]; onSelect: (keyword: string) => void }) {
-  const terms = buildHotTerms(cards, details).slice(0, 70)
+function HotKeywordCloud({ terms, loading, meta, onRefresh, onSelect }: { terms: RadarTerm[]; loading: boolean; meta: string | null; onRefresh: () => void; onSelect: (keyword: string) => void }) {
+  const max = Math.max(1, ...terms.map((term) => term.count))
   return (
     <section className="relative overflow-hidden border-4 border-asphalt bg-white p-4 shadow-[5px_5px_0_#171717] sm:p-5 sm:shadow-[8px_8px_0_#171717]">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.28em] text-signal">Patrol Radar</p>
           <h2 className="text-3xl font-black sm:text-4xl">熱門關鍵字雲</h2>
+          {meta && <p className="mt-1 font-mono text-xs text-asphalt/60">{meta}</p>}
         </div>
-        <p className="max-w-xl text-sm">尚未抓到候選內容時先顯示初始觀察種子；抓到 Threads 候選後會由真實內容更新。點詞會直接加入監控並出勤。</p>
+        <div className="max-w-xl space-y-2 text-sm">
+          <p>只顯示 Threads 目標搜尋抓回的候選內容抽詞；抓不到就留空，不再用罐頭詞補畫面。點詞會直接加入監控並出勤。</p>
+          <button type="button" onClick={onRefresh} className="min-h-9 border-2 border-asphalt px-3 py-1 font-bold hover:bg-signal hover:text-white" disabled={loading}>{loading ? '更新中' : '重新抓雷達'}</button>
+        </div>
       </div>
       <div className="mt-5 min-h-[240px] rounded-[1.5rem] border-2 border-dashed border-asphalt/25 bg-[radial-gradient(circle_at_center,#fffaf2,white_62%)] p-3 sm:min-h-[270px] sm:rounded-[2rem] sm:p-5">
-        {terms.length > 0 ? (
+        {loading ? (
+          <div className="flex min-h-[220px] items-center justify-center text-center text-xl font-black text-asphalt/50">正在抓 Threads 實際候選內容...</div>
+        ) : terms.length > 0 ? (
           <div className="flex h-full flex-wrap items-center justify-center gap-x-4 gap-y-2 leading-none">
             {terms.map((term, index) => (
               <button
@@ -188,7 +208,7 @@ function HotKeywordCloud({ cards, details, onSelect }: { cards: PatrolCard[]; de
                 type="button"
                 onClick={() => onSelect(term.word)}
                 className="font-black transition-transform hover:scale-110"
-                style={{ color: cloudColor(index), fontSize: `${term.size}px`, transform: `rotate(${cloudRotate(index)}deg)` }}
+                style={{ color: cloudColor(index), fontSize: `${Math.round(16 + (term.count / max) * 42)}px`, transform: `rotate(${cloudRotate(index)}deg)` }}
                 title={`出現 ${term.count} 次`}
               >
                 {term.word}
@@ -196,7 +216,7 @@ function HotKeywordCloud({ cards, details, onSelect }: { cards: PatrolCard[]; de
             ))}
           </div>
         ) : (
-          <div className="flex min-h-[220px] items-center justify-center text-center text-xl font-black text-asphalt/50">雷達正在暖機，先顯示全域觀察詞。</div>
+          <div className="flex min-h-[220px] items-center justify-center text-center text-xl font-black text-asphalt/50">還沒有抓到可用的 Threads 實際詞，請稍後重新抓或先匯入 Threads session。</div>
         )}
       </div>
     </section>
@@ -530,42 +550,6 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat('zh-TW', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
 }
 
-function buildHotTerms(cards: PatrolCard[], details: PatrolCardDetail[]) {
-  const counts = new Map<string, number>()
-  for (const term of defaultRadarTerms) counts.set(term.word, term.weight)
-  for (const card of cards) addTerm(counts, card.keyword, 5)
-  for (const detail of details) {
-    addTerm(counts, detail.keyword, 3)
-    for (const candidate of detail.candidates) {
-      for (const term of segmentText(`${candidate.title} ${candidate.excerpt}`)) addTerm(counts, term, 1)
-    }
-  }
-
-  const max = Math.max(1, ...counts.values())
-  return [...counts.entries()]
-    .filter(([word]) => !stopWords.has(word) && word.length >= 2)
-    .sort((a, b) => b[1] - a[1])
-    .map(([word, count]) => ({ word, count, size: Math.round(16 + (count / max) * 42) }))
-}
-
-function addTerm(counts: Map<string, number>, raw: string, weight: number) {
-  for (const term of segmentText(raw)) counts.set(term, (counts.get(term) ?? 0) + weight)
-}
-
-function segmentText(text: string) {
-  const normalized = text.replace(/https?:\/\/\S+/g, ' ').replace(/[\p{P}\p{S}\d_]+/gu, ' ').trim()
-  const segmenter = typeof Intl !== 'undefined' && 'Segmenter' in Intl
-    ? new Intl.Segmenter('zh-TW', { granularity: 'word' })
-    : null
-  if (segmenter) {
-    return [...segmenter.segment(normalized)]
-      .filter((part) => part.isWordLike)
-      .map((part) => part.segment.trim())
-      .filter(Boolean)
-  }
-  return normalized.split(/\s+/).filter(Boolean)
-}
-
 function cloudColor(index: number) {
   return ['#14b8a6', '#f97316', '#64748b', '#0f766e', '#94a3b8', '#d97706', '#2dd4bf'][index % 7]
 }
@@ -574,27 +558,11 @@ function cloudRotate(index: number) {
   return [-4, 2, 0, 5, -2, 3, -5][index % 7]
 }
 
-const stopWords = new Set([
-  'Threads', 'threads', '搜尋', '結果', '連結', '找到', '開頁', '確認', '原文', '互動', 'Google', 'google', 'https', 'www', 'com', 'net', '的', '了', '和', '與', '在', '是', '有', '我', '你', '他', '她', '它', '們', '這個', '那個', '目前', '可以', '不是', '沒有'
-])
-
-const defaultRadarTerms = [
-  { word: 'AI 小編', weight: 10 },
-  { word: 'Threads 經營', weight: 9 },
-  { word: '個人品牌', weight: 8 },
-  { word: '社群趨勢', weight: 8 },
-  { word: '爆文', weight: 7 },
-  { word: '互動率', weight: 7 },
-  { word: '短影音', weight: 6 },
-  { word: '迷因', weight: 6 },
-  { word: '台灣話題', weight: 6 },
-  { word: '留言風向', weight: 5 },
-  { word: '熱門貼文', weight: 5 },
-  { word: '品牌聲量', weight: 5 },
-  { word: '內容靈感', weight: 4 },
-  { word: '粉絲痛點', weight: 4 },
-  { word: '生活觀察', weight: 4 }
-]
+function formatRadarSource(source: 'threads_playwright' | 'threads_search' | 'mixed') {
+  if (source === 'threads_playwright') return 'Threads Web'
+  if (source === 'threads_search') return 'site:threads.net 備援'
+  return '混合'
+}
 
 function getMessage(error: unknown) {
   return error instanceof Error ? error.message : '操作失敗，這很難評。'
