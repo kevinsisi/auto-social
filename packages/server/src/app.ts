@@ -7,6 +7,9 @@ import type { AppDatabase } from './db.js'
 import { registerKeyPoolRoutes } from './key-pool/routes.js'
 import { PatrolRepository } from './repository.js'
 import { fetchThreadsSearchCandidates } from './sources/threads-search.js'
+import { searchThreadsWithPlaywright } from './threads-bot/search.js'
+import { assertThreadsSearchAllowed } from './threads-bot/throttle.js'
+import { clearThreadsSession, getThreadsSessionStatus } from './threads-bot/session.js'
 import { APP_VERSION } from './version.js'
 
 const createCardSchema = z.object({ keyword: z.string() })
@@ -84,8 +87,16 @@ export function createApp(db: AppDatabase) {
       const cardId = String(req.params.cardId)
       const card = repo.getCardDetail(cardId)
       if (!card) return res.status(404).json({ error: '找不到這張海巡卡。' })
-      const items = await fetchThreadsSearchCandidates(card.keyword)
-      res.status(202).json({ run: repo.createThreadsSearchRun(cardId, items) })
+      assertThreadsSearchAllowed(db)
+      try {
+        const items = await searchThreadsWithPlaywright(db, card.keyword)
+        res.status(202).json({ run: repo.createThreadsSearchRun(cardId, items) })
+      } catch (playwrightError) {
+        const items = await fetchThreadsSearchCandidates(card.keyword)
+        const run = repo.createThreadsSearchRun(cardId, items)
+        const reason = playwrightError instanceof Error ? playwrightError.message : 'Threads Playwright 搜尋失敗'
+        res.status(202).json({ run: { ...run, message: `${run.message}（Playwright 失敗，已改用 site:threads.net 備援：${reason}）` } })
+      }
     } catch (error) {
       sendError(res, error)
     }
@@ -94,6 +105,22 @@ export function createApp(db: AppDatabase) {
   app.post('/api/cards/:cardId/scan-threads', scanThreads)
   app.post('/api/cards/:cardId/scan-dcard', (_req, res) => {
     res.status(410).json({ error: 'Dcard 海巡路由已停用。請重新整理頁面後使用 Threads 出勤海巡。' })
+  })
+
+  app.get('/api/threads/session/status', (_req, res) => {
+    res.json({ session: getThreadsSessionStatus(db) })
+  })
+
+  app.post('/api/threads/session/start', (_req, res) => {
+    res.status(202).json({
+      loginUrl: 'https://www.threads.net/login',
+      message: 'Phase 0 先提供 session 狀態與清除能力；正式互動式登入通道會在下一批接上。'
+    })
+  })
+
+  app.post('/api/threads/session/clear', (_req, res) => {
+    clearThreadsSession(db)
+    res.json({ session: getThreadsSessionStatus(db) })
   })
 
   app.patch('/api/candidates/:candidateId/status', (req, res) => {

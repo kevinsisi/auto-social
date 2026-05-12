@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import './styles.css'
-import type { Candidate, CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RiskLevel } from './types'
+import type { Candidate, CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RiskLevel, ThreadsSessionStatus } from './types'
 import { APP_VERSION } from './version'
 
 const statusLabels: Record<CandidateStatus, string> = {
@@ -142,12 +142,14 @@ function App() {
 
 function SettingsPage() {
   const [keys, setKeys] = useState<KeyStatus[]>([])
+  const [threadsSession, setThreadsSession] = useState<ThreadsSessionStatus | null>(null)
   const [keyText, setKeyText] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     void refreshKeys()
+    void refreshThreadsSession()
   }, [])
 
   async function refreshKeys() {
@@ -178,6 +180,38 @@ function SettingsPage() {
       const result = await api.syncKeys()
       setMessage(result.synced ? `已從 key-manager 同步 ${result.imported} 把。${result.warning ?? ''}` : result.warning)
       await refreshKeys()
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  async function refreshThreadsSession() {
+    try {
+      const data = await api.getThreadsSessionStatus()
+      setThreadsSession(data.session)
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  async function startThreadsSession() {
+    setError(null)
+    try {
+      const data = await api.startThreadsSession()
+      window.open(data.loginUrl, '_blank', 'noopener,noreferrer')
+      setMessage(data.message)
+      await refreshThreadsSession()
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  async function clearThreadsSession() {
+    setError(null)
+    try {
+      const data = await api.clearThreadsSession()
+      setThreadsSession(data.session)
+      setMessage('Threads session 已清除。')
     } catch (err) {
       setError(getMessage(err))
     }
@@ -218,8 +252,25 @@ function SettingsPage() {
             <Info label="score" value="已建立 shouldDraft short-circuit" />
             <Info label="draft" value="已限制 exactly 3 variants + no-go 過濾" />
             <Info label="meme" value="已建立文字型 meme prompt step" />
-            <Info label="尚未完成" value="Voice Studio、Dcard/Threads adapters、scheduler、Draft Inbox 還沒做。" />
+            <Info label="Threads" value="Playwright 搜尋優先；失敗時自動退回 site:threads.net 備援。" />
+            <Info label="尚未完成" value="Voice Studio、scheduler、Draft Inbox 還沒做。" />
           </div>
+        </div>
+      </div>
+
+      <div className="border-2 border-asphalt bg-paper p-4">
+        <h3 className="text-2xl font-black">Threads Session</h3>
+        <p className="mt-1 text-sm">Phase 0 先支援唯讀搜尋。沒有 session 時會嘗試公開搜尋；失敗會自動退回 `site:threads.net` 備援。</p>
+        <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+          <Info label="AUTO_SOCIAL_SESSION_KEY" value={threadsSession?.configured ? '已設定' : '未設定，不能保存登入 session'} />
+          <Info label="Session" value={threadsSession?.hasSession ? (threadsSession.healthy ? '已保存，狀態正常' : `異常：${threadsSession.healthNote ?? '未知原因'}`) : '尚未保存'} />
+          <Info label="Bound Handle" value={threadsSession?.boundHandle ?? '-'} />
+          <Info label="Last Login" value={threadsSession?.lastLoginAt ? formatDate(threadsSession.lastLoginAt) : '-'} />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={startThreadsSession}>開 Threads 登入頁</button>
+          <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshThreadsSession}>重新整理 Session</button>
+          <button className="min-h-11 bg-red-700 px-4 py-2 font-bold text-white" type="button" onClick={clearThreadsSession}>清除 Session</button>
         </div>
       </div>
 

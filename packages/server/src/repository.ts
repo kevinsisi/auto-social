@@ -5,8 +5,8 @@ import { nowIso } from './time.js'
 import type { CandidateAnalysis, CandidateStatus, CandidateWithAnalysis, PatrolCard, PatrolCardDetail } from './types.js'
 
 type CardRow = { id: string; keyword: string; created_at: string; updated_at: string }
-type CandidateRow = { id: string; card_id: string; run_id: string | null; url: string; title: string; excerpt: string; status: CandidateStatus; source: 'manual' | 'browser' | 'threads_search'; created_at: string }
-type PatrolSourceCandidate = { url: string; title: string; excerpt: string; source: 'threads_search' }
+type CandidateRow = { id: string; card_id: string; run_id: string | null; url: string; title: string; excerpt: string; status: CandidateStatus; source: 'manual' | 'browser' | 'threads_search' | 'threads_playwright'; created_at: string }
+type PatrolSourceCandidate = { url: string; title: string; excerpt: string; source: 'threads_search' | 'threads_playwright' }
 type AnalysisRow = { candidate_id: string; summary: string; worth_replying: 0 | 1; reply_angle: string; risk_level: CandidateAnalysis['riskLevel']; risk_note: string; image_idea: string; meme_prompt: string }
 type SuggestionRow = { id: string; candidate_id: string; tone: 'normal' | 'spicy'; label: '普通' | '比較酸'; text: string; risk_level: CandidateAnalysis['riskLevel']; risk_note: string }
 

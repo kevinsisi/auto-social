@@ -11,7 +11,7 @@
 - [x] 2.1 Add `@kevinsisi/ai-core` (latest, pinned via `git+https://github.com/kevinsisi/ai-core.git`) to `packages/server`. (Pinned to default branch HEAD; will pin to a tag once a stable Phase 0 tag is cut.)
 - [~] 2.2 Add `playwright` + `playwright-extra` + `puppeteer-extra-plugin-stealth` to `packages/server`. (Phase 0 Batch 1 ships `playwright` only; `playwright-extra` + stealth deferred to Batch 4, will use manual stealth init-script if the ESM compat story is unclear.)
 - [x] 2.3 Add `node-cron` (or `croner`) to `packages/server` for scan scheduling.
-- [ ] 2.4 Switch the runtime stage of `Dockerfile` to a Playwright-bundled base image; keep the build stage on `node:22-bookworm-slim`. (Batch 6.)
+- [x] 2.4 Switch the runtime stage of `Dockerfile` to a Playwright-bundled base image; keep the build stage on `node:22-bookworm-slim`.
 - [ ] 2.5 Ensure the local-network TLS bypass added during local testing remains gated behind the deps stage and labelled `LOCAL-TEST ONLY`; do not extend it to the runtime stage. (Batch 6 — already labelled in current Dockerfile.)
 
 ## 3. Database
@@ -65,11 +65,11 @@
 
 - [ ] 8.1 Add `threads-bot/session.ts` with `loginInteractive()`, `loadSession()`, `clearSession()`. Encrypt `storageState` with AES-256-GCM derived from `AUTO_SOCIAL_SESSION_KEY` env.
 - [ ] 8.2 Add `threads-bot/browser.ts` that lazy-initializes a single `playwright-extra` chromium context with stealth plugin, real UA, 1280×800 viewport.
-- [ ] 8.3 Add `threads-bot/search.ts` `search(keyword, opts)` that opens `https://www.threads.net/search?q=<kw>`, scrolls once, returns up to N parsed candidates. On failure (login expired, layout changed, blocked) throw a typed error and do not invent results.
+- [x] 8.3 Add `threads-bot/search.ts` `search(keyword, opts)` that opens `https://www.threads.net/search?q=<kw>`, scrolls once, returns up to N parsed candidates. On failure (login expired, layout changed, blocked) throw a typed error and do not invent results.
 - [ ] 8.4 Add `threads-bot/explore.ts` `fetchTrending(opts)` that opens the Threads explore / for-you feed via Playwright, scrolls once, parses top posts. Same failure modes as search.
 - [ ] 8.5 Stub `threads-bot/publish.ts` and `threads-bot/reply.ts` files with TODO + Phase 1 marker; corresponding HTTP endpoints respond `501 Not Implemented` in Phase 0.
-- [ ] 8.6 Add `threads-bot/throttle.ts` `gate(op)` enforcing kill switch, daily quota (op-aware), random jitter 5–30s. Phase 0 only the `search` op is active; `publish` / `reply` op gates exist but those operations are not yet invoked.
-- [ ] 8.7 Add `/api/threads/session/start` (returns interactive login channel info), `/api/threads/session/status`, `/api/threads/session/clear`. First-time login flow requires sub-account acknowledgement checkbox.
+- [~] 8.6 Add `threads-bot/throttle.ts` `gate(op)` enforcing kill switch, daily quota (op-aware), random jitter 5–30s. Phase 0 now has kill-switch read gate; quota + jitter remain for scheduler batch.
+- [~] 8.7 Add `/api/threads/session/start` (returns interactive login channel info), `/api/threads/session/status`, `/api/threads/session/clear`. Status/clear/start-info endpoints exist; full interactive login channel + sub-account acknowledgement remain.
 - [ ] 8.8 Add `/api/threads/kill-switch` GET/PUT and surface in UI with a big red button.
 - [ ] 8.9 Add `/api/threads/quotas` GET (today's counts + limits + remaining) and PUT for limits.
 - [ ] 8.10 Decide and document where the Playwright worker actually runs (in-container vs sidecar container). Default: in-container, single worker, mounted volume for `~/.cache/ms-playwright`.
@@ -134,7 +134,7 @@
 - [ ] 13.1 Update `README.md` quick-start to reflect new modules, env vars (`KEY_MANAGER_URL`, `AUTO_SOCIAL_SESSION_KEY`, `GEMINI_DEFAULT_MODEL`), and the Phase 0 = read-only / manual-publish flow.
 - [ ] 13.2 Add `docs/operations.md` covering: first-time Threads login (副帳號), recovering from expired session, tuning quotas, kill-switch usage, manual scan trigger, batch-importing keys.
 - [ ] 13.3 Add `docs/risk-acknowledgement.md` stating the Meta ToS situation and the user's explicit acceptance.
-- [ ] 13.4 Add `.env.example` at repo root containing `AUTO_SOCIAL_SESSION_KEY=` placeholder with a comment `# generate with: openssl rand -hex 32`, and `KEY_MANAGER_URL=` placeholder; ensure `.env` is gitignored.
+- [x] 13.4 Add `.env.example` at repo root containing `AUTO_SOCIAL_SESSION_KEY=` placeholder with a comment `# generate with: openssl rand -hex 32`, and `KEY_MANAGER_URL=` placeholder; ensure `.env` is gitignored.
 - [ ] 13.5 Update `docker-compose.yml` to `env_file: - .env` so the session key is injected at container start.
 
 ## 14. App Version

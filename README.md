@@ -13,7 +13,7 @@
 - ✅ OpenSpec change `add-keyword-patrol-cards`（舊版 MVP，已實作完成）
 - 🚧 **新方向 OpenSpec change：[`openspec/changes/add-social-patrol-station`](openspec/changes/add-social-patrol-station)** — Phase 0 實作中
 - ✅ **Phase 0 Batch 1（rebrand + deps + DB + v1.0.0）已完成** — 改名「社群海巡工作站」、引入 `@kevinsisi/ai-core` + `playwright` + `node-cron`、新增 9 張 DB table、版本 0.1.0 → 1.0.0、`APP_VERSION` 由各 package 自己的 `package.json` 動態讀（不再硬寫常數）
-- 🚧 Phase 0 Batch 2（AI backbone + Threads fallback patrol）進行中：已加入 KeyPool admin API、key-manager sync 骨架、GeminiClient wrapper、4 步 pipeline 骨架、Settings key 頁、Threads-targeted `site:threads.net` fallback patrol；Voice Studio / Playwright patrol 尚未開始
+- 🚧 Phase 0 Batch 2（AI backbone + Threads patrol）進行中：已加入 KeyPool admin API、key-manager sync 骨架、GeminiClient wrapper、4 步 pipeline 骨架、Settings key 頁、Threads Playwright 唯讀搜尋優先 + `site:threads.net` fallback；Voice Studio 尚未開始
 - ✅ 本機 Docker 可建可跑（`docker compose up -d --build`；公司網路需 `DOCKER_BUILDKIT=0`）
 
 ## Phase 0 規劃重點（社群海巡工作站）
@@ -38,7 +38,7 @@
 - **Threads**：不送 Meta App Review；Phase 0 = Playwright 唯讀（search + trending feed），Phase 1 才開 publish/reply
 - **排程**：node-cron 每 15 分鐘掃一輪
 
-重要限制：產品核心目標是 Threads。其他平台不能替代 Threads 海巡；目前 `Threads 出勤海巡` 是 `site:threads.net` fallback，用來先收 Threads 連結，正式 Threads Playwright 唯讀搜尋仍在 Phase 0 後續批次。
+重要限制：產品核心目標是 Threads。其他平台不能替代 Threads 海巡；目前 `Threads 出勤海巡` 會先嘗試 Playwright 開 Threads 搜尋頁，失敗時才退回 `site:threads.net` fallback，用來確保仍只收 Threads 連結。
 
 ## 本機開發
 
@@ -67,6 +67,12 @@ Key Pool API（Batch 2 起）：
 - `POST /api/admin/keys/sync`，從 `KEY_MANAGER_URL/api/keys/export?trusted_only=1` 同步
 
 安全限制：若設定 `ADMIN_TOKEN`，以上 API 需要 `Authorization: Bearer <token>`；未設定時僅允許 loopback 本機請求。
+
+Threads Session / Playwright：
+
+- `AUTO_SOCIAL_SESSION_KEY`：選填但建議設定；用於 AES-256-GCM 加密保存 Threads `storageState`，可用 `openssl rand -hex 32` 產生。
+- `KEY_MANAGER_URL`：選填；不設定時 `從 key-manager 同步` 會停用，但 Settings 仍可手動貼 Gemini keys。
+- `Threads 出勤海巡`：先跑 Playwright 唯讀搜尋，失敗自動退回 `site:threads.net` 搜尋備援。
 
 Docker 預覽：
 
@@ -147,7 +153,8 @@ GitHub secrets 需要設定：
 HOST_PORT=4323
 CORS_ORIGIN=https://social.sisihome.org
 ADMIN_TOKEN=change-me
-KEY_MANAGER_URL=http://key-manager:7823
+KEY_MANAGER_URL=
+AUTO_SOCIAL_SESSION_KEY=change-me-with-openssl-rand-hex-32
 ```
 
 健康檢查：`http://<DEPLOY_SERVER_IP>:4323/api/health`。

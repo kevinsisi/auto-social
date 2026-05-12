@@ -1,4 +1,4 @@
-import type { CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail } from './types'
+import type { CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, ThreadsSessionStatus } from './types'
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -75,6 +75,21 @@ export const api = {
   },
   async syncKeys() {
     return request<{ synced: boolean; imported: number; warning: string | null }>('/api/admin/keys/sync', {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
+  },
+  async getThreadsSessionStatus() {
+    return request<{ session: ThreadsSessionStatus }>('/api/threads/session/status')
+  },
+  async startThreadsSession() {
+    return request<{ loginUrl: string; message: string }>('/api/threads/session/start', {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
+  },
+  async clearThreadsSession() {
+    return request<{ session: ThreadsSessionStatus }>('/api/threads/session/clear', {
       method: 'POST',
       body: JSON.stringify({})
     })
