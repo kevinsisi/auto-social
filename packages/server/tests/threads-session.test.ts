@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { openMemoryDatabase } from '../src/db.js'
-import { clearThreadsSession, getThreadsSessionStatus, loadThreadsStorageState, saveThreadsStorageState } from '../src/threads-bot/session.js'
+import { clearThreadsSession, getThreadsSessionStatus, importThreadsStorageState, loadThreadsStorageState, saveThreadsStorageState } from '../src/threads-bot/session.js'
 
 const originalSessionKey = process.env.AUTO_SOCIAL_SESSION_KEY
 
@@ -35,5 +35,17 @@ describe('Threads session storage', () => {
     clearThreadsSession(db)
 
     expect(getThreadsSessionStatus(db).hasSession).toBe(false)
+  })
+
+  it('imports storageState JSON and rejects malformed payloads', () => {
+    process.env.AUTO_SOCIAL_SESSION_KEY = 'c'.repeat(64)
+    const db = openMemoryDatabase()
+    const state = JSON.stringify({ cookies: [{ domain: '.threads.net', name: 'sid', value: 'secret' }], origins: [] })
+
+    const status = importThreadsStorageState(db, state)
+
+    expect(status.hasSession).toBe(true)
+    expect(loadThreadsStorageState(db)).toBe(state)
+    expect(() => importThreadsStorageState(db, JSON.stringify({ cookies: [] }))).toThrow('storageState JSON 格式不正確')
   })
 })

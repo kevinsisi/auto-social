@@ -93,5 +93,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({})
     })
+  },
+  async importThreadsSession(storageStateJson: string) {
+    return request<{ session: ThreadsSessionStatus }>('/api/threads/session/import', {
+      method: 'POST',
+      body: JSON.stringify({ storageStateJson })
+    })
   }
 }

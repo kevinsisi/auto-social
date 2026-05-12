@@ -144,6 +144,7 @@ function SettingsPage() {
   const [keys, setKeys] = useState<KeyStatus[]>([])
   const [threadsSession, setThreadsSession] = useState<ThreadsSessionStatus | null>(null)
   const [keyText, setKeyText] = useState('')
+  const [threadsStorageState, setThreadsStorageState] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -217,6 +218,19 @@ function SettingsPage() {
     }
   }
 
+  async function importThreadsSession(event: React.FormEvent) {
+    event.preventDefault()
+    setError(null)
+    try {
+      const data = await api.importThreadsSession(threadsStorageState)
+      setThreadsSession(data.session)
+      setThreadsStorageState('')
+      setMessage('Threads storageState 已加密保存。下次海巡會優先帶 session 搜尋。')
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
   return (
     <section className="mx-auto max-w-7xl space-y-4 px-4 py-6">
       <div className="border-4 border-asphalt bg-[#fffaf2] p-5 shadow-[8px_8px_0_#171717]">
@@ -260,7 +274,7 @@ function SettingsPage() {
 
       <div className="border-2 border-asphalt bg-paper p-4">
         <h3 className="text-2xl font-black">Threads Session</h3>
-        <p className="mt-1 text-sm">Phase 0 先支援唯讀搜尋。沒有 session 時會嘗試公開搜尋；失敗會自動退回 `site:threads.net` 備援。</p>
+        <p className="mt-1 text-sm">Phase 0 先支援唯讀搜尋。可貼上 Playwright storageState JSON 保存 session；沒有 session 時會嘗試公開搜尋，失敗退回 `site:threads.net` 備援。</p>
         <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
           <Info label="AUTO_SOCIAL_SESSION_KEY" value={threadsSession?.configured ? '已設定' : '未設定，不能保存登入 session'} />
           <Info label="Session" value={threadsSession?.hasSession ? (threadsSession.healthy ? '已保存，狀態正常' : `異常：${threadsSession.healthNote ?? '未知原因'}`) : '尚未保存'} />
@@ -272,6 +286,16 @@ function SettingsPage() {
           <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshThreadsSession}>重新整理 Session</button>
           <button className="min-h-11 bg-red-700 px-4 py-2 font-bold text-white" type="button" onClick={clearThreadsSession}>清除 Session</button>
         </div>
+        <form onSubmit={importThreadsSession} className="mt-4 border-t-2 border-asphalt pt-4">
+          <label className="text-sm font-bold">匯入 Playwright storageState JSON</label>
+          <textarea
+            className="mt-2 min-h-36 w-full border-2 border-asphalt bg-[#fffaf2] p-3 font-mono text-xs outline-none"
+            value={threadsStorageState}
+            onChange={(event) => setThreadsStorageState(event.target.value)}
+            placeholder={'{"cookies":[...],"origins":[...]}' }
+          />
+          <button className="mt-2 min-h-11 bg-asphalt px-4 py-2 font-bold text-paper" type="submit">加密保存 Session</button>
+        </form>
       </div>
 
       <div className="border-2 border-asphalt bg-[#fffaf2] p-4">

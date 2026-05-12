@@ -46,6 +46,7 @@ export function markThreadsSessionUnhealthy(db: AppDatabase, reason: string) {
 }
 
 export function saveThreadsStorageState(db: AppDatabase, storageStateJson: string, boundHandle: string | null) {
+  validateStorageState(storageStateJson)
   const key = requireSessionKey()
   const salt = randomBytes(16)
   const iv = randomBytes(12)
@@ -58,6 +59,12 @@ export function saveThreadsStorageState(db: AppDatabase, storageStateJson: strin
       (id, storage_state_ciphertext, salt, iv, auth_tag, bound_handle, last_login_at, healthy, health_note)
     VALUES (?, ?, ?, ?, ?, ?, ?, 1, NULL)
   `).run(SESSION_ROW_ID, ciphertext, salt, iv, authTag, boundHandle, nowIso())
+}
+
+export function importThreadsStorageState(db: AppDatabase, storageStateJson: string) {
+  const boundHandle = extractBoundHandle(storageStateJson)
+  saveThreadsStorageState(db, storageStateJson, boundHandle)
+  return getThreadsSessionStatus(db)
 }
 
 export function loadThreadsStorageState(db: AppDatabase): string | null {
@@ -88,4 +95,20 @@ function deriveSessionKey(key: string, salt: Buffer) {
   const raw = /^[0-9a-f]{64}$/i.test(key) ? Buffer.from(key, 'hex') : Buffer.from(key, 'utf8')
   if (raw.length === KEY_BYTES) return raw
   return createHash('sha256').update(salt).update(raw).digest()
+}
+
+function validateStorageState(storageStateJson: string) {
+  const parsed = JSON.parse(storageStateJson) as { cookies?: unknown; origins?: unknown }
+  if (!Array.isArray(parsed.cookies) || !Array.isArray(parsed.origins)) {
+    throw new Error('Threads storageState JSON 格式不正確，必須包含 cookies 與 origins 陣列。')
+  }
+}
+
+function extractBoundHandle(storageStateJson: string) {
+  const parsed = JSON.parse(storageStateJson) as { cookies?: Array<{ domain?: string; name?: string; value?: string }> }
+  const cookies = parsed.cookies ?? []
+  const hasThreadsCookie = cookies.some((cookie) => cookie.domain?.includes('threads.net'))
+  if (!hasThreadsCookie) return null
+  const usernameCookie = cookies.find((cookie) => /user|handle|username/i.test(cookie.name ?? '') && cookie.value)
+  return usernameCookie?.value ? `@${usernameCookie.value.replace(/^@/, '')}` : null
 }
