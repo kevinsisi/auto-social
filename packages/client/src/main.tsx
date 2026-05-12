@@ -469,7 +469,7 @@ function SettingsPage() {
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="font-mono text-xs uppercase tracking-[0.2em] text-signal">Headless Login</p>
-                <p className="text-sm">在截圖上點擊欄位，用下方輸入框送字。登入成功看到 Threads 畫面後，按「完成並保存」。</p>
+                <p className="text-sm">這是後端真瀏覽器畫面，不是 iframe。可在截圖裡點「用 Instagram 登入」，再用下方輸入框送 IG 帳號、密碼或驗證碼；登入成功看到 Threads 畫面後，按「完成並保存」。</p>
                 <p className="mt-1 break-all font-mono text-xs text-asphalt/60">{threadsLogin.url}</p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -483,7 +483,7 @@ function SettingsPage() {
                 className="min-h-11 min-w-0 flex-1 border-2 border-asphalt bg-[#fffaf2] px-3 text-base outline-none"
                 value={threadsLoginText}
                 onChange={(event) => setThreadsLoginText(event.target.value)}
-                placeholder="點欄位後在這裡輸入帳號、密碼或驗證碼"
+                placeholder="點截圖中的欄位後，在這裡輸入 IG 帳號、密碼或驗證碼"
                 type="password"
               />
               <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={typeThreadsLogin}>送出文字</button>
