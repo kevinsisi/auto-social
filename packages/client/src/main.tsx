@@ -506,7 +506,7 @@ function Message({ text, tone, onClose }: { text: string; tone: 'notice' | 'erro
 }
 
 function EmptyState() {
-  return <div className="border-4 border-asphalt p-10 text-center text-xl font-black">先建立一張關鍵字卡。你開心，我開心。</div>
+  return <div className="border-4 border-asphalt p-8 text-center text-lg font-black sm:p-10 sm:text-xl">自動雷達已啟動。你可以加關鍵字強化監控，也可以先看上方趨勢雲。</div>
 }
 
 function formatDate(value: string) {
@@ -515,7 +515,7 @@ function formatDate(value: string) {
 
 function buildHotTerms(cards: PatrolCard[], details: PatrolCardDetail[]) {
   const counts = new Map<string, number>()
-  for (const term of defaultRadarTerms) addTerm(counts, term.word, term.weight)
+  for (const term of defaultRadarTerms) counts.set(term.word, term.weight)
   for (const card of cards) addTerm(counts, card.keyword, 5)
   for (const detail of details) {
     addTerm(counts, detail.keyword, 3)
