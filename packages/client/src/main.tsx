@@ -91,23 +91,23 @@ function App() {
 
   return (
     <main className="min-h-screen bg-paper text-asphalt">
-      <header className="sticky top-0 z-10 border-b-4 border-asphalt bg-paper/95 px-4 py-3 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-          <div>
-            <p className="font-mono text-xs uppercase tracking-[0.35em] text-signal">Social Patrol</p>
-            <h1 className="font-display text-2xl font-black tracking-tight md:text-4xl">社群海巡工作站</h1>
+      <header className="sticky top-0 z-10 border-b-4 border-asphalt bg-paper/95 px-3 py-3 backdrop-blur sm:px-4">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="min-w-0">
+            <p className="font-mono text-[0.65rem] uppercase tracking-[0.28em] text-signal sm:text-xs sm:tracking-[0.35em]">Social Patrol</p>
+            <h1 className="font-display text-3xl font-black leading-none tracking-tight sm:whitespace-nowrap sm:text-2xl md:text-4xl">社群海巡工作站</h1>
           </div>
-          <nav className="flex items-center gap-2">
-            <button onClick={() => setPage('dashboard')} className={`min-h-10 border-2 border-asphalt px-3 py-1 font-bold ${page === 'dashboard' ? 'bg-asphalt text-paper' : 'bg-paper'}`}>Dashboard</button>
-            <button onClick={() => setPage('settings')} className={`min-h-10 border-2 border-asphalt px-3 py-1 font-bold ${page === 'settings' ? 'bg-asphalt text-paper' : 'bg-paper'}`}>Settings</button>
-            <div className="border-2 border-asphalt px-3 py-2 font-mono text-sm">v{APP_VERSION}</div>
+          <nav className="grid grid-cols-[1fr_1fr_auto] items-stretch gap-2 sm:flex sm:items-center">
+            <button onClick={() => setPage('dashboard')} className={`min-h-10 border-2 border-asphalt px-2 py-1 text-sm font-bold sm:px-3 sm:text-base ${page === 'dashboard' ? 'bg-asphalt text-paper' : 'bg-paper'}`}>Dashboard</button>
+            <button onClick={() => setPage('settings')} className={`min-h-10 border-2 border-asphalt px-2 py-1 text-sm font-bold sm:px-3 sm:text-base ${page === 'settings' ? 'bg-asphalt text-paper' : 'bg-paper'}`}>Settings</button>
+            <div className="flex min-h-10 items-center border-2 border-asphalt px-2 py-1 font-mono text-xs sm:px-3 sm:py-2 sm:text-sm">v{APP_VERSION}</div>
           </nav>
         </div>
       </header>
 
-      {page === 'settings' ? <SettingsPage /> : <section className="mx-auto grid max-w-7xl gap-4 px-4 py-6 lg:grid-cols-[320px_1fr]">
-        <aside className="space-y-4">
-          <form onSubmit={createCard} className="border-4 border-asphalt bg-[#fffaf2] p-4 shadow-[8px_8px_0_#171717]">
+      {page === 'settings' ? <SettingsPage /> : <section className="mx-auto grid max-w-7xl gap-4 px-3 py-4 sm:px-4 sm:py-6 lg:grid-cols-[320px_1fr]">
+        <aside className="space-y-4 lg:order-first">
+          <form onSubmit={createCard} className="border-4 border-asphalt bg-[#fffaf2] p-4 shadow-[5px_5px_0_#171717] sm:shadow-[8px_8px_0_#171717]">
             <label className="block text-sm font-bold">新增監控關鍵字</label>
             <input
               className="mt-2 min-h-12 w-full border-2 border-asphalt bg-paper px-3 text-base outline-none focus:bg-white"
@@ -123,7 +123,7 @@ function App() {
           <div className="border-2 border-asphalt bg-paper p-3">
             <p className="font-mono text-xs uppercase tracking-[0.2em] text-signal">Watchlist</p>
             <h2 className="text-xl font-black">關鍵字監控</h2>
-            <p className="mt-1 text-xs">每張卡都是一條巡邏線。點卡片後可立即 Threads 出勤。</p>
+            <p className="mt-1 text-xs">雷達會自動觀察；這裡是你想加強盯防的巡邏線。</p>
           </div>
 
           <div className="space-y-2">
@@ -154,15 +154,15 @@ function App() {
 function HotKeywordCloud({ cards, details, onSelect }: { cards: PatrolCard[]; details: PatrolCardDetail[]; onSelect: (keyword: string) => void }) {
   const terms = buildHotTerms(cards, details).slice(0, 70)
   return (
-    <section className="relative overflow-hidden border-4 border-asphalt bg-white p-5 shadow-[8px_8px_0_#171717]">
+    <section className="relative overflow-hidden border-4 border-asphalt bg-white p-4 shadow-[5px_5px_0_#171717] sm:p-5 sm:shadow-[8px_8px_0_#171717]">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.28em] text-signal">Patrol Radar</p>
-          <h2 className="text-4xl font-black">熱門關鍵字雲</h2>
+          <h2 className="text-3xl font-black sm:text-4xl">熱門關鍵字雲</h2>
         </div>
-        <p className="max-w-xl text-sm">從監控關鍵字與 Threads 候選內容即時計算。字越大代表越常出現，點一下可帶入監控欄位。</p>
+        <p className="max-w-xl text-sm">雷達會自動觀察 Threads 趨勢詞；你也可以點詞或新增關鍵字，把它變成重點監控。</p>
       </div>
-      <div className="mt-5 min-h-[270px] rounded-[2rem] border-2 border-dashed border-asphalt/25 bg-[radial-gradient(circle_at_center,#fffaf2,white_62%)] p-5">
+      <div className="mt-5 min-h-[240px] rounded-[1.5rem] border-2 border-dashed border-asphalt/25 bg-[radial-gradient(circle_at_center,#fffaf2,white_62%)] p-3 sm:min-h-[270px] sm:rounded-[2rem] sm:p-5">
         {terms.length > 0 ? (
           <div className="flex h-full flex-wrap items-center justify-center gap-x-4 gap-y-2 leading-none">
             {terms.map((term, index) => (
@@ -179,7 +179,7 @@ function HotKeywordCloud({ cards, details, onSelect }: { cards: PatrolCard[]; de
             ))}
           </div>
         ) : (
-          <div className="flex min-h-[220px] items-center justify-center text-center text-xl font-black text-asphalt/50">先新增監控關鍵字，雷達才有東西可以掃。</div>
+          <div className="flex min-h-[220px] items-center justify-center text-center text-xl font-black text-asphalt/50">雷達正在暖機，先顯示全域觀察詞。</div>
         )}
       </div>
     </section>
@@ -515,6 +515,7 @@ function formatDate(value: string) {
 
 function buildHotTerms(cards: PatrolCard[], details: PatrolCardDetail[]) {
   const counts = new Map<string, number>()
+  for (const term of defaultRadarTerms) addTerm(counts, term.word, term.weight)
   for (const card of cards) addTerm(counts, card.keyword, 5)
   for (const detail of details) {
     addTerm(counts, detail.keyword, 3)
@@ -527,7 +528,7 @@ function buildHotTerms(cards: PatrolCard[], details: PatrolCardDetail[]) {
   return [...counts.entries()]
     .filter(([word]) => !stopWords.has(word) && word.length >= 2)
     .sort((a, b) => b[1] - a[1])
-    .map(([word, count]) => ({ word, count, size: Math.round(18 + (count / max) * 54) }))
+    .map(([word, count]) => ({ word, count, size: Math.round(16 + (count / max) * 42) }))
 }
 
 function addTerm(counts: Map<string, number>, raw: string, weight: number) {
@@ -559,6 +560,24 @@ function cloudRotate(index: number) {
 const stopWords = new Set([
   'Threads', 'threads', '搜尋', '結果', '連結', '找到', '開頁', '確認', '原文', '互動', 'Google', 'google', 'https', 'www', 'com', 'net', '的', '了', '和', '與', '在', '是', '有', '我', '你', '他', '她', '它', '們', '這個', '那個', '目前', '可以', '不是', '沒有'
 ])
+
+const defaultRadarTerms = [
+  { word: 'AI 小編', weight: 10 },
+  { word: 'Threads 經營', weight: 9 },
+  { word: '個人品牌', weight: 8 },
+  { word: '社群趨勢', weight: 8 },
+  { word: '爆文', weight: 7 },
+  { word: '互動率', weight: 7 },
+  { word: '短影音', weight: 6 },
+  { word: '迷因', weight: 6 },
+  { word: '台灣話題', weight: 6 },
+  { word: '留言風向', weight: 5 },
+  { word: '熱門貼文', weight: 5 },
+  { word: '品牌聲量', weight: 5 },
+  { word: '內容靈感', weight: 4 },
+  { word: '粉絲痛點', weight: 4 },
+  { word: '生活觀察', weight: 4 }
+]
 
 function getMessage(error: unknown) {
   return error instanceof Error ? error.message : '操作失敗，這很難評。'
