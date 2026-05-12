@@ -5,7 +5,7 @@ import { resolve } from 'node:path'
 import { z } from 'zod'
 import type { AppDatabase } from './db.js'
 import { PatrolRepository } from './repository.js'
-import { APP_VERSION } from './types.js'
+import { APP_VERSION } from './version.js'
 
 const createCardSchema = z.object({ keyword: z.string() })
 const addCandidateSchema = z.object({

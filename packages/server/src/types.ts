@@ -1,5 +1,3 @@
-export const APP_VERSION = '0.1.0'
-
 export type PatrolStatus = 'pending' | 'running' | 'completed' | 'failed'
 export type CandidateStatus = 'useful' | 'ignored' | 'replied' | 'needs_follow_up'
 export type RiskLevel = 'low' | 'medium' | 'high'

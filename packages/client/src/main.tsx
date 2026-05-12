@@ -77,8 +77,8 @@ function App() {
       <header className="sticky top-0 z-10 border-b-4 border-asphalt bg-paper/95 px-4 py-3 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[0.35em] text-signal">Threads Patrol</p>
-            <h1 className="font-display text-2xl font-black tracking-tight md:text-4xl">遇見好車海巡台</h1>
+            <p className="font-mono text-xs uppercase tracking-[0.35em] text-signal">Social Patrol</p>
+            <h1 className="font-display text-2xl font-black tracking-tight md:text-4xl">社群海巡工作站</h1>
           </div>
           <div className="border-2 border-asphalt px-3 py-2 font-mono text-sm">v{APP_VERSION}</div>
         </div>
@@ -150,7 +150,7 @@ function PatrolDetail({ card, onRefresh, onBrowserRun }: { card: PatrolCardDetai
           <div>
             <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Keyword Card</p>
             <h2 className="mt-1 text-4xl font-black">{card.keyword}</h2>
-            <p className="mt-2 text-sm">普通酸、自嘲優先。人家認真問，我們就先不要耍嘴皮。</p>
+            <p className="mt-2 text-sm">海巡隊已就位。等情報進來。</p>
           </div>
           <button onClick={onBrowserRun} className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold transition-colors hover:bg-asphalt hover:text-paper">
             開 Threads 搜尋
