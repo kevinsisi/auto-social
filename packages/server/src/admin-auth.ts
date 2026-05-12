@@ -24,6 +24,9 @@ export function logoutAdmin(res: Response) {
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const token = getAdminToken()
   if (token) {
+    // This app is deployed as a single-user homelab service. ADMIN_TOKEN remains a
+    // server-side deployment guard, not a value users must paste into the UI.
+    if (isSingleUserMode()) return next()
     if (isAdminAuthenticated(req)) return next()
     return res.status(401).json({ error: '需要 ADMIN_TOKEN 授權。' })
   }
@@ -35,12 +38,17 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
 function isAdminAuthenticated(req: Request) {
   const token = getAdminToken()
   if (!token) return isLoopback(req.ip ?? '') || isLoopback(req.socket.remoteAddress ?? '')
+  if (isSingleUserMode()) return true
 
   const header = req.get('authorization') ?? ''
   if (header === `Bearer ${token}`) return true
 
   const cookie = parseCookies(req.get('cookie') ?? '')[ADMIN_COOKIE]
   return Boolean(cookie && safeEqual(cookie, signAdminCookie(token)))
+}
+
+function isSingleUserMode() {
+  return process.env.AUTO_SOCIAL_SINGLE_USER_ADMIN !== '0'
 }
 
 function setAdminCookie(res: Response) {
