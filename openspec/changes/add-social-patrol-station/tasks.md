@@ -70,6 +70,7 @@
 - [ ] 8.5 Stub `threads-bot/publish.ts` and `threads-bot/reply.ts` files with TODO + Phase 1 marker; corresponding HTTP endpoints respond `501 Not Implemented` in Phase 0.
 - [~] 8.6 Add `threads-bot/throttle.ts` `gate(op)` enforcing kill switch, daily quota (op-aware), random jitter 5–30s. Phase 0 now has kill-switch read gate; quota + jitter remain for scheduler batch.
 - [~] 8.7 Add `/api/threads/session/start` (returns interactive login channel info), `/api/threads/session/status`, `/api/threads/session/clear`. Status/clear/start endpoints exist; Settings can import encrypted Playwright `storageState` JSON and drive a real remote Chromium browser through noVNC; sub-account acknowledgement remains.
+- [x] 8.7a Add desktop helper `npm run threads:login` that opens local Chromium, lets the user complete Instagram/Threads login on their computer, writes `data/threads-storage-state.json`, and Settings can upload that JSON for encrypted session import.
 - [ ] 8.8 Add `/api/threads/kill-switch` GET/PUT and surface in UI with a big red button.
 - [ ] 8.9 Add `/api/threads/quotas` GET (today's counts + limits + remaining) and PUT for limits.
 - [ ] 8.10 Decide and document where the Playwright worker actually runs (in-container vs sidecar container). Default: in-container, single worker, mounted volume for `~/.cache/ms-playwright`.

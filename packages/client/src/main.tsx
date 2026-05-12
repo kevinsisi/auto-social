@@ -422,6 +422,20 @@ function SettingsPage() {
     }
   }
 
+  async function loadThreadsStorageStateFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setError(null)
+    try {
+      setThreadsStorageState(await file.text())
+      setMessage('已載入 storageState JSON，請按「加密保存 Session」。')
+    } catch (err) {
+      setError(getMessage(err))
+    } finally {
+      event.target.value = ''
+    }
+  }
+
   return (
     <section className="mx-auto max-w-7xl space-y-4 px-4 py-6">
       <div className="border-4 border-asphalt bg-[#fffaf2] p-5 shadow-[8px_8px_0_#171717]">
@@ -522,6 +536,8 @@ function SettingsPage() {
         )}
         <form onSubmit={importThreadsSession} className="mt-4 border-t-2 border-asphalt pt-4">
           <label className="text-sm font-bold">匯入 Playwright storageState JSON</label>
+          <p className="mt-1 text-sm">電腦執行 `npm run threads:login`，登入完成後上傳 `data/threads-storage-state.json`。</p>
+          <input className="mt-2 block w-full border-2 border-asphalt bg-paper p-2 text-sm" type="file" accept="application/json,.json" onChange={(event) => void loadThreadsStorageStateFile(event)} />
           <textarea
             className="mt-2 min-h-36 w-full border-2 border-asphalt bg-[#fffaf2] p-3 font-mono text-xs outline-none"
             value={threadsStorageState}
