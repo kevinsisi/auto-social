@@ -157,7 +157,7 @@ export function createApp(db: AppDatabase) {
 
   app.post('/api/threads/session/start', requireAdmin, async (_req, res) => {
     try {
-      res.status(202).json({ login: await startThreadsLoginJob(), message: '已啟動 headless Threads 登入。請在截圖上點擊並輸入帳密，登入完成後按「完成並保存」。' })
+      res.status(202).json({ login: await startThreadsLoginJob(), message: '已啟動遠端 Chromium 登入。請在嵌入瀏覽器中登入 Instagram/Threads，完成後按「完成並保存」。' })
     } catch (error) {
       sendError(res, error)
     }
