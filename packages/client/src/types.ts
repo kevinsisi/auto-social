@@ -33,7 +33,7 @@ export type Candidate = {
   title: string
   excerpt: string
   status: CandidateStatus
-  source: 'manual' | 'browser' | 'threads_search'
+  source: 'manual' | 'browser' | 'threads_search' | 'threads_playwright'
   createdAt: string
   analysis: CandidateAnalysis | null
 }
@@ -59,4 +59,13 @@ export type KeyStatus = {
   cooldownUntil: number
   leaseUntil: number
   usageCount: number
+}
+
+export type ThreadsSessionStatus = {
+  configured: boolean
+  hasSession: boolean
+  healthy: boolean
+  boundHandle: string | null
+  lastLoginAt: string | null
+  healthNote: string | null
 }

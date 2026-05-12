@@ -11,6 +11,7 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-https://social.sisihome.org}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
       KEY_MANAGER_URL: ${KEY_MANAGER_URL:-}
+      AUTO_SOCIAL_SESSION_KEY: ${AUTO_SOCIAL_SESSION_KEY:-}
     ports:
       - "${HOST_PORT:-4323}:4323"
     volumes:
