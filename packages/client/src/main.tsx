@@ -267,6 +267,7 @@ function SettingsPage() {
   const [keys, setKeys] = useState<KeyStatus[]>([])
   const [threadsSession, setThreadsSession] = useState<ThreadsSessionStatus | null>(null)
   const [threadsLogin, setThreadsLogin] = useState<ThreadsLoginJob | null>(null)
+  const [threadsLoginText, setThreadsLoginText] = useState('')
   const [keyText, setKeyText] = useState('')
   const [threadsStorageState, setThreadsStorageState] = useState('')
   const [message, setMessage] = useState<string | null>(null)
@@ -355,6 +356,30 @@ function SettingsPage() {
       setThreadsSession(data.session)
       setThreadsLogin(null)
       setMessage('Threads session 已加密保存。現在可以掃描真實 Threads 雷達。')
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  async function submitRemoteText(event: React.FormEvent) {
+    event.preventDefault()
+    if (!threadsLogin || !threadsLoginText) return
+    setError(null)
+    try {
+      const data = await api.typeThreadsLogin(threadsLogin.id, threadsLoginText)
+      setThreadsLogin(data.login)
+      setThreadsLoginText('')
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  async function pressRemoteKey(key: 'Enter' | 'Tab' | 'Escape' | 'Backspace') {
+    if (!threadsLogin) return
+    setError(null)
+    try {
+      const data = await api.pressThreadsLogin(threadsLogin.id, key)
+      setThreadsLogin(data.login)
     } catch (err) {
       setError(getMessage(err))
     }
@@ -463,7 +488,7 @@ function SettingsPage() {
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="font-mono text-xs uppercase tracking-[0.2em] text-signal">Remote Browser</p>
-                <p className="text-sm">這是容器內的真 Chromium，透過 noVNC 嵌在頁面裡。點遠端瀏覽器欄位後用 noVNC 鍵盤輸入；登入成功跳回 Threads 後，按「完成並保存」。</p>
+                <p className="text-sm">這是容器內的真 Chromium。iOS 不會替 noVNC canvas 跳鍵盤；先點遠端瀏覽器欄位，再用下方「手機鍵盤輸入」送字到目前 focus 的欄位。</p>
                 <p className="mt-1 break-all font-mono text-xs text-asphalt/60">{threadsLogin.url}</p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -471,6 +496,25 @@ function SettingsPage() {
                 <button className="min-h-10 bg-red-700 px-3 py-1 font-bold text-white" type="button" onClick={cancelThreadsLogin}>取消</button>
               </div>
             </div>
+            <form onSubmit={submitRemoteText} className="sticky bottom-2 z-20 mt-3 border-2 border-asphalt bg-paper p-2 shadow-[4px_4px_0_#171717]">
+              <label className="text-xs font-bold">手機鍵盤輸入到遠端瀏覽器</label>
+              <input
+                className="mt-1 min-h-12 w-full border-2 border-asphalt bg-[#fffaf2] px-3 text-base outline-none"
+                value={threadsLoginText}
+                onChange={(event) => setThreadsLoginText(event.target.value)}
+                placeholder="先點遠端欄位，再在這裡輸入帳號、密碼或驗證碼"
+                type="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="off"
+              />
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                <button className="min-h-11 border-2 border-asphalt px-3 py-2 font-bold" type="submit">送到遠端</button>
+                <button className="min-h-11 border-2 border-asphalt px-3 py-2 font-bold" type="button" onClick={() => void pressRemoteKey('Enter')}>Enter</button>
+                <button className="min-h-11 border-2 border-asphalt px-3 py-2 font-bold" type="button" onClick={() => void pressRemoteKey('Tab')}>Tab 下一欄</button>
+                <button className="min-h-11 border-2 border-asphalt px-3 py-2 font-bold" type="button" onClick={() => void pressRemoteKey('Backspace')}>Backspace</button>
+              </div>
+            </form>
             <div className="mt-3 overflow-hidden border-2 border-asphalt bg-black">
               <iframe src={threadsLogin.vncUrl} className="h-[70vh] w-full" title="Remote browser login" />
             </div>
