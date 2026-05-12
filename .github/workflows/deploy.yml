@@ -1,0 +1,132 @@
+name: Deploy to amd64 Server via Tailscale
+
+on:
+  workflow_run:
+    workflows: ["Build and Push Docker Image"]
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Exact image tag to deploy (commit SHA or explicit tag)'
+        required: true
+        type: string
+
+env:
+  DOCKERHUB_USERNAME: kevin950805
+  IMAGE_NAME: auto-social
+  HOST_PORT: 4323
+  DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'kevin' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
+
+      - name: Resolve image tag
+        id: resolve-image
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "image_tag=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
+          else
+            echo "image_tag=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:github-actions
+
+      - name: Test Tailscale connection
+        run: |
+          tailscale status
+          ping -c 3 ${{ secrets.DEPLOY_SERVER_IP }}
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Sync compose file to server
+        env:
+          DEPLOY_SERVER_IP: ${{ secrets.DEPLOY_SERVER_IP }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          IMAGE_TAG: ${{ steps.resolve-image.outputs.image_tag }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" "mkdir -p '${DEPLOY_PATH}'"
+          scp -i ~/.ssh/deploy_key deploy/docker-compose.yml "${DEPLOY_USER}@${DEPLOY_SERVER_IP}:${DEPLOY_PATH}/docker-compose.yml"
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" "test -f '${DEPLOY_PATH}/.env' || touch '${DEPLOY_PATH}/.env'"
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" "grep -v '^IMAGE_TAG=' '${DEPLOY_PATH}/.env' > '${DEPLOY_PATH}/.env.tmp' || true; printf 'IMAGE_TAG=${IMAGE_TAG}\n' >> '${DEPLOY_PATH}/.env.tmp'; mv '${DEPLOY_PATH}/.env.tmp' '${DEPLOY_PATH}/.env'"
+
+      - name: Deploy via SSH
+        env:
+          DEPLOY_SERVER_IP: ${{ secrets.DEPLOY_SERVER_IP }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          IMAGE_TAG: ${{ steps.resolve-image.outputs.image_tag }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" "
+            set -e
+            cd '${DEPLOY_PATH}'
+
+            retry_pull() {
+              local max_attempts=3
+              local attempt=1
+              local delay=10
+              while [ \$attempt -le \$max_attempts ]; do
+                echo \"Pulling Docker image (attempt \$attempt/\$max_attempts)...\"
+                if docker compose pull; then
+                  return 0
+                fi
+                if [ \$attempt -lt \$max_attempts ]; then
+                  sleep \$delay
+                  delay=\$((delay * 2))
+                fi
+                attempt=\$((attempt + 1))
+              done
+              return 1
+            }
+
+            retry_pull
+            docker rm -f auto-social 2>/dev/null || true
+            docker compose down --remove-orphans --volumes=false
+            docker compose up -d --force-recreate
+            docker image prune -af --filter 'until=24h' || true
+            docker compose ps
+          "
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 24); do
+            if curl -fsS "http://${{ secrets.DEPLOY_SERVER_IP }}:${{ env.HOST_PORT }}/api/health"; then
+              echo "Health check passed."
+              exit 0
+            fi
+            sleep 5
+          done
+
+          ssh -i ~/.ssh/deploy_key "${{ env.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_IP }}" \
+            "cd '${{ secrets.DEPLOY_PATH }}' && docker compose ps && docker logs auto-social --tail 50" || true
+          exit 1
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Server: \`${{ secrets.DEPLOY_SERVER_IP }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: \`${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.resolve-image.outputs.image_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Platform: \`linux/amd64\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Health: \`http://${{ secrets.DEPLOY_SERVER_IP }}:${{ env.HOST_PORT }}/api/health\`" >> $GITHUB_STEP_SUMMARY

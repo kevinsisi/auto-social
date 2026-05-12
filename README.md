@@ -121,11 +121,34 @@ docker compose up -d --build
 
 ## 部署方式
 
-尚未決定。預計：
-- 公開媒體儲存（S3/R2 等）
-- 排程器（任務佇列）
-- Webhook 端點（公開 HTTPS）
-- Token 加密儲存
+已加入 GitHub Actions CI/CD，目標是 amd64 Docker 主機：
+
+- `CI`：PR / main push 執行 `npm ci`、`typecheck`、`test`、`build`
+- `Build and Push Docker Image`：main push 後 build `linux/amd64` image，推到 `kevin950805/auto-social:latest` 與 commit SHA tag
+- `Deploy to amd64 Server via Tailscale`：Docker image build 成功後，透過 Tailscale + SSH 同步 `deploy/docker-compose.yml` 到主機並部署 SHA tag
+- Domain：`https://social.sisihome.org`
+
+GitHub secrets 需要設定：
+
+- `DOCKERHUB_TOKEN`
+- `TS_OAUTH_CLIENT_ID`
+- `TS_OAUTH_SECRET`
+- `DEPLOY_SERVER_IP`
+- `DEPLOY_SSH_KEY`
+- `DEPLOY_PATH`
+
+選填：`DEPLOY_USER`，未設定時預設使用 `kevin`。
+
+目標主機的 `${DEPLOY_PATH}/.env` 可保留站台設定；workflow 只會更新 `IMAGE_TAG`。常用值：
+
+```bash
+HOST_PORT=4323
+CORS_ORIGIN=https://social.sisihome.org
+ADMIN_TOKEN=change-me
+KEY_MANAGER_URL=http://key-manager:7823
+```
+
+健康檢查：`http://<DEPLOY_SERVER_IP>:4323/api/health`。
 
 ## URL
 

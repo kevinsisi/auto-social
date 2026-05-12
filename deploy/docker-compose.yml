@@ -1,0 +1,17 @@
+services:
+  auto-social:
+    image: kevin950805/auto-social:${IMAGE_TAG:-latest}
+    container_name: auto-social
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4323
+      AUTO_SOCIAL_DB: /app/data/auto-social.db
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://social.sisihome.org}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      KEY_MANAGER_URL: ${KEY_MANAGER_URL:-}
+    ports:
+      - "${HOST_PORT:-4323}:4323"
+    volumes:
+      - ./data:/app/data
