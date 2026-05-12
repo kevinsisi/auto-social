@@ -264,7 +264,6 @@ function HotKeywordCloud({ terms, loading, meta, onRefresh, onSelect }: { terms:
 function SettingsPage() {
   const [section, setSection] = useState<SettingsSection>(() => getSettingsSection())
   const [adminSession, setAdminSession] = useState<AdminSession | null>(null)
-  const [adminTokenInput, setAdminTokenInput] = useState('')
   const [keys, setKeys] = useState<KeyStatus[]>([])
   const [threadsSession, setThreadsSession] = useState<ThreadsSessionStatus | null>(null)
   const [threadsLogin, setThreadsLogin] = useState<ThreadsLoginJob | null>(null)
@@ -324,31 +323,6 @@ function SettingsPage() {
       const result = await api.syncKeys()
       setMessage(result.synced ? `已從 key-manager 同步 ${result.imported} 把。${result.warning ?? ''}` : result.warning)
       await refreshKeys()
-    } catch (err) {
-      setError(getMessage(err))
-    }
-  }
-
-  async function loginAdmin(event: React.FormEvent) {
-    event.preventDefault()
-    setError(null)
-    try {
-      const data = await api.loginAdmin(adminTokenInput)
-      setAdminSession(data.session)
-      setAdminTokenInput('')
-      setMessage('Admin session 已建立。')
-    } catch (err) {
-      setError(getMessage(err))
-    }
-  }
-
-  async function logoutAdmin() {
-    setError(null)
-    try {
-      const data = await api.logoutAdmin()
-      setAdminSession(data.session)
-      setKeys([])
-      setMessage('Admin session 已登出。')
     } catch (err) {
       setError(getMessage(err))
     }
@@ -492,25 +466,15 @@ function SettingsPage() {
       {message && <Message tone="notice" text={message} onClose={() => setMessage(null)} />}
       {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
 
-      {section === 'admin' && <form onSubmit={loginAdmin} className="border-2 border-asphalt bg-paper p-4">
-        <h3 className="text-2xl font-black">Admin Login</h3>
-        <p className="mt-1 text-sm">`ADMIN_TOKEN` 已在伺服器環境設定；這裡只用它登入後端 admin session。Token 不存 localStorage，登入成功後由 HttpOnly cookie 授權。</p>
+      {section === 'admin' && <div className="border-2 border-asphalt bg-paper p-4">
+        <h3 className="text-2xl font-black">Admin 狀態</h3>
+        <p className="mt-1 text-sm">`ADMIN_TOKEN` 已由部署環境設定。這是單人 homelab 服務，UI 不再要求你貼 token；管理路由由 server-side 單人模式放行。</p>
         <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
           <Info label="ADMIN_TOKEN" value={adminSession?.configured ? 'server 已設定' : 'server 未設定'} />
-          <Info label="Admin Session" value={adminSession?.authenticated ? '已登入' : '未登入'} />
+          <Info label="Admin Access" value={adminSession?.authenticated ? '已可操作' : '不可操作'} />
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <input
-            className="min-h-11 min-w-0 flex-1 border-2 border-asphalt bg-[#fffaf2] px-3 text-base outline-none"
-            value={adminTokenInput}
-            onChange={(event) => setAdminTokenInput(event.target.value)}
-            placeholder="貼上 ADMIN_TOKEN"
-            type="password"
-          />
-          <button className="min-h-11 bg-asphalt px-4 py-2 font-bold text-paper" type="submit">登入 Admin</button>
-          {adminSession?.authenticated && <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={logoutAdmin}>登出</button>}
-        </div>
-      </form>}
+        <button className="mt-3 min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshAdminSession}>重新檢查</button>
+      </div>}
 
       {section === 'keys' && <div className="grid gap-4">
         <form onSubmit={importKeys} className="border-2 border-asphalt bg-paper p-4">
