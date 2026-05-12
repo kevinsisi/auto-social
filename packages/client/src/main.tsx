@@ -64,6 +64,23 @@ function App() {
     }
   }
 
+  async function monitorRadarTerm(term: string) {
+    setError(null)
+    setNotice(null)
+    try {
+      const existing = cards.find((card) => card.keyword === term)
+      const card = existing ?? (await api.createCard(term)).card
+      setKeyword('')
+      await loadCards()
+      setSelectedId(card.id)
+      const data = await api.scanThreads(card.id)
+      setNotice(`已把「${term}」加入監控並出勤。${data.run.message}`)
+      await loadDetail(card.id)
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
   async function scanThreads() {
     if (!detail) return
     setError(null)
@@ -143,7 +160,7 @@ function App() {
         <section className="space-y-4">
           {notice && <Message tone="notice" text={notice} onClose={() => setNotice(null)} />}
           {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
-          <HotKeywordCloud cards={cards} details={Object.values(detailsById)} onSelect={(keyword) => setKeyword(keyword)} />
+          <HotKeywordCloud cards={cards} details={Object.values(detailsById)} onSelect={(keyword) => void monitorRadarTerm(keyword)} />
           {detail ? <PatrolDetail card={detail} onRefresh={() => loadDetail(detail.id)} onThreadsScan={scanThreads} onBrowserRun={startBrowserRun} /> : <EmptyState />}
         </section>
       </section>}
@@ -160,7 +177,7 @@ function HotKeywordCloud({ cards, details, onSelect }: { cards: PatrolCard[]; de
           <p className="font-mono text-xs uppercase tracking-[0.28em] text-signal">Patrol Radar</p>
           <h2 className="text-3xl font-black sm:text-4xl">熱門關鍵字雲</h2>
         </div>
-        <p className="max-w-xl text-sm">雷達會自動觀察 Threads 趨勢詞；你也可以點詞或新增關鍵字，把它變成重點監控。</p>
+        <p className="max-w-xl text-sm">尚未抓到候選內容時先顯示初始觀察種子；抓到 Threads 候選後會由真實內容更新。點詞會直接加入監控並出勤。</p>
       </div>
       <div className="mt-5 min-h-[240px] rounded-[1.5rem] border-2 border-dashed border-asphalt/25 bg-[radial-gradient(circle_at_center,#fffaf2,white_62%)] p-3 sm:min-h-[270px] sm:rounded-[2rem] sm:p-5">
         {terms.length > 0 ? (
