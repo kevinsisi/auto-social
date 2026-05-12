@@ -56,7 +56,7 @@
 ## 7. Trend Sources
 
 - [ ] 7.1 Add `sources/source-adapter.ts` interface (`id`, `isEnabled`, `fetch`).
-- [ ] 7.2 Add `sources/dcard.ts` with **two modes**: `fetchTrending()` calling the public Dcard popular-posts endpoint with no keyword filter, and `fetch({ keywords })` filtering trending results by keyword in title/excerpt/tags. Handle 429 with exponential backoff, fail soft.
+- [ ] 7.2 Add `sources/dcard.ts` with **two modes**: `fetchTrending()` calling the public Dcard popular-posts endpoint with no keyword filter, and `fetch({ keywords })` filtering trending results by keyword in title/excerpt/tags. Handle 429 with exponential backoff, fail soft. Dcard is an optional extra source only; it must not be used as a replacement for Threads patrol.
 - [ ] 7.3 Add `sources/threads.ts` with **two modes**: `fetchTrending()` opening Threads explore / for-you feed via `threads-bot/explore.ts` and parsing top posts, and `fetch({ keywords })` calling `threads-bot/search.ts` per keyword. Both respect the search-quota gate.
 - [ ] 7.4 Add `sources/registry.ts` listing built-in adapters; each adapter checks `settings.sources[id].enabled` before running.
 - [ ] 7.5 Add `/api/sources` GET (list with health), POST `/api/sources/:id/enable`, POST `/api/sources/:id/disable`, PATCH `/api/sources/:id/config` for trending-limit etc.
@@ -102,6 +102,7 @@
 - [ ] 11.3 Move keyword-card list management into a `Sources & Keywords` sub-page; cards remain the source of keyword input for scans.
 - [ ] 11.4 Preserve the existing manual link import path on a keyword card as a fallback when an interesting thread is found out-of-band.
 - [ ] 11.5 Remove the old "patrol-detail" Threads-search browser-open button; replace with "run scan for this keyword now" that triggers `/api/admin/scan/run-now?keyword=...`.
+- [x] 11.6 Add an interim `Threads 出勤海巡` button that performs Threads-targeted fallback discovery using `site:threads.net` search and stores only Threads links. This is explicitly not a Dcard substitute and remains a fallback until Playwright search lands.
 
 ## 11A. Settings Page
 

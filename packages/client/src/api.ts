@@ -5,11 +5,26 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     ...options
   })
-  const data = await response.json()
+  const text = await response.text()
+  const data = parseResponse(text)
   if (!response.ok) {
-    throw new Error(data.error ?? '操作失敗，這很難評。')
+    throw new Error(getErrorMessage(data, response.status))
   }
   return data as T
+}
+
+function parseResponse(text: string): unknown {
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { error: `API 回傳不是 JSON，可能打到舊路由或 HTML 錯誤頁：${text.slice(0, 80)}` }
+  }
+}
+
+function getErrorMessage(data: unknown, status: number) {
+  if (data && typeof data === 'object' && 'error' in data && typeof data.error === 'string') return data.error
+  return `操作失敗，HTTP ${status}`
 }
 
 export const api = {
@@ -33,6 +48,12 @@ export const api = {
   },
   async startBrowserRun(cardId: string) {
     return request<{ run: { searchUrl: string; message: string } }>(`/api/cards/${cardId}/browser-run`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
+  },
+  async scanThreads(cardId: string) {
+    return request<{ run: { message: string; inserted: unknown[] } }>(`/api/cards/${cardId}/scan-threads`, {
       method: 'POST',
       body: JSON.stringify({})
     })

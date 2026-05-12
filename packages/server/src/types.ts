@@ -26,7 +26,7 @@ export type Candidate = {
   title: string
   excerpt: string
   status: CandidateStatus
-  source: 'manual' | 'browser'
+  source: 'manual' | 'browser' | 'threads_search'
   createdAt: string
 }
 

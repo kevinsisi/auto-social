@@ -5,7 +5,8 @@ import { nowIso } from './time.js'
 import type { CandidateAnalysis, CandidateStatus, CandidateWithAnalysis, PatrolCard, PatrolCardDetail } from './types.js'
 
 type CardRow = { id: string; keyword: string; created_at: string; updated_at: string }
-type CandidateRow = { id: string; card_id: string; run_id: string | null; url: string; title: string; excerpt: string; status: CandidateStatus; source: 'manual' | 'browser'; created_at: string }
+type CandidateRow = { id: string; card_id: string; run_id: string | null; url: string; title: string; excerpt: string; status: CandidateStatus; source: 'manual' | 'browser' | 'threads_search'; created_at: string }
+type PatrolSourceCandidate = { url: string; title: string; excerpt: string; source: 'threads_search' }
 type AnalysisRow = { candidate_id: string; summary: string; worth_replying: 0 | 1; reply_angle: string; risk_level: CandidateAnalysis['riskLevel']; risk_note: string; image_idea: string; meme_prompt: string }
 type SuggestionRow = { id: string; candidate_id: string; tone: 'normal' | 'spicy'; label: '普通' | '比較酸'; text: string; risk_level: CandidateAnalysis['riskLevel']; risk_note: string }
 
@@ -86,6 +87,43 @@ export class PatrolRepository {
     `).run(id, cardId, `已準備開啟 Threads 搜尋頁：${searchUrl}。目前 MVP 不儲存帳號，也不保證能自動讀取 Threads Web。`, timestamp, timestamp)
     this.touchCard(cardId)
     return { id, cardId, status: 'failed' as const, message: `請手動確認 Threads 搜尋頁：${searchUrl}`, createdAt: timestamp, completedAt: timestamp, searchUrl }
+  }
+
+  createThreadsSearchRun(cardId: string, items: PatrolSourceCandidate[]) {
+    const card = this.getCardDetail(cardId)
+    if (!card) throw new Error('找不到這張海巡卡。')
+
+    const runId = nanoid()
+    const timestamp = nowIso()
+    const inserted: CandidateWithAnalysis[] = []
+    this.db.prepare(`
+      INSERT INTO patrol_runs (id, card_id, status, message, created_at, completed_at)
+      VALUES (?, ?, 'running', NULL, ?, NULL)
+    `).run(runId, cardId, timestamp)
+
+    const insertCandidate = this.db.prepare(`
+      INSERT OR IGNORE INTO candidates (id, card_id, run_id, url, title, excerpt, status, source, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'needs_follow_up', ?, ?)
+    `)
+
+    for (const item of items) {
+      const candidateId = nanoid()
+      const result = insertCandidate.run(candidateId, cardId, runId, item.url, item.title, item.excerpt, item.source, timestamp)
+      if (result.changes === 0) continue
+      const row = this.db.prepare('SELECT * FROM candidates WHERE card_id = ? AND url = ?').get(cardId, item.url) as CandidateRow
+      const analysis = generateAnalysis(row.id, card.keyword, row.url, row.title, row.excerpt)
+      this.saveAnalysis(analysis)
+      inserted.push({ ...mapCandidate(row), analysis })
+    }
+
+    const message = inserted.length > 0
+      ? `Threads 海巡完成，找到 ${inserted.length} 筆候選。`
+      : `Threads 海巡完成，但沒有找到「${card.keyword}」新的相關結果。`
+
+    this.db.prepare('UPDATE patrol_runs SET status = ?, message = ?, completed_at = ? WHERE id = ?').run('completed', message, timestamp, runId)
+    this.touchCard(cardId)
+
+    return { id: runId, cardId, status: 'completed' as const, message, createdAt: timestamp, completedAt: timestamp, inserted }
   }
 
   private saveAnalysis(analysis: CandidateAnalysis) {

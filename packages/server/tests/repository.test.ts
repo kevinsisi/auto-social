@@ -50,6 +50,25 @@ describe('PatrolRepository', () => {
     expect(updated?.status).toBe('replied')
     expect(updated?.cardId).toBe(card.id)
   })
+
+  it('counts only newly inserted Threads search candidates', () => {
+    const repo = new PatrolRepository(openMemoryDatabase())
+    const card = repo.createCard('中古車')
+    const item = {
+      url: 'https://www.threads.net/@meetcar/post/search-hit',
+      title: 'Threads 搜尋結果：中古車',
+      excerpt: 'Google 找到的 Threads 連結；開頁確認原文後再互動。',
+      source: 'threads_search' as const
+    }
+
+    const firstRun = repo.createThreadsSearchRun(card.id, [item])
+    const secondRun = repo.createThreadsSearchRun(card.id, [item])
+
+    expect(firstRun.inserted).toHaveLength(1)
+    expect(firstRun.message).toContain('找到 1 筆候選')
+    expect(secondRun.inserted).toHaveLength(0)
+    expect(secondRun.message).toContain('沒有找到「中古車」新的相關結果')
+  })
 })
 
 describe('Threads URL validation', () => {
