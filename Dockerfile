@@ -16,7 +16,7 @@ COPY packages ./packages
 RUN npm run build
 RUN npm prune --omit=dev --workspace @auto-social/server
 
-FROM mcr.microsoft.com/playwright:v1.50.0-noble AS runtime
+FROM mcr.microsoft.com/playwright:v1.60.0-noble AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
