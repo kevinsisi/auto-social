@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import './styles.css'
-import type { Candidate, CandidateStatus, PatrolCard, PatrolCardDetail, RiskLevel } from './types'
+import type { Candidate, CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RiskLevel } from './types'
 import { APP_VERSION } from './version'
 
 const statusLabels: Record<CandidateStatus, string> = {
@@ -19,6 +19,7 @@ const riskLabels: Record<RiskLevel, string> = {
 }
 
 function App() {
+  const [page, setPage] = useState<'dashboard' | 'settings'>('dashboard')
   const [cards, setCards] = useState<PatrolCard[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<PatrolCardDetail | null>(null)
@@ -80,11 +81,15 @@ function App() {
             <p className="font-mono text-xs uppercase tracking-[0.35em] text-signal">Social Patrol</p>
             <h1 className="font-display text-2xl font-black tracking-tight md:text-4xl">社群海巡工作站</h1>
           </div>
-          <div className="border-2 border-asphalt px-3 py-2 font-mono text-sm">v{APP_VERSION}</div>
+          <nav className="flex items-center gap-2">
+            <button onClick={() => setPage('dashboard')} className={`min-h-10 border-2 border-asphalt px-3 py-1 font-bold ${page === 'dashboard' ? 'bg-asphalt text-paper' : 'bg-paper'}`}>Dashboard</button>
+            <button onClick={() => setPage('settings')} className={`min-h-10 border-2 border-asphalt px-3 py-1 font-bold ${page === 'settings' ? 'bg-asphalt text-paper' : 'bg-paper'}`}>Settings</button>
+            <div className="border-2 border-asphalt px-3 py-2 font-mono text-sm">v{APP_VERSION}</div>
+          </nav>
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl gap-4 px-4 py-6 lg:grid-cols-[300px_1fr]">
+      {page === 'settings' ? <SettingsPage /> : <section className="mx-auto grid max-w-7xl gap-4 px-4 py-6 lg:grid-cols-[300px_1fr]">
         <aside className="space-y-4">
           <form onSubmit={createCard} className="border-4 border-asphalt bg-[#fffaf2] p-4 shadow-[8px_8px_0_#171717]">
             <label className="block text-sm font-bold">新增關鍵字卡</label>
@@ -118,8 +123,123 @@ function App() {
           {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
           {detail ? <PatrolDetail card={detail} onRefresh={() => loadDetail(detail.id)} onBrowserRun={startBrowserRun} /> : <EmptyState />}
         </section>
-      </section>
+      </section>}
     </main>
+  )
+}
+
+function SettingsPage() {
+  const [keys, setKeys] = useState<KeyStatus[]>([])
+  const [keyText, setKeyText] = useState('')
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    void refreshKeys()
+  }, [])
+
+  async function refreshKeys() {
+    try {
+      const data = await api.getKeyStatus()
+      setKeys(data.keys)
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  async function importKeys(event: React.FormEvent) {
+    event.preventDefault()
+    setError(null)
+    try {
+      const result = await api.importKeys(keyText)
+      setMessage(`新增 ${result.inserted} 把、重複略過 ${result.duplicate} 把。`)
+      setKeyText('')
+      await refreshKeys()
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  async function syncKeys() {
+    setError(null)
+    try {
+      const result = await api.syncKeys()
+      setMessage(result.synced ? `已從 key-manager 同步 ${result.imported} 把。${result.warning ?? ''}` : result.warning)
+      await refreshKeys()
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  return (
+    <section className="mx-auto max-w-7xl space-y-4 px-4 py-6">
+      <div className="border-4 border-asphalt bg-[#fffaf2] p-5 shadow-[8px_8px_0_#171717]">
+        <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Settings / Key Pool</p>
+        <h2 className="mt-1 text-4xl font-black">設定不是裝飾品</h2>
+        <p className="mt-2">這頁現在可以匯入 Gemini keys、看 key pool 狀態、手動同步 key-manager。還沒做 Voice Studio，我不假裝有。</p>
+      </div>
+
+      {message && <Message tone="notice" text={message} onClose={() => setMessage(null)} />}
+      {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+        <form onSubmit={importKeys} className="border-2 border-asphalt bg-paper p-4">
+          <h3 className="text-2xl font-black">Key Pool 匯入</h3>
+          <p className="mt-1 text-sm">一行一把 Gemini key，`#` 開頭會略過。沒有 key，AI pipeline 就只是骨架。</p>
+          <textarea
+            className="mt-3 min-h-48 w-full border-2 border-asphalt bg-[#fffaf2] p-3 font-mono text-sm outline-none"
+            value={keyText}
+            onChange={(event) => setKeyText(event.target.value)}
+            placeholder={'# paste keys here\nAIza...'}
+          />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className="min-h-11 bg-asphalt px-4 py-2 font-bold text-paper" type="submit">匯入 keys</button>
+            <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={syncKeys}>從 key-manager 同步</button>
+            <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshKeys}>重新整理</button>
+          </div>
+        </form>
+
+        <div className="border-2 border-asphalt bg-paper p-4">
+          <h3 className="text-2xl font-black">AI Pipeline 狀態</h3>
+          <div className="mt-3 grid gap-2 text-sm">
+            <Info label="classify" value="已建立 JSON parser + StepRunner step" />
+            <Info label="score" value="已建立 shouldDraft short-circuit" />
+            <Info label="draft" value="已限制 exactly 3 variants + no-go 過濾" />
+            <Info label="meme" value="已建立文字型 meme prompt step" />
+            <Info label="尚未完成" value="Voice Studio、Dcard/Threads adapters、scheduler、Draft Inbox 還沒做。" />
+          </div>
+        </div>
+      </div>
+
+      <div className="border-2 border-asphalt bg-[#fffaf2] p-4">
+        <h3 className="text-2xl font-black">目前 keys</h3>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b-2 border-asphalt">
+                <th className="p-2">ID</th>
+                <th className="p-2">Suffix</th>
+                <th className="p-2">Health</th>
+                <th className="p-2">Usage</th>
+                <th className="p-2">Cooldown</th>
+              </tr>
+            </thead>
+            <tbody>
+              {keys.map((key) => (
+                <tr key={key.id} className="border-b border-asphalt/30">
+                  <td className="p-2 font-mono">{key.id}</td>
+                  <td className="p-2 font-mono">...{key.suffix}</td>
+                  <td className="p-2 font-bold">{key.health}</td>
+                  <td className="p-2">{key.usageCount}</td>
+                  <td className="p-2">{key.cooldownUntil ? formatDate(new Date(key.cooldownUntil).toISOString()) : '-'}</td>
+                </tr>
+              ))}
+              {keys.length === 0 && <tr><td className="p-4 text-center" colSpan={5}>目前沒有 key。AI 小編還沒拿到筆。</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   )
 }
 

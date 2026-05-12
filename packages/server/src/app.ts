@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { z } from 'zod'
 import type { AppDatabase } from './db.js'
+import { registerKeyPoolRoutes } from './key-pool/routes.js'
 import { PatrolRepository } from './repository.js'
 import { APP_VERSION } from './version.js'
 
@@ -22,6 +23,10 @@ export function createApp(db: AppDatabase) {
 
   app.use(cors({ origin: allowedOrigin }))
   app.use(express.json())
+
+  const apiRouter = express.Router()
+  registerKeyPoolRoutes(apiRouter, db)
+  app.use('/api', apiRouter)
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, version: APP_VERSION })
@@ -82,6 +87,10 @@ export function createApp(db: AppDatabase) {
     } catch (error) {
       sendError(res, error)
     }
+  })
+
+  app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    sendError(res, error)
   })
 
   return app

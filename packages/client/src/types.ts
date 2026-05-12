@@ -50,3 +50,13 @@ export type PatrolCardDetail = PatrolCard & {
   runs: PatrolRun[]
   candidates: Candidate[]
 }
+
+export type KeyStatus = {
+  id: number
+  suffix: string
+  health: 'available' | 'cooldown' | 'leased' | 'inactive'
+  isActive: boolean
+  cooldownUntil: number
+  leaseUntil: number
+  usageCount: number
+}
