@@ -60,6 +60,18 @@ function App() {
     }
   }
 
+  async function scanThreads() {
+    if (!detail) return
+    setError(null)
+    try {
+      const data = await api.scanThreads(detail.id)
+      setNotice(data.run.message)
+      await loadDetail(detail.id)
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
   async function startBrowserRun() {
     if (!detail) return
     setError(null)
@@ -121,7 +133,7 @@ function App() {
         <section className="space-y-4">
           {notice && <Message tone="notice" text={notice} onClose={() => setNotice(null)} />}
           {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
-          {detail ? <PatrolDetail card={detail} onRefresh={() => loadDetail(detail.id)} onBrowserRun={startBrowserRun} /> : <EmptyState />}
+          {detail ? <PatrolDetail card={detail} onRefresh={() => loadDetail(detail.id)} onThreadsScan={scanThreads} onBrowserRun={startBrowserRun} /> : <EmptyState />}
         </section>
       </section>}
     </main>
@@ -243,7 +255,7 @@ function SettingsPage() {
   )
 }
 
-function PatrolDetail({ card, onRefresh, onBrowserRun }: { card: PatrolCardDetail; onRefresh: () => void; onBrowserRun: () => void }) {
+function PatrolDetail({ card, onRefresh, onThreadsScan, onBrowserRun }: { card: PatrolCardDetail; onRefresh: () => void; onThreadsScan: () => void; onBrowserRun: () => void }) {
   const [url, setUrl] = useState('')
   const [title, setTitle] = useState('')
   const [excerpt, setExcerpt] = useState('')
@@ -272,9 +284,14 @@ function PatrolDetail({ card, onRefresh, onBrowserRun }: { card: PatrolCardDetai
             <h2 className="mt-1 text-4xl font-black">{card.keyword}</h2>
             <p className="mt-2 text-sm">海巡隊已就位。等情報進來。</p>
           </div>
-          <button onClick={onBrowserRun} className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold transition-colors hover:bg-asphalt hover:text-paper">
-            開 Threads 搜尋
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={onThreadsScan} className="min-h-11 bg-signal px-4 py-2 font-bold text-white transition-colors hover:bg-asphalt">
+              Threads 出勤海巡
+            </button>
+            <button onClick={onBrowserRun} className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold transition-colors hover:bg-asphalt hover:text-paper">
+              開 Threads 搜尋
+            </button>
+          </div>
         </div>
       </div>
 

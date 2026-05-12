@@ -6,6 +6,7 @@ import { z } from 'zod'
 import type { AppDatabase } from './db.js'
 import { registerKeyPoolRoutes } from './key-pool/routes.js'
 import { PatrolRepository } from './repository.js'
+import { fetchThreadsSearchCandidates } from './sources/threads-search.js'
 import { APP_VERSION } from './version.js'
 
 const createCardSchema = z.object({ keyword: z.string() })
@@ -76,6 +77,23 @@ export function createApp(db: AppDatabase) {
     } catch (error) {
       sendError(res, error)
     }
+  })
+
+  async function scanThreads(req: express.Request, res: express.Response) {
+    try {
+      const cardId = String(req.params.cardId)
+      const card = repo.getCardDetail(cardId)
+      if (!card) return res.status(404).json({ error: '找不到這張海巡卡。' })
+      const items = await fetchThreadsSearchCandidates(card.keyword)
+      res.status(202).json({ run: repo.createThreadsSearchRun(cardId, items) })
+    } catch (error) {
+      sendError(res, error)
+    }
+  }
+
+  app.post('/api/cards/:cardId/scan-threads', scanThreads)
+  app.post('/api/cards/:cardId/scan-dcard', (_req, res) => {
+    res.status(410).json({ error: 'Dcard 海巡路由已停用。請重新整理頁面後使用 Threads 出勤海巡。' })
   })
 
   app.patch('/api/candidates/:candidateId/status', (req, res) => {

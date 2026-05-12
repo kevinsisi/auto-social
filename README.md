@@ -13,7 +13,7 @@
 - ✅ OpenSpec change `add-keyword-patrol-cards`（舊版 MVP，已實作完成）
 - 🚧 **新方向 OpenSpec change：[`openspec/changes/add-social-patrol-station`](openspec/changes/add-social-patrol-station)** — Phase 0 實作中
 - ✅ **Phase 0 Batch 1（rebrand + deps + DB + v1.0.0）已完成** — 改名「社群海巡工作站」、引入 `@kevinsisi/ai-core` + `playwright` + `node-cron`、新增 9 張 DB table、版本 0.1.0 → 1.0.0、`APP_VERSION` 由各 package 自己的 `package.json` 動態讀（不再硬寫常數）
-- 🚧 Phase 0 Batch 2（AI backbone）進行中：已加入 KeyPool admin API、key-manager sync 骨架、GeminiClient wrapper、4 步 pipeline 骨架與 parsing/short-circuit 測試；Voice Studio 尚未開始
+- 🚧 Phase 0 Batch 2（AI backbone + Threads fallback patrol）進行中：已加入 KeyPool admin API、key-manager sync 骨架、GeminiClient wrapper、4 步 pipeline 骨架、Settings key 頁、Threads-targeted `site:threads.net` fallback patrol；Voice Studio / Playwright patrol 尚未開始
 - ✅ 本機 Docker 可建可跑（`docker compose up -d --build`；公司網路需 `DOCKER_BUILDKIT=0`）
 
 ## Phase 0 規劃重點（社群海巡工作站）
@@ -37,6 +37,8 @@
 - **AI**：Phase 0 起改用 `@kevinsisi/ai-core`（Gemini 多 key pool + retry + 微步驟）；舊版本地 `humor.ts` 規則引擎將於 Phase 0 拔除
 - **Threads**：不送 Meta App Review；Phase 0 = Playwright 唯讀（search + trending feed），Phase 1 才開 publish/reply
 - **排程**：node-cron 每 15 分鐘掃一輪
+
+重要限制：產品核心目標是 Threads。其他平台不能替代 Threads 海巡；目前 `Threads 出勤海巡` 是 `site:threads.net` fallback，用來先收 Threads 連結，正式 Threads Playwright 唯讀搜尋仍在 Phase 0 後續批次。
 
 ## 本機開發
 
