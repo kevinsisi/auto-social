@@ -26,7 +26,7 @@ export function generateAnalysis(candidateId: string, keyword: string, url: stri
     ? '這則回了可能吵起來，建議先觀望或只留資訊型回覆。'
     : riskLevel === 'medium'
       ? '可以回，但要用自嘲和資訊收斂火力。'
-      : '適合輕鬆接話，順手把人帶回遇見好車。'
+      : '適合輕鬆接話，順手帶回工作站。'
 
   if (!hasReadableContent) {
     return {
@@ -42,8 +42,8 @@ export function generateAnalysis(candidateId: string, keyword: string, url: stri
     }
   }
 
-  const baseNormal = `這題先讓我們遇見好車來幫幫你了。${keyword} 這種事不要靠許願，靠一點點功課跟一點點緣分。`
-  const baseSpicy = `笑死，證據追不上結論啦。不過沒關係，我們也是常常被車況教育，這題交給遇見好車慢慢拆。`
+  const baseNormal = `這題先讓海巡隊來幫你看看。${keyword} 這種事不要靠許願，靠一點點功課跟一點點緣分。`
+  const baseSpicy = `笑死，證據追不上結論啦。不過沒關係，我們也是常常被現實教育，這題慢慢拆。`
 
   const suggestions: ReplySuggestion[] = [
     makeSuggestion(candidateId, 'normal', '普通', baseNormal, riskLevel, riskNote),
@@ -54,11 +54,11 @@ export function generateAnalysis(candidateId: string, keyword: string, url: stri
     candidateId,
     summary: excerpt || `和「${keyword}」相關的 Threads 候選連結，內容需要人工確認後再互動。`,
     worthReplying,
-    replyAngle: worthReplying ? '用自嘲開場，補一點中古車觀念，最後輕輕帶回遇見好車。' : '高風險討論，除非能提供客觀資訊，否則不建議開戰。',
+    replyAngle: worthReplying ? '用自嘲開場，補一點觀察，最後輕輕收尾。' : '高風險討論，除非能提供客觀資訊，否則不建議開戰。',
     riskLevel,
     riskNote,
-    imageIdea: `一張「${keyword} 海巡中」的短梗圖，畫面像車商小編半夜拿放大鏡看車況。`,
-    memePrompt: `搞笑迷因圖卡，上下對比：上方「以為找車靠感覺」，下方「遇見好車小編：靠，還是讓我看一下車況」。風格像台灣社群小編，短 punchline，不攻擊真人。`,
+    imageIdea: `一張「${keyword} 海巡中」的短梗圖，畫面像社群小編半夜拿放大鏡看貼文。`,
+    memePrompt: `搞笑迷因圖卡，上下對比：上方「以為熱點靠感覺」，下方「海巡小編：靠，還是讓我看一下原文」。風格像台灣社群小編，短 punchline，不攻擊真人。`,
     suggestions
   }
 }
