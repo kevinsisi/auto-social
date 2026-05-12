@@ -1,18 +1,72 @@
-# auto-social
+# auto-social → 社群海巡工作站
 
-社群平台（Threads / Instagram）自動化發文 + 互動管理系統 — 目前處於 **plan-before-build / 可行性盤點階段**，尚未開始實作。
+個人品牌小編 copilot。每 15 分鐘自動掃台灣社群熱點（Dcard、Threads…），用你的聲音生草稿，你審完手動發。
 
 ## 一句話描述
 
-針對 Meta Threads 與 Instagram 兩個平台，提供自動發文（文字 / 圖片 / 影片 / 輪播 / Reels）、定時排程、Webhook 即時回覆與 Token 管理的整合服務。
+「現在大家在夯什麼」+「AI 用我的聲音擬好回應」+「我審完手動發」— 不送 Meta App Review，Threads 操作走 Playwright + 你自己的（建議副帳號）session。
 
-## 目前狀態（2026-04-29）
+## 目前狀態（2026-05-12）
 
-- ✅ 已完成可行性盤點（見 [`openspec/specs/mvp/spec.md`](openspec/specs/mvp/spec.md)）
-- ❌ 尚未進入 OpenSpec `propose` 階段
-- ❌ 尚未開始實作
+- ✅ MVP 0.1.0 可跑（舊版「遇見好車海巡台」），UI 海巡語彙保留
+- ✅ 已完成官方 API 可行性盤點（見 [`openspec/specs/mvp/spec.md`](openspec/specs/mvp/spec.md)）
+- ✅ 已建立 OpenSpec change：[`openspec/changes/add-keyword-patrol-cards`](openspec/changes/add-keyword-patrol-cards)（舊版 MVP，已實作完成）
+- 🚧 **新方向 OpenSpec change：[`openspec/changes/add-social-patrol-station`](openspec/changes/add-social-patrol-station)** — Phase 0 計劃中
+- ✅ 本機 Docker 可建可跑（`docker compose up -d --build`）
 
-## 預定技術棧（待 propose 階段拍板）
+## Phase 0 規劃重點（社群海巡工作站）
+
+- 改名「社群海巡工作站」，UI 海巡語彙保留，「遇見好車」品牌字串移除
+- 整合 [`@kevinsisi/ai-core`](https://github.com/kevinsisi/ai-core)：`KeyPool` + `GeminiClient` + 4 步微步驟 `StepRunner`（classify → score → draft → meme）
+- Voice Studio：4 軸 + 禁區 + 欣賞帳號 + 簽名口頭禪
+- Trend Sources：Dcard（公開 API）+ Threads（Playwright 用副帳號 session）；雙模式（trending + keyword）
+- 15 分鐘排程：trending 與 keyword 同時掃
+- Settings 頁：配額、Key Pool 批次匯入、Threads Session、Sources、About
+- Dashboard 兩 tab：`全網熱門` / `我的關鍵字`
+- Draft Inbox：3 角度草稿；Phase 0 = `定稿 + 複製 + 貼上 Threads`（手動發），Phase 1 才開放自動 `送出`
+
+完整規劃見 [`openspec/changes/add-social-patrol-station/`](openspec/changes/add-social-patrol-station/) 內的 `proposal.md`、`design.md`、`tasks.md`、`specs/`。
+
+## 第一版技術棧
+
+- **Frontend**：React + TypeScript + Vite + Tailwind CSS
+- **Backend**：Node.js + Express + TypeScript
+- **Database**：SQLite via `better-sqlite3`
+- **AI**：Phase 0 起改用 `@kevinsisi/ai-core`（Gemini 多 key pool + retry + 微步驟）；舊版本地 `humor.ts` 規則引擎將於 Phase 0 拔除
+- **Threads**：不送 Meta App Review；Phase 0 = Playwright 唯讀（search + trending feed），Phase 1 才開 publish/reply
+- **排程**：node-cron 每 15 分鐘掃一輪
+
+## 本機開發
+
+```bash
+npm install
+npm run dev:server
+npm run dev:client
+```
+
+常用檢查：
+
+```bash
+npm run typecheck
+npm run test
+npm run build
+```
+
+Server 預設：`http://localhost:4323`
+
+Client 預設：`http://localhost:5173`
+
+Docker 預覽：
+
+```bash
+docker compose up -d --build
+```
+
+開啟：`http://localhost:4323`
+
+> 公司網路測試備註：`docker compose build` 走 BuildKit 會被 SSL 攔截擋下，請改用 `DOCKER_BUILDKIT=0 docker compose build`（先 `docker pull node:22-bookworm-slim` 預先拉好基底映像）。Dockerfile `deps` stage 內有 `NODE_TLS_REJECT_UNAUTHORIZED=0` 等本地測試專用 TLS bypass，**不可隨此映像進 production**。詳見 `company-doc/skills/local-docker-corporate-network/`。
+
+## 原官方 API 技術棧備忘
 
 - **Meta Graph API**：Threads（`graph.threads.net`）+ Instagram Graph API
 - **Token**：60-day long-lived token + 自動刷新流程
@@ -21,7 +75,20 @@
 - **Webhook 接收端**：用於即時留言事件 → 規則或 AI 生成回覆 → 呼叫 reply API
 - **App Review**：上線前必須通過 Meta 審核（每個 write scope 各自送審）
 
-## MVP 預定功能
+## 第一版 MVP 功能
+
+| 功能 | 狀態 | 備註 |
+|---|---|---|
+| 關鍵字海巡卡 | ✅ | 保留原始關鍵字 |
+| 手動 Threads 連結匯入 | ✅ | 立即產生建議 |
+| Threads Web 搜尋開頁 | ✅ | 不自動登入、不自動送出 |
+| AI 風格回覆建議 | ✅ | 目前為本地規則引擎 |
+| 迷因/圖卡 prompt | ✅ | 尚未接真圖像生成 provider |
+| 值不值得回/風險標記 | ✅ | low / medium / high |
+| 自動送出回覆 | ❌ | MVP 明確不做 |
+| Meta App / OAuth | ❌ | MVP 明確不做 |
+
+## 官方 API 長期功能備忘
 
 | 功能 | Threads | Instagram | 備註 |
 |---|---|---|---|
