@@ -69,3 +69,17 @@ export type ThreadsSessionStatus = {
   lastLoginAt: string | null
   healthNote: string | null
 }
+
+export type RadarTerm = {
+  word: string
+  count: number
+}
+
+export type RadarTrend = {
+  terms: RadarTerm[]
+  source: 'threads_playwright' | 'threads_search' | 'mixed'
+  sampledQueries: number
+  sampledCandidates: number
+  errors: string[]
+  cachedUntil: string
+}

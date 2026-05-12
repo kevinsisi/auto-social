@@ -45,6 +45,7 @@ For full reasoning see `D:\Projects\_HomeProject\company-doc\skills\local-docker
 
 - The user's target for patrol/discovery is **Threads**. Do not substitute Dcard, Google News, PTT, or any other platform as if it satisfies the Threads patrol requirement.
 - If Threads direct access is blocked, use only Threads-targeted fallback discovery such as `site:threads.net` search, and clearly label it as a fallback, not full Threads Playwright patrol.
+- Radar/trend UI must not present canned or synthetic terms as if they were live data. If no real Threads-targeted candidates are available, show an empty/error/loading state instead of filler keywords.
 - Dcard and other sources may be added later only as explicit extra sources after Threads patrol is working; they are not acceptable replacements for the core Threads goal.
 - The UI must not claim a feature is complete unless the user can operate it from a page and see results or a clear failure state.
 

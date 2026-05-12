@@ -1,4 +1,4 @@
-import type { CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, ThreadsSessionStatus } from './types'
+import type { CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RadarTrend, ThreadsSessionStatus } from './types'
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -57,6 +57,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({})
     })
+  },
+  async getRadarTrends() {
+    return request<{ radar: RadarTrend }>('/api/radar/trends')
   },
   async updateCandidateStatus(candidateId: string, status: CandidateStatus) {
     return request(`/api/candidates/${candidateId}/status`, {

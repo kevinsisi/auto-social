@@ -5,6 +5,7 @@ import { resolve } from 'node:path'
 import { z } from 'zod'
 import type { AppDatabase } from './db.js'
 import { registerKeyPoolRoutes } from './key-pool/routes.js'
+import { fetchRadarTrends, type RadarTrendResult } from './radar-trends.js'
 import { PatrolRepository } from './repository.js'
 import { fetchThreadsSearchCandidates } from './sources/threads-search.js'
 import { searchThreadsWithPlaywright } from './threads-bot/search.js'
@@ -20,11 +21,13 @@ const addCandidateSchema = z.object({
 })
 const updateStatusSchema = z.object({ status: z.enum(['useful', 'ignored', 'replied', 'needs_follow_up']) })
 const importThreadsSessionSchema = z.object({ storageStateJson: z.string().min(2) })
+const RADAR_CACHE_TTL_MS = 10 * 60 * 1000
 
 export function createApp(db: AppDatabase) {
   const app = express()
   const repo = new PatrolRepository(db)
   const allowedOrigin = process.env.CORS_ORIGIN ?? 'http://localhost:5173'
+  let radarCache: { expiresAt: number; result: RadarTrendResult } | null = null
 
   app.use(cors({ origin: allowedOrigin }))
   app.use(express.json())
@@ -106,6 +109,19 @@ export function createApp(db: AppDatabase) {
   app.post('/api/cards/:cardId/scan-threads', scanThreads)
   app.post('/api/cards/:cardId/scan-dcard', (_req, res) => {
     res.status(410).json({ error: 'Dcard 海巡路由已停用。請重新整理頁面後使用 Threads 出勤海巡。' })
+  })
+
+  app.get('/api/radar/trends', async (_req, res) => {
+    try {
+      const now = Date.now()
+      if (!radarCache || radarCache.expiresAt <= now) {
+        assertThreadsSearchAllowed(db)
+        radarCache = { expiresAt: now + RADAR_CACHE_TTL_MS, result: await fetchRadarTrends(db) }
+      }
+      res.json({ radar: { ...radarCache.result, cachedUntil: new Date(radarCache.expiresAt).toISOString() } })
+    } catch (error) {
+      sendError(res, error)
+    }
   })
 
   app.get('/api/threads/session/status', (_req, res) => {
