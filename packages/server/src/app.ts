@@ -11,6 +11,7 @@ import { fetchThreadsSearchCandidates } from './sources/threads-search.js'
 import { searchThreadsWithPlaywright } from './threads-bot/search.js'
 import { assertThreadsSearchAllowed } from './threads-bot/throttle.js'
 import { clearThreadsSession, getThreadsSessionStatus, importThreadsStorageState } from './threads-bot/session.js'
+import { cancelThreadsLoginJob, clickThreadsLoginJob, finishThreadsLoginJob, getThreadsLoginJobStatus, pressThreadsLoginJob, screenshotThreadsLoginJob, startThreadsLoginJob, typeThreadsLoginJob } from './threads-bot/login.js'
 import { APP_VERSION } from './version.js'
 
 const createCardSchema = z.object({ keyword: z.string() })
@@ -21,6 +22,9 @@ const addCandidateSchema = z.object({
 })
 const updateStatusSchema = z.object({ status: z.enum(['useful', 'ignored', 'replied', 'needs_follow_up']) })
 const importThreadsSessionSchema = z.object({ storageStateJson: z.string().min(2) })
+const clickThreadsLoginSchema = z.object({ x: z.number().min(0), y: z.number().min(0) })
+const typeThreadsLoginSchema = z.object({ text: z.string().min(1).max(512) })
+const pressThreadsLoginSchema = z.object({ key: z.enum(['Enter', 'Tab', 'Escape', 'Backspace']) })
 export function createApp(db: AppDatabase) {
   const app = express()
   const repo = new PatrolRepository(db)
@@ -129,11 +133,72 @@ export function createApp(db: AppDatabase) {
     res.json({ session: getThreadsSessionStatus(db) })
   })
 
-  app.post('/api/threads/session/start', (_req, res) => {
-    res.status(202).json({
-      loginUrl: 'https://www.threads.net/login',
-      message: 'Phase 0 先提供 session 狀態與清除能力；正式互動式登入通道會在下一批接上。'
-    })
+  app.post('/api/threads/session/start', async (_req, res) => {
+    try {
+      res.status(202).json({ login: await startThreadsLoginJob(), message: '已啟動 headless Threads 登入。請在截圖上點擊並輸入帳密，登入完成後按「完成並保存」。' })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.get('/api/threads/session/login/:jobId/status', (req, res) => {
+    const login = getThreadsLoginJobStatus(req.params.jobId)
+    if (!login) return res.status(404).json({ error: '找不到 Threads 登入工作，請重新開始登入。' })
+    res.json({ login })
+  })
+
+  app.get('/api/threads/session/login/:jobId/screenshot', async (req, res) => {
+    try {
+      const image = await screenshotThreadsLoginJob(req.params.jobId)
+      res.type('png').send(image)
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.post('/api/threads/session/login/:jobId/click', async (req, res) => {
+    try {
+      const body = clickThreadsLoginSchema.parse(req.body)
+      res.json({ login: await clickThreadsLoginJob(req.params.jobId, body.x, body.y) })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.post('/api/threads/session/login/:jobId/type', async (req, res) => {
+    try {
+      const body = typeThreadsLoginSchema.parse(req.body)
+      res.json({ login: await typeThreadsLoginJob(req.params.jobId, body.text) })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.post('/api/threads/session/login/:jobId/press', async (req, res) => {
+    try {
+      const body = pressThreadsLoginSchema.parse(req.body)
+      res.json({ login: await pressThreadsLoginJob(req.params.jobId, body.key) })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.post('/api/threads/session/login/:jobId/finish', async (req, res) => {
+    try {
+      await finishThreadsLoginJob(db, req.params.jobId)
+      res.json({ session: getThreadsSessionStatus(db) })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.post('/api/threads/session/login/:jobId/cancel', async (req, res) => {
+    try {
+      await cancelThreadsLoginJob(req.params.jobId)
+      res.json({ session: getThreadsSessionStatus(db) })
+    } catch (error) {
+      sendError(res, error)
+    }
   })
 
   app.post('/api/threads/session/clear', (_req, res) => {

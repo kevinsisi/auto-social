@@ -1,4 +1,4 @@
-import type { CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RadarTrend, ThreadsSessionStatus } from './types'
+import type { CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RadarTrend, ThreadsLoginJob, ThreadsSessionStatus } from './types'
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -92,10 +92,43 @@ export const api = {
     return request<{ session: ThreadsSessionStatus }>('/api/threads/session/status')
   },
   async startThreadsSession() {
-    return request<{ loginUrl: string; message: string }>('/api/threads/session/start', {
+    return request<{ login: ThreadsLoginJob; message: string }>('/api/threads/session/start', {
       method: 'POST',
       body: JSON.stringify({})
     })
+  },
+  async clickThreadsLogin(jobId: string, x: number, y: number) {
+    return request<{ login: ThreadsLoginJob }>(`/api/threads/session/login/${jobId}/click`, {
+      method: 'POST',
+      body: JSON.stringify({ x, y })
+    })
+  },
+  async typeThreadsLogin(jobId: string, text: string) {
+    return request<{ login: ThreadsLoginJob }>(`/api/threads/session/login/${jobId}/type`, {
+      method: 'POST',
+      body: JSON.stringify({ text })
+    })
+  },
+  async pressThreadsLogin(jobId: string, key: 'Enter' | 'Tab' | 'Escape' | 'Backspace') {
+    return request<{ login: ThreadsLoginJob }>(`/api/threads/session/login/${jobId}/press`, {
+      method: 'POST',
+      body: JSON.stringify({ key })
+    })
+  },
+  async finishThreadsLogin(jobId: string) {
+    return request<{ session: ThreadsSessionStatus }>(`/api/threads/session/login/${jobId}/finish`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
+  },
+  async cancelThreadsLogin(jobId: string) {
+    return request<{ session: ThreadsSessionStatus }>(`/api/threads/session/login/${jobId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
+  },
+  getThreadsLoginScreenshotUrl(jobId: string) {
+    return `/api/threads/session/login/${jobId}/screenshot?t=${Date.now()}`
   },
   async clearThreadsSession() {
     return request<{ session: ThreadsSessionStatus }>('/api/threads/session/clear', {

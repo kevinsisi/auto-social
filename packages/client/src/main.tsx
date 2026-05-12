@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import './styles.css'
-import type { Candidate, CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RadarTerm, RiskLevel, ThreadsSessionStatus } from './types'
+import type { Candidate, CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RadarTerm, RiskLevel, ThreadsLoginJob, ThreadsSessionStatus } from './types'
 import { APP_VERSION } from './version'
 
 const statusLabels: Record<CandidateStatus, string> = {
@@ -244,6 +244,9 @@ function HotKeywordCloud({ terms, loading, meta, onRefresh, onSelect }: { terms:
 function SettingsPage() {
   const [keys, setKeys] = useState<KeyStatus[]>([])
   const [threadsSession, setThreadsSession] = useState<ThreadsSessionStatus | null>(null)
+  const [threadsLogin, setThreadsLogin] = useState<ThreadsLoginJob | null>(null)
+  const [threadsLoginText, setThreadsLoginText] = useState('')
+  const [threadsScreenshotUrl, setThreadsScreenshotUrl] = useState<string | null>(null)
   const [keyText, setKeyText] = useState('')
   const [threadsStorageState, setThreadsStorageState] = useState('')
   const [message, setMessage] = useState<string | null>(null)
@@ -300,12 +303,86 @@ function SettingsPage() {
     setError(null)
     try {
       const data = await api.startThreadsSession()
-      window.open(data.loginUrl, '_blank', 'noopener,noreferrer')
+      setThreadsLogin(data.login)
+      refreshThreadsScreenshot(data.login.id)
       setMessage(data.message)
       await refreshThreadsSession()
     } catch (err) {
       setError(getMessage(err))
     }
+  }
+
+  async function clickThreadsLogin(event: React.MouseEvent<HTMLImageElement>) {
+    if (!threadsLogin) return
+    setError(null)
+    try {
+      const rect = event.currentTarget.getBoundingClientRect()
+      const x = Math.round(((event.clientX - rect.left) / rect.width) * event.currentTarget.naturalWidth)
+      const y = Math.round(((event.clientY - rect.top) / rect.height) * event.currentTarget.naturalHeight)
+      const data = await api.clickThreadsLogin(threadsLogin.id, x, y)
+      setThreadsLogin(data.login)
+      refreshThreadsScreenshot(data.login.id)
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  async function typeThreadsLogin() {
+    if (!threadsLogin || !threadsLoginText) return
+    setError(null)
+    try {
+      const data = await api.typeThreadsLogin(threadsLogin.id, threadsLoginText)
+      setThreadsLoginText('')
+      setThreadsLogin(data.login)
+      refreshThreadsScreenshot(data.login.id)
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  async function pressThreadsLogin(key: 'Enter' | 'Tab' | 'Escape' | 'Backspace') {
+    if (!threadsLogin) return
+    setError(null)
+    try {
+      const data = await api.pressThreadsLogin(threadsLogin.id, key)
+      setThreadsLogin(data.login)
+      refreshThreadsScreenshot(data.login.id)
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  async function finishThreadsLogin() {
+    if (!threadsLogin) return
+    setError(null)
+    try {
+      const data = await api.finishThreadsLogin(threadsLogin.id)
+      setThreadsSession(data.session)
+      setThreadsLogin(null)
+      setThreadsScreenshotUrl(null)
+      setMessage('Threads session 已加密保存。現在可以掃描真實 Threads 雷達。')
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  async function cancelThreadsLogin() {
+    if (!threadsLogin) return
+    setError(null)
+    try {
+      const data = await api.cancelThreadsLogin(threadsLogin.id)
+      setThreadsSession(data.session)
+      setThreadsLogin(null)
+      setThreadsScreenshotUrl(null)
+      setMessage('Threads 登入已取消。')
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  function refreshThreadsScreenshot(jobId = threadsLogin?.id) {
+    if (!jobId) return
+    setThreadsScreenshotUrl(api.getThreadsLoginScreenshotUrl(jobId))
   }
 
   async function clearThreadsSession() {
@@ -383,10 +460,44 @@ function SettingsPage() {
           <Info label="Last Login" value={threadsSession?.lastLoginAt ? formatDate(threadsSession.lastLoginAt) : '-'} />
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={startThreadsSession}>開 Threads 登入頁</button>
+          <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={startThreadsSession}>互動登入 Threads</button>
           <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshThreadsSession}>重新整理 Session</button>
           <button className="min-h-11 bg-red-700 px-4 py-2 font-bold text-white" type="button" onClick={clearThreadsSession}>清除 Session</button>
         </div>
+        {threadsLogin && (
+          <div className="mt-4 border-t-2 border-asphalt pt-4">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="font-mono text-xs uppercase tracking-[0.2em] text-signal">Headless Login</p>
+                <p className="text-sm">在截圖上點擊欄位，用下方輸入框送字。登入成功看到 Threads 畫面後，按「完成並保存」。</p>
+                <p className="mt-1 break-all font-mono text-xs text-asphalt/60">{threadsLogin.url}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button className="min-h-10 border-2 border-asphalt px-3 py-1 font-bold" type="button" onClick={() => refreshThreadsScreenshot()}>刷新截圖</button>
+                <button className="min-h-10 bg-asphalt px-3 py-1 font-bold text-paper" type="button" onClick={finishThreadsLogin}>完成並保存</button>
+                <button className="min-h-10 bg-red-700 px-3 py-1 font-bold text-white" type="button" onClick={cancelThreadsLogin}>取消</button>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <input
+                className="min-h-11 min-w-0 flex-1 border-2 border-asphalt bg-[#fffaf2] px-3 text-base outline-none"
+                value={threadsLoginText}
+                onChange={(event) => setThreadsLoginText(event.target.value)}
+                placeholder="點欄位後在這裡輸入帳號、密碼或驗證碼"
+                type="password"
+              />
+              <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={typeThreadsLogin}>送出文字</button>
+              <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={() => void pressThreadsLogin('Enter')}>Enter</button>
+              <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={() => void pressThreadsLogin('Tab')}>Tab</button>
+              <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={() => void pressThreadsLogin('Backspace')}>Backspace</button>
+            </div>
+            {threadsScreenshotUrl && (
+              <div className="mt-3 overflow-hidden border-2 border-asphalt bg-black">
+                <img src={threadsScreenshotUrl} onClick={clickThreadsLogin} className="block w-full cursor-crosshair" alt="Threads login browser screenshot" />
+              </div>
+            )}
+          </div>
+        )}
         <form onSubmit={importThreadsSession} className="mt-4 border-t-2 border-asphalt pt-4">
           <label className="text-sm font-bold">匯入 Playwright storageState JSON</label>
           <textarea
