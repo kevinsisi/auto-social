@@ -54,14 +54,32 @@ function App() {
     setRadarLoading(true)
     try {
       const data = await api.getRadarTrends()
-      setRadarTerms(data.radar.terms)
-      setRadarMeta(`實際候選 ${data.radar.sampledCandidates} 筆；來源 ${formatRadarSource(data.radar.source)}`)
+      setRadar(data.radar)
     } catch (err) {
       setRadarTerms([])
       setRadarMeta(getMessage(err))
     } finally {
       setRadarLoading(false)
     }
+  }
+
+  async function runRadarScan() {
+    setRadarLoading(true)
+    try {
+      const data = await api.runRadarScan()
+      setRadar(data.radar)
+    } catch (err) {
+      setRadarTerms([])
+      setRadarMeta(getMessage(err))
+    } finally {
+      setRadarLoading(false)
+    }
+  }
+
+  function setRadar(radar: { terms: RadarTerm[]; sampledCandidates: number; source: 'threads_playwright' | 'threads_search' | 'mixed'; scanRun?: { candidatesAdded: number } }) {
+    setRadarTerms(radar.terms)
+    const inserted = radar.scanRun ? `；本次新增 ${radar.scanRun.candidatesAdded} 筆` : ''
+    setRadarMeta(`最近 24 小時實際候選 ${radar.sampledCandidates} 筆；來源 ${formatRadarSource(radar.source)}${inserted}`)
   }
 
   async function createCard(event: React.FormEvent) {
@@ -174,7 +192,7 @@ function App() {
         <section className="space-y-4">
           {notice && <Message tone="notice" text={notice} onClose={() => setNotice(null)} />}
           {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
-          <HotKeywordCloud terms={radarTerms} loading={radarLoading} meta={radarMeta} onRefresh={loadRadarTrends} onSelect={(keyword) => void monitorRadarTerm(keyword)} />
+          <HotKeywordCloud terms={radarTerms} loading={radarLoading} meta={radarMeta} onRefresh={runRadarScan} onSelect={(keyword) => void monitorRadarTerm(keyword)} />
           {detail ? <PatrolDetail card={detail} onRefresh={() => loadDetail(detail.id)} onThreadsScan={scanThreads} onBrowserRun={startBrowserRun} /> : <EmptyState />}
         </section>
       </section>}
@@ -193,13 +211,13 @@ function HotKeywordCloud({ terms, loading, meta, onRefresh, onSelect }: { terms:
           {meta && <p className="mt-1 font-mono text-xs text-asphalt/60">{meta}</p>}
         </div>
         <div className="max-w-xl space-y-2 text-sm">
-          <p>只顯示 Threads 目標搜尋抓回的候選內容抽詞；抓不到就留空，不再用罐頭詞補畫面。點詞會直接加入監控並出勤。</p>
-          <button type="button" onClick={onRefresh} className="min-h-9 border-2 border-asphalt px-3 py-1 font-bold hover:bg-signal hover:text-white" disabled={loading}>{loading ? '更新中' : '重新抓雷達'}</button>
+          <p>只顯示已寫入資料庫的 Threads 實際候選抽詞；抓不到就留空，不再用罐頭詞補畫面。點詞會直接加入監控並出勤。</p>
+          <button type="button" onClick={onRefresh} className="min-h-9 border-2 border-asphalt px-3 py-1 font-bold hover:bg-signal hover:text-white" disabled={loading}>{loading ? '掃描中' : '掃描 Threads 雷達'}</button>
         </div>
       </div>
       <div className="mt-5 min-h-[240px] rounded-[1.5rem] border-2 border-dashed border-asphalt/25 bg-[radial-gradient(circle_at_center,#fffaf2,white_62%)] p-3 sm:min-h-[270px] sm:rounded-[2rem] sm:p-5">
         {loading ? (
-          <div className="flex min-h-[220px] items-center justify-center text-center text-xl font-black text-asphalt/50">正在抓 Threads 實際候選內容...</div>
+          <div className="flex min-h-[220px] items-center justify-center text-center text-xl font-black text-asphalt/50">正在掃描 Threads 並寫入候選資料...</div>
         ) : terms.length > 0 ? (
           <div className="flex h-full flex-wrap items-center justify-center gap-x-4 gap-y-2 leading-none">
             {terms.map((term, index) => (
@@ -216,7 +234,7 @@ function HotKeywordCloud({ terms, loading, meta, onRefresh, onSelect }: { terms:
             ))}
           </div>
         ) : (
-          <div className="flex min-h-[220px] items-center justify-center text-center text-xl font-black text-asphalt/50">還沒有抓到可用的 Threads 實際詞，請稍後重新抓或先匯入 Threads session。</div>
+          <div className="flex min-h-[220px] items-center justify-center text-center text-xl font-black text-asphalt/50">最近 24 小時還沒有可用的 Threads 實際詞，請掃描雷達或先匯入 Threads session。</div>
         )}
       </div>
     </section>

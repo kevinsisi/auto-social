@@ -81,6 +81,7 @@
 - [ ] 9.2 Add `scheduler/pipeline-runner.ts` that for each new candidate runs `ai/pipeline.ts`, persists the draft, and marks `pipeline_status` final.
 - [ ] 9.3 Add `scheduler/cron.ts` that wires `scanner` + `pipeline-runner` on a `*/15 * * * *` schedule (configurable via `settings.scan.cadence`).
 - [ ] 9.4 Add `/api/admin/scan/run-now` POST to trigger a scan manually for testing.
+- [x] 9.4a Interim radar scan: `POST /api/admin/scan/run-now` scans broad Threads observation queries, persists real candidates to `trend_candidates`, and `/api/radar/trends` reads recent persisted rows instead of live request-time fetches.
 - [ ] 9.5 Add scheduler observability: each run produces a `scan_runs` row (started_at, ended_at, sources_summary_json, candidates_added, drafts_produced, errors_json).
 - [ ] 9.6 Ensure the scheduler does not stack: if a previous run is still in progress when the next tick fires, the new tick is skipped and logged.
 
