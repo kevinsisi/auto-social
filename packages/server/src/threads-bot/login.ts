@@ -16,7 +16,7 @@ type LoginJob = ThreadsLoginJobStatus & {
   page: Page
 }
 
-const LOGIN_URL = 'https://www.threads.net/login'
+const LOGIN_URL = 'https://www.instagram.com/accounts/login/?next=https%3A%2F%2Fwww.threads.net%2Flogin'
 const LOGIN_JOB_TTL_MS = 15 * 60 * 1000
 const VIEWPORT = { width: 1280, height: 800 }
 
