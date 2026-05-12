@@ -247,6 +247,7 @@ function SettingsPage() {
   const [threadsLogin, setThreadsLogin] = useState<ThreadsLoginJob | null>(null)
   const [threadsLoginText, setThreadsLoginText] = useState('')
   const [threadsScreenshotUrl, setThreadsScreenshotUrl] = useState<string | null>(null)
+  const [adminToken, setAdminToken] = useState(() => api.getAdminToken())
   const [keyText, setKeyText] = useState('')
   const [threadsStorageState, setThreadsStorageState] = useState('')
   const [message, setMessage] = useState<string | null>(null)
@@ -288,6 +289,12 @@ function SettingsPage() {
     } catch (err) {
       setError(getMessage(err))
     }
+  }
+
+  function saveAdminToken() {
+    api.setAdminToken(adminToken)
+    setMessage(adminToken.trim() ? 'ADMIN_TOKEN 已保存在這台瀏覽器。' : 'ADMIN_TOKEN 已清除。')
+    void refreshKeys()
   }
 
   async function refreshThreadsSession() {
@@ -420,6 +427,21 @@ function SettingsPage() {
       {message && <Message tone="notice" text={message} onClose={() => setMessage(null)} />}
       {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
 
+      <div className="border-2 border-asphalt bg-paper p-4">
+        <h3 className="text-2xl font-black">Admin Token</h3>
+        <p className="mt-1 text-sm">管理 key pool 與掃描需要 `ADMIN_TOKEN`。Token 只存在這台瀏覽器的 localStorage，不會寫進前端程式。</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <input
+            className="min-h-11 min-w-0 flex-1 border-2 border-asphalt bg-[#fffaf2] px-3 text-base outline-none"
+            value={adminToken}
+            onChange={(event) => setAdminToken(event.target.value)}
+            placeholder="貼上 ADMIN_TOKEN"
+            type="password"
+          />
+          <button className="min-h-11 bg-asphalt px-4 py-2 font-bold text-paper" type="button" onClick={saveAdminToken}>保存 Token</button>
+        </div>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
         <form onSubmit={importKeys} className="border-2 border-asphalt bg-paper p-4">
           <h3 className="text-2xl font-black">Key Pool 匯入</h3>
@@ -469,7 +491,7 @@ function SettingsPage() {
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="font-mono text-xs uppercase tracking-[0.2em] text-signal">Headless Login</p>
-                <p className="text-sm">這是後端真瀏覽器畫面，不是 iframe。可在截圖裡點「用 Instagram 登入」，再用下方輸入框送 IG 帳號、密碼或驗證碼；登入成功看到 Threads 畫面後，按「完成並保存」。</p>
+                <p className="text-sm">這是後端真瀏覽器畫面，不是 iframe。起點是 Instagram 登入頁；用下方輸入框送 IG 帳號、密碼或驗證碼。登入成功跳回 Threads 後，按「完成並保存」。</p>
                 <p className="mt-1 break-all font-mono text-xs text-asphalt/60">{threadsLogin.url}</p>
               </div>
               <div className="flex flex-wrap gap-2">
