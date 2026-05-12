@@ -9,7 +9,7 @@ import { PatrolRepository } from './repository.js'
 import { fetchThreadsSearchCandidates } from './sources/threads-search.js'
 import { searchThreadsWithPlaywright } from './threads-bot/search.js'
 import { assertThreadsSearchAllowed } from './threads-bot/throttle.js'
-import { clearThreadsSession, getThreadsSessionStatus } from './threads-bot/session.js'
+import { clearThreadsSession, getThreadsSessionStatus, importThreadsStorageState } from './threads-bot/session.js'
 import { APP_VERSION } from './version.js'
 
 const createCardSchema = z.object({ keyword: z.string() })
@@ -19,6 +19,7 @@ const addCandidateSchema = z.object({
   excerpt: z.string().optional()
 })
 const updateStatusSchema = z.object({ status: z.enum(['useful', 'ignored', 'replied', 'needs_follow_up']) })
+const importThreadsSessionSchema = z.object({ storageStateJson: z.string().min(2) })
 
 export function createApp(db: AppDatabase) {
   const app = express()
@@ -121,6 +122,15 @@ export function createApp(db: AppDatabase) {
   app.post('/api/threads/session/clear', (_req, res) => {
     clearThreadsSession(db)
     res.json({ session: getThreadsSessionStatus(db) })
+  })
+
+  app.post('/api/threads/session/import', (req, res) => {
+    try {
+      const body = importThreadsSessionSchema.parse(req.body)
+      res.status(201).json({ session: importThreadsStorageState(db, body.storageStateJson) })
+    } catch (error) {
+      sendError(res, error)
+    }
   })
 
   app.patch('/api/candidates/:candidateId/status', (req, res) => {

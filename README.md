@@ -72,6 +72,7 @@ Threads Session / Playwright：
 
 - `AUTO_SOCIAL_SESSION_KEY`：選填但建議設定；用於 AES-256-GCM 加密保存 Threads `storageState`，可用 `openssl rand -hex 32` 產生。
 - `KEY_MANAGER_URL`：選填；不設定時 `從 key-manager 同步` 會停用，但 Settings 仍可手動貼 Gemini keys。
+- Settings → Threads Session 可貼上 Playwright `storageState` JSON；保存後 Playwright 搜尋會優先帶 session。
 - `Threads 出勤海巡`：先跑 Playwright 唯讀搜尋，失敗自動退回 `site:threads.net` 搜尋備援。
 
 Docker 預覽：
