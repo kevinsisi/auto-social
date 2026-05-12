@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import './styles.css'
@@ -269,6 +269,7 @@ function SettingsPage() {
   const [threadsLogin, setThreadsLogin] = useState<ThreadsLoginJob | null>(null)
   const [threadsLoginText, setThreadsLoginText] = useState('')
   const [threadsScreenshotUrl, setThreadsScreenshotUrl] = useState<string | null>(null)
+  const threadsLoginInputRef = useRef<HTMLInputElement>(null)
   const [keyText, setKeyText] = useState('')
   const [threadsStorageState, setThreadsStorageState] = useState('')
   const [message, setMessage] = useState<string | null>(null)
@@ -360,6 +361,7 @@ function SettingsPage() {
       const data = await api.clickThreadsLogin(threadsLogin.id, x, y)
       setThreadsLogin(data.login)
       refreshThreadsScreenshot(data.login.id)
+      threadsLoginInputRef.current?.focus()
     } catch (err) {
       setError(getMessage(err))
     }
@@ -376,6 +378,12 @@ function SettingsPage() {
     } catch (err) {
       setError(getMessage(err))
     }
+  }
+
+  async function submitThreadsLoginText(event: React.FormEvent) {
+    event.preventDefault()
+    await typeThreadsLogin()
+    threadsLoginInputRef.current?.focus()
   }
 
   async function pressThreadsLogin(key: 'Enter' | 'Tab' | 'Escape' | 'Backspace') {
@@ -513,7 +521,7 @@ function SettingsPage() {
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="font-mono text-xs uppercase tracking-[0.2em] text-signal">Headless Login</p>
-                <p className="text-sm">這是後端真瀏覽器畫面，不是 iframe。起點是 Instagram 登入頁；用下方輸入框送 IG 帳號、密碼或驗證碼。登入成功跳回 Threads 後，按「完成並保存」。</p>
+                <p className="text-sm">這是後端真瀏覽器畫面，不是 iframe。先點截圖裡的 IG 欄位，手機鍵盤會開在「遠端輸入」；輸入後按鍵盤 Enter 或「送到瀏覽器」。登入成功跳回 Threads 後，按「完成並保存」。</p>
                 <p className="mt-1 break-all font-mono text-xs text-asphalt/60">{threadsLogin.url}</p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -522,19 +530,24 @@ function SettingsPage() {
                 <button className="min-h-10 bg-red-700 px-3 py-1 font-bold text-white" type="button" onClick={cancelThreadsLogin}>取消</button>
               </div>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <form onSubmit={submitThreadsLoginText} className="sticky bottom-2 z-20 mt-3 border-2 border-asphalt bg-paper p-2 shadow-[4px_4px_0_#171717]">
+              <label className="text-xs font-bold">遠端輸入</label>
               <input
-                className="min-h-11 min-w-0 flex-1 border-2 border-asphalt bg-[#fffaf2] px-3 text-base outline-none"
+                ref={threadsLoginInputRef}
+                className="mt-1 min-h-12 w-full border-2 border-asphalt bg-[#fffaf2] px-3 text-base outline-none"
                 value={threadsLoginText}
                 onChange={(event) => setThreadsLoginText(event.target.value)}
-                placeholder="點截圖中的欄位後，在這裡輸入 IG 帳號、密碼或驗證碼"
+                placeholder="這裡輸入 IG 帳號、密碼或驗證碼"
                 type="password"
+                autoComplete="off"
               />
-              <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={typeThreadsLogin}>送出文字</button>
-              <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={() => void pressThreadsLogin('Enter')}>Enter</button>
-              <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={() => void pressThreadsLogin('Tab')}>Tab</button>
-              <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={() => void pressThreadsLogin('Backspace')}>Backspace</button>
-            </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                <button className="min-h-11 border-2 border-asphalt px-3 py-2 font-bold" type="submit">送到瀏覽器</button>
+                <button className="min-h-11 border-2 border-asphalt px-3 py-2 font-bold" type="button" onClick={() => void pressThreadsLogin('Enter')}>Enter</button>
+                <button className="min-h-11 border-2 border-asphalt px-3 py-2 font-bold" type="button" onClick={() => void pressThreadsLogin('Tab')}>Tab 下一欄</button>
+                <button className="min-h-11 border-2 border-asphalt px-3 py-2 font-bold" type="button" onClick={() => void pressThreadsLogin('Backspace')}>Backspace</button>
+              </div>
+            </form>
             {threadsScreenshotUrl && (
               <div className="mt-3 overflow-hidden border-2 border-asphalt bg-black">
                 <img src={threadsScreenshotUrl} onClick={clickThreadsLogin} className="block w-full cursor-crosshair" alt="Threads login browser screenshot" />
