@@ -1,0 +1,21 @@
+{
+  "name": "auto-social",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @auto-social/server",
+    "dev:client": "npm run dev --workspace @auto-social/client",
+    "dev:server": "npm run dev --workspace @auto-social/server",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

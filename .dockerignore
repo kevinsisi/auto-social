@@ -1,0 +1,11 @@
+node_modules
+packages/*/node_modules
+packages/*/dist
+data
+.git
+.worktrees
+coverage
+*.db
+*.db-shm
+*.db-wal
+*.tsbuildinfo

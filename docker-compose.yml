@@ -1,0 +1,18 @@
+services:
+  auto-social:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: auto-social:local
+    container_name: auto-social
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4323
+      AUTO_SOCIAL_DB: /app/data/auto-social.db
+      CORS_ORIGIN: http://localhost:4323
+    ports:
+      - "4323:4323"
+    volumes:
+      - ./data:/app/data
