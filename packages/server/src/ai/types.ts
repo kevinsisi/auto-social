@@ -65,6 +65,14 @@ export type MemeResult = {
   sceneIdea: string
 }
 
+export type ComposePostResult = {
+  seedKeyword: string
+  seedTopic: string
+  angle: string
+  text: string
+  imagePrompt: string
+}
+
 export type PipelineResult = {
   classify: ClassifyResult
   sponsored: SponsoredResult | null

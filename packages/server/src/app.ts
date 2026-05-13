@@ -8,6 +8,7 @@ import { browserProxy } from './browser-proxy.js'
 import type { AppDatabase } from './db.js'
 import { registerKeyPoolRoutes } from './key-pool/routes.js'
 import { getKeywordObservation, saveVoiceFeedback } from './observe.js'
+import { enqueueComposePostDraft, listPostDrafts } from './post-drafts.js'
 import { getRadarTrends, scanRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
 import { getQueueSnapshot } from './scheduler/task-queue.js'
 import { PatrolRepository } from './repository.js'
@@ -171,6 +172,18 @@ export function createApp(db: AppDatabase) {
 
   app.get('/api/ai/status', (_req, res) => {
     res.json({ queue: getQueueSnapshot(db) })
+  })
+
+  app.get('/api/post-drafts', (_req, res) => {
+    res.json({ drafts: listPostDrafts(db) })
+  })
+
+  app.post('/api/admin/post-drafts/run-now', requireAdmin, (_req, res) => {
+    try {
+      res.status(202).json({ queued: enqueueComposePostDraft(db) })
+    } catch (error) {
+      sendError(res, error)
+    }
   })
 
   app.get('/api/radar/trends', async (_req, res) => {

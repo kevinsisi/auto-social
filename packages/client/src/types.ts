@@ -129,6 +129,23 @@ export type QueueSnapshot = {
   recent: AiTask[]
 }
 
+export type PostDraft = {
+  id: string
+  seedKeyword: string | null
+  seedTopic: string | null
+  angle: string | null
+  text: string
+  imagePrompt: string | null
+  imagePath: string | null
+  imageProvider: string | null
+  imageError: string | null
+  status: string
+  createdAt: string
+  decidedAt: string | null
+  postedAt: string | null
+  postedUrl: string | null
+}
+
 export type SentimentBucket = { count: number; pct: number }
 
 export type ObservedDraft = {
