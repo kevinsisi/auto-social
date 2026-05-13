@@ -14,7 +14,7 @@ services:
       CORS_ORIGIN: http://localhost:4323
       ADMIN_TOKEN: ${ADMIN_TOKEN:-auto-social-local-single-user}
       KEY_MANAGER_URL: ${KEY_MANAGER_URL:-}
-      AUTO_SOCIAL_SESSION_KEY: ${AUTO_SOCIAL_SESSION_KEY:-}
+      AUTO_SOCIAL_SESSION_KEY: ${AUTO_SOCIAL_SESSION_KEY:-3f5a7b9c1d2e4f6a8b0c2d4e6f8a1b3c5d7e9f1a3b5c7d9e1f3a5b7c9d1e3f5a}
       # LOCAL-TEST ONLY: lets Playwright accept the corporate MITM cert when
       # logging in to Threads from the company network. The deploy compose
       # file does not set this, so production keeps strict TLS verification.
