@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import './styles.css'
-import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, PostDraft, QueueSnapshot, RadarTerm, ScamSignal, Sentiment, SponsoredSignal, TaskStatus, TaskType, ThreadsSessionStatus } from './types'
+import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, PostDraft, QueueSnapshot, RadarTerm, ScamSignal, SchedulerStatus, Sentiment, SponsoredSignal, TaskStatus, TaskType, ThreadsSessionStatus } from './types'
 import { APP_VERSION } from './version'
 
 const SENTIMENT_LABELS: Record<Sentiment, string> = {
@@ -85,6 +85,7 @@ function App() {
   const [radarLoading, setRadarLoading] = useState(false)
   const [radarMeta, setRadarMeta] = useState<string | null>(null)
   const [aiQueue, setAiQueue] = useState<QueueSnapshot | null>(null)
+  const [scheduler, setScheduler] = useState<SchedulerStatus | null>(null)
   const [postDrafts, setPostDrafts] = useState<PostDraft[]>([])
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -93,14 +94,17 @@ function App() {
     void loadCards()
     void loadRadarTrends()
     void loadAiStatus()
+    void loadSchedulerStatus()
     void loadPostDrafts()
     const aiTimer = window.setInterval(() => void loadAiStatus(), 3000)
+    const schedulerTimer = window.setInterval(() => void loadSchedulerStatus(), 10000)
     const postDraftTimer = window.setInterval(() => void loadPostDrafts(), 5000)
     const onHashChange = () => setPage(getPageFromHash())
     window.addEventListener('hashchange', onHashChange)
     return () => {
       window.removeEventListener('hashchange', onHashChange)
       window.clearInterval(aiTimer)
+      window.clearInterval(schedulerTimer)
       window.clearInterval(postDraftTimer)
     }
   }, [])
@@ -111,6 +115,15 @@ function App() {
       setAiQueue(data.queue)
     } catch {
       setAiQueue(null)
+    }
+  }
+
+  async function loadSchedulerStatus() {
+    try {
+      const data = await api.getSchedulerStatus()
+      setScheduler(data.scheduler)
+    } catch {
+      setScheduler(null)
     }
   }
 
@@ -341,6 +354,7 @@ function App() {
           {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
           <HotKeywordCloud terms={radarTerms} loading={radarLoading} meta={radarMeta} onRefresh={runRadarScan} onSelect={(keyword) => void monitorRadarTerm(keyword)} />
           <PostDraftPanel drafts={postDrafts} onRunCompose={runComposePost} />
+          <SchedulerPanel scheduler={scheduler} />
           <AiQueuePanel queue={aiQueue} />
           {selectedId
             ? <KeywordObservationPanel observation={observation} loading={observationLoading} onScanThreads={scanThreads} onAddManualLink={addManualLink} onFeedback={submitFeedback} />
@@ -1004,6 +1018,30 @@ function AiQueuePanel({ queue }: { queue: QueueSnapshot | null }) {
   )
 }
 
+function SchedulerPanel({ scheduler }: { scheduler: SchedulerStatus | null }) {
+  if (!scheduler) {
+    return <section className="border-2 border-dashed border-asphalt bg-paper p-4 font-mono text-xs">Keyword Auto Scan · 連線中…</section>
+  }
+  return (
+    <section className="border-4 border-asphalt bg-paper p-4 shadow-[5px_5px_0_#171717]">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Keyword Auto Scan</p>
+          <h3 className="text-xl font-black">關鍵字自動海巡</h3>
+        </div>
+        <p className="font-mono text-xs text-asphalt/60">cadence {scheduler.cadence}</p>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4 text-sm">
+        <div className="border-2 border-asphalt bg-[#fffaf2] p-2"><p className="font-mono text-[0.65rem] uppercase tracking-[0.15em] text-signal">狀態</p><p className="mt-1 font-bold">{formatSchedulerStatus(scheduler.lastStatus)}</p></div>
+        <div className="border-2 border-asphalt bg-[#fffaf2] p-2"><p className="font-mono text-[0.65rem] uppercase tracking-[0.15em] text-signal">上次開始</p><p className="mt-1 font-bold">{scheduler.lastStartedAt ? formatDate(scheduler.lastStartedAt) : '尚未執行'}</p></div>
+        <div className="border-2 border-asphalt bg-[#fffaf2] p-2"><p className="font-mono text-[0.65rem] uppercase tracking-[0.15em] text-signal">上次完成</p><p className="mt-1 font-bold">{scheduler.lastCompletedAt ? formatDate(scheduler.lastCompletedAt) : '尚未完成'}</p></div>
+        <div className="border-2 border-asphalt bg-[#fffaf2] p-2"><p className="font-mono text-[0.65rem] uppercase tracking-[0.15em] text-signal">上次成果</p><p className="mt-1 font-bold">掃 {scheduler.lastCardCount} 張卡 / 新增 {scheduler.lastInsertedCount} 筆</p></div>
+      </div>
+      {scheduler.lastError && <p className="mt-3 text-sm text-red-700">{scheduler.lastError}</p>}
+    </section>
+  )
+}
+
 function PostDraftPanel({ drafts, onRunCompose }: { drafts: PostDraft[]; onRunCompose: () => Promise<void> }) {
   return (
     <section className="border-4 border-asphalt bg-white p-4 shadow-[5px_5px_0_#171717]">
@@ -1050,6 +1088,14 @@ function recentTone(status: TaskStatus): string {
   if (status === 'failed') return 'bg-red-200 text-red-900'
   if (status === 'cancelled') return 'bg-asphalt/30 text-asphalt'
   return 'bg-paper text-asphalt'
+}
+
+function formatSchedulerStatus(status: SchedulerStatus['lastStatus']) {
+  if (status === 'completed') return '完成'
+  if (status === 'failed') return '有錯誤'
+  if (status === 'running') return '執行中'
+  if (status === 'skipped_overlap') return '略過重疊'
+  return '待命中'
 }
 
 function Info({ label, value }: { label: string; value: string }) {

@@ -1,0 +1,122 @@
+import cron, { type ScheduledTask } from 'node-cron'
+import type { AppDatabase } from '../db.js'
+import { scanKeywordCard } from '../keyword-scan.js'
+import { PatrolRepository } from '../repository.js'
+import { DailyQuotaExceededError, KillSwitchActiveError } from '../threads-bot/throttle.js'
+import { nowIso } from '../time.js'
+
+export type KeywordSchedulerStatus = {
+  enabled: boolean
+  cadence: string
+  running: boolean
+  lastStatus: 'idle' | 'running' | 'completed' | 'failed' | 'skipped_overlap'
+  lastStartedAt: string | null
+  lastCompletedAt: string | null
+  lastSkippedAt: string | null
+  lastError: string | null
+  lastCardCount: number
+  lastInsertedCount: number
+}
+
+const DEFAULT_CADENCE = process.env.AUTO_SOCIAL_KEYWORD_SCAN_CRON?.trim() || '*/15 * * * *'
+
+class KeywordScheduler {
+  private task: ScheduledTask | null = null
+  private status: KeywordSchedulerStatus = {
+    enabled: false,
+    cadence: DEFAULT_CADENCE,
+    running: false,
+    lastStatus: 'idle',
+    lastStartedAt: null,
+    lastCompletedAt: null,
+    lastSkippedAt: null,
+    lastError: null,
+    lastCardCount: 0,
+    lastInsertedCount: 0
+  }
+
+  constructor(private readonly db: AppDatabase) {}
+
+  start() {
+    if (this.task) return
+    this.status.enabled = true
+    this.task = cron.schedule(this.status.cadence, () => {
+      void this.runTick()
+    }, { timezone: 'Asia/Taipei' })
+  }
+
+  getStatus(): KeywordSchedulerStatus {
+    return { ...this.status }
+  }
+
+  private async runTick() {
+    if (this.status.running) {
+      this.status.lastStatus = 'skipped_overlap'
+      this.status.lastSkippedAt = nowIso()
+      return
+    }
+
+    this.status.running = true
+    this.status.lastStatus = 'running'
+    this.status.lastStartedAt = nowIso()
+    this.status.lastError = null
+
+    const repo = new PatrolRepository(this.db)
+    const cards = repo.listCards()
+    this.status.lastCardCount = cards.length
+    let insertedCount = 0
+    const errors: string[] = []
+    const scanId = `keyword-auto:${this.status.lastStartedAt}`
+    this.db.prepare(`
+      INSERT INTO scan_runs (id, started_at, status, reason, sources_summary_json, errors_json)
+      VALUES (?, ?, 'running', 'keyword_auto', ?, ?)
+    `).run(scanId, this.status.lastStartedAt, JSON.stringify({ cardCount: cards.length, cardIds: cards.map((card) => card.id) }), JSON.stringify([]))
+
+    try {
+      for (const card of cards) {
+        try {
+          const run = await scanKeywordCard(this.db, card.id)
+          insertedCount += Array.isArray(run.inserted) ? run.inserted.length : 0
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'keyword auto scan failed'
+          errors.push(`[${card.keyword}] ${message}`)
+          if (error instanceof KillSwitchActiveError || error instanceof DailyQuotaExceededError) break
+        }
+      }
+      this.status.lastInsertedCount = insertedCount
+      this.status.lastCompletedAt = nowIso()
+      this.status.lastError = errors.length > 0 ? errors.join(' | ') : null
+      this.status.lastStatus = errors.length > 0 ? 'failed' : 'completed'
+      this.db.prepare(`
+        UPDATE scan_runs
+        SET ended_at = ?, status = ?, candidates_added = ?, errors_json = ?
+        WHERE id = ?
+      `).run(this.status.lastCompletedAt, errors.length > 0 ? 'failed' : 'completed', insertedCount, JSON.stringify(errors), scanId)
+    } finally {
+      this.status.running = false
+    }
+  }
+}
+
+let schedulerInstance: KeywordScheduler | null = null
+
+export function startKeywordScheduler(db: AppDatabase) {
+  if (!schedulerInstance) schedulerInstance = new KeywordScheduler(db)
+  schedulerInstance.start()
+  return schedulerInstance
+}
+
+export function getKeywordSchedulerStatus(): KeywordSchedulerStatus {
+  return schedulerInstance?.getStatus() ?? {
+    enabled: false,
+    cadence: DEFAULT_CADENCE,
+    running: false,
+    lastStatus: 'idle',
+    lastStartedAt: null,
+    lastCompletedAt: null,
+    lastSkippedAt: null,
+    lastError: null,
+    lastCardCount: 0,
+    lastInsertedCount: 0
+  }
+}

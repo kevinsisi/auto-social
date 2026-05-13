@@ -16,6 +16,7 @@
 - ✅ **Phase A1（觀察站 + 訓練起步）已完成** — 點關鍵字 → 看到該關鍵字在 Threads 的「主要情緒風向」+ 貼文清單 + 每則 AI 建議留言 + 👍像我 / 👎不像 / ✏️改寫 訓練回饋；獨立葉配偵測（none / suspect / likely 加 reasons[]）；throttle.ts kill switch + daily quota + jitter 真的可擋
 - ✅ **Phase A1.5（觀察站持續強化）** — 詐騙偵測（性暗示邀約 / 私訊誘導 / 假投資 / 釣魚連結 / 制式話術 / 急迫感+金錢）獨立維度；SQLite-backed AI 任務 queue + single-flight worker（取代之前 fire-and-forget，避免 quota 瞬間爆掉）；Dashboard 上 AI 工作站 widget；貼文 4 個獨立計數 tile（讚/留言/轉發/分享）+ K/M 縮寫；重點貼文 highlights 按互動分（讚+留言×3+轉發×5+分享×2 ≥ 50）獨立區塊；圖片 + **影片**多媒體縮圖（▶ 影片覆蓋）；URL canonical /post/<id>（自動去重 /media）；Taiwan-first 過濾（丟英/日/韓主導貼文）；草稿全面禁 emoji + 禁開頭話術 + 台灣 Threads 真人口頭禪 prompt 重寫
 - ✅ **Phase A2a（發文發想 MVP）** — Queue-backed `compose_post` 正式啟用：Dashboard 可手動觸發「生一篇發文靈感」，worker 會根據最近 24h 雷達詞與真實 Threads 候選生成一則原創貼文草稿，寫入 `post_drafts`，可直接複製貼文與查看圖片提示詞；仍維持 human-gated，不自動發布
+- ✅ **關鍵字自動海巡已補上** — server 啟動後會在 `Asia/Taipei` 以 `*/15 * * * *` 每 15 分鐘掃一次所有 keyword cards，並以 no-overlap guard 避免重疊執行；Dashboard 會顯示最近一次自動海巡狀態
 - ✅ Phase 0 Batch 1+2 基礎：`@kevinsisi/ai-core` + `playwright` + `node-cron`、KeyPool admin API、5 步 AI pipeline（classify + sponsored + scam + score + draft）、Threads Playwright 唯讀搜尋優先 + `site:threads.net OR site:threads.com` fallback、Settings 路由
 - 🚧 Phase A2 待辦：發文發想 composer（4h cron 從熱門關鍵字產文 → Gemini 生圖 → 半自動發布）、進貼文內頁抓留言、留言情緒、Voice Studio 整頁、voice profile 從 feedback 進化
 - ✅ Threads session 已支援電腦本機登入 helper：`npm run threads:login` 產生 `data/threads-storage-state.json`，Settings 可上傳並加密保存
@@ -81,6 +82,7 @@ Threads Session / Playwright：
 - 本機登入：執行 `npm run threads:login`，完成 Instagram / Threads 驗證並進入 Threads 頁面後，工具會輸出 `data/threads-storage-state.json`。
 - Settings → Threads Session 可貼上 Playwright `storageState` JSON；保存後 Playwright 搜尋會優先帶 session。
 - `Threads 出勤海巡`：先跑 Playwright 唯讀搜尋，失敗自動退回 `site:threads.net OR site:threads.com` 搜尋備援。
+- `GET /api/scheduler/status`：查看 keyword 自動海巡是否在跑、上次執行時間、最近一次掃了幾張卡與新增幾筆。
 
 Docker 預覽：
 

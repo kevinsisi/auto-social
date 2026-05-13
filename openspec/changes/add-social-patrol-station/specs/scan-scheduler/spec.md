@@ -7,6 +7,10 @@ The system SHALL run a full scan on a configurable cron cadence with a default o
 - **WHEN** the server starts and no override is set
 - **THEN** the scheduler is registered with `*/15 * * * *` in `Asia/Taipei`
 
+#### Scenario: Interim keyword auto scan is enabled before full source registry lands
+- **WHEN** the current A1/A2 transitional build starts
+- **THEN** the server still schedules a default every-15-minute keyword Threads scan over all existing keyword cards, even though the future multi-source adapter layer is not fully implemented yet
+
 #### Scenario: Override cadence
 - **WHEN** the operator changes `settings.scan.cadence` to `*/30 * * * *` and reloads via the settings endpoint
 - **THEN** the scheduler re-registers with the new expression and the next tick fires accordingly
@@ -28,6 +32,10 @@ The system SHALL ensure no two scan ticks run concurrently. If a tick fires whil
 #### Scenario: Slow scan blocks next tick
 - **WHEN** scan A is still running when the next 15-minute tick fires
 - **THEN** scan B is not started; a `scan_runs` row records `status = 'skipped'` with `reason = 'previous run in progress'`
+
+#### Scenario: Operator checks scheduler status
+- **WHEN** the client calls `GET /api/scheduler/status`
+- **THEN** the response reports cadence, running state, last started/completed times, last card count, last inserted count, and whether the previous tick was skipped because of overlap
 
 ### Requirement: Scan-level fan-out with per-source timeout
 The system SHALL run every enabled source adapter in parallel within a scan, each with its own timeout (default 60s), so a slow or hung adapter does not block the scan from finishing.
