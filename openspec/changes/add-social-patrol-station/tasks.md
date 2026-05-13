@@ -163,6 +163,7 @@ The A1 slice flips the product to observation-first. Drafts ride alongside obser
 - [x] 15.B.1 Extend `threads-bot/search.ts` `page.evaluate` to extract `author` (handle), `postedAt` (ISO via `time[datetime]`), `likes` and `replyCount` (parsed from aria-label/title hints with K/M/萬/千 unit support); fields are nullable when DOM doesn't surface them.
 - [x] 15.B.2 No new columns needed — existing `trend_candidates.author`, `published_at`, `engagement_json` already cover the contract; engagement is stored as `{ likes, replies }` JSON.
 - [x] 15.B.3 `radar-trends.ts` `insertTrendCandidate` now writes `author`, `published_at`, `engagement_json` when present.
+- [x] 15.B.4 Fix Threads engagement extraction for visible text counters (`讚` / `留言` / `轉發` / `分享`) when the DOM does not expose aria/title labels, and clean those counters from displayed excerpts. Covered by `threads-search.test.ts`.
 
 ### 15.C AI sentiment + sponsored detection
 
