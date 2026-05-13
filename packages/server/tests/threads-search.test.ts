@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { extractThreadsLinks } from '../src/sources/threads-search.js'
-import { cleanThreadsExcerptForDisplay } from '../src/threads-bot/search.js'
+import { cleanThreadsExcerptForDisplay, isTaiwanRelevant } from '../src/threads-bot/search.js'
 
 describe('extractThreadsLinks', () => {
   it('extracts Threads URLs from Google result hrefs', () => {
@@ -26,5 +26,37 @@ describe('cleanThreadsExcerptForDisplay', () => {
     const text = '貼文內容 64留言 12轉發 分 享949 1.2K讚'
 
     expect(cleanThreadsExcerptForDisplay(text)).toBe('貼文內容')
+  })
+})
+
+describe('isTaiwanRelevant', () => {
+  it('keeps a Chinese-dominant post for a Chinese query', () => {
+    const text = '今天去夜市吃了滷肉飯，老闆真的很有人情味'
+    expect(isTaiwanRelevant(text, '夜市')).toBe(true)
+  })
+
+  it('drops an English-dominant post for a Chinese query', () => {
+    const text = 'AI Tools List For Ideas Research Image Generation Content Writing Website Building Video Generator Editor Music Generation'
+    expect(isTaiwanRelevant(text, 'AI')).toBe(false)
+  })
+
+  it('drops an English-dominant post even for an English query (Taiwan-first)', () => {
+    const text = 'Building a side project with React and TypeScript has been a blast'
+    expect(isTaiwanRelevant(text, 'side project')).toBe(false)
+  })
+
+  it('drops a Japanese-dominant post', () => {
+    const text = 'お疲れさまです。今日は東京タワーに行きました。本当にきれいでした。'
+    expect(isTaiwanRelevant(text, '東京')).toBe(false)
+  })
+
+  it('drops a Korean-dominant post', () => {
+    const text = '오늘은 정말 좋은 하루였습니다. 친구들과 함께 맛있는 음식을 먹었어요.'
+    expect(isTaiwanRelevant(text, '韓國')).toBe(false)
+  })
+
+  it('keeps mixed Chinese + English when Chinese is substantial', () => {
+    const text = '推薦這個 AI 工具，整理筆記超快，台灣朋友可以試試'
+    expect(isTaiwanRelevant(text, 'AI 工具')).toBe(true)
   })
 })

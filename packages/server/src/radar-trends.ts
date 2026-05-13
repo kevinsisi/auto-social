@@ -40,6 +40,7 @@ export type RadarCandidate = {
   reposts?: number | null
   shares?: number | null
   images?: string[] | null
+  videos?: Array<{ src: string; poster: string | null }> | null
 }
 
 type TrendCandidateRow = {
@@ -174,10 +175,12 @@ export function upsertTrendCandidate(db: AppDatabase, candidate: RadarCandidate,
   const engagementJson = hasEngagement ? JSON.stringify(engagementValues) : null
   const images = candidate.images?.filter((src) => typeof src === 'string' && src.length > 0) ?? []
   const imagesJson = images.length > 0 ? JSON.stringify(images) : null
+  const videos = candidate.videos?.filter((video) => video && typeof video.src === 'string' && video.src.length > 0) ?? []
+  const videosJson = videos.length > 0 ? JSON.stringify(videos) : null
   const id = nanoid()
   const result = db.prepare(`
-    INSERT OR IGNORE INTO trend_candidates (id, source, external_id, fingerprint, card_id, is_trending, url, author, title, text, published_at, engagement_json, images_json, fetched_at, pipeline_status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+    INSERT OR IGNORE INTO trend_candidates (id, source, external_id, fingerprint, card_id, is_trending, url, author, title, text, published_at, engagement_json, images_json, videos_json, fetched_at, pipeline_status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
   `).run(
     id,
     candidate.source,
@@ -192,6 +195,7 @@ export function upsertTrendCandidate(db: AppDatabase, candidate: RadarCandidate,
     candidate.postedAt ?? null,
     engagementJson,
     imagesJson,
+    videosJson,
     nowIso()
   )
   if (result.changes > 0) return { id, inserted: true }
@@ -207,6 +211,7 @@ export function upsertTrendCandidate(db: AppDatabase, candidate: RadarCandidate,
           published_at = COALESCE(?, published_at),
           engagement_json = COALESCE(?, engagement_json),
           images_json = COALESCE(?, images_json),
+          videos_json = COALESCE(?, videos_json),
           fetched_at = ?
       WHERE id = ?
     `).run(
@@ -218,6 +223,7 @@ export function upsertTrendCandidate(db: AppDatabase, candidate: RadarCandidate,
       candidate.postedAt ?? null,
       engagementJson,
       imagesJson,
+      videosJson,
       nowIso(),
       existing.id
     )

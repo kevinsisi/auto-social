@@ -14,6 +14,11 @@ export type ObservedDraft = {
   length: number
 }
 
+export type ObservedVideo = {
+  src: string
+  poster: string | null
+}
+
 export type ObservedPost = {
   id: string
   source: string
@@ -26,6 +31,7 @@ export type ObservedPost = {
   shares: number | null
   excerpt: string
   images: string[]
+  videos: ObservedVideo[]
   fetchedAt: string
   pipelineStatus: string
   pipelineError: string | null
@@ -68,6 +74,7 @@ type CandidateRow = {
   published_at: string | null
   engagement_json: string | null
   images_json: string | null
+  videos_json: string | null
   fetched_at: string
   pipeline_status: string
   pipeline_error: string | null
@@ -87,7 +94,7 @@ export function getKeywordObservation(db: AppDatabase, cardId: string, now: Date
 
   const since = new Date(now.getTime() - WINDOW_HOURS * 60 * 60 * 1000).toISOString()
   const rows = db.prepare(`
-    SELECT id, source, url, author, title, text, published_at, engagement_json, images_json, fetched_at,
+    SELECT id, source, url, author, title, text, published_at, engagement_json, images_json, videos_json, fetched_at,
            pipeline_status, pipeline_error, classify_json, sponsored_json, scam_json, score_json, draft_variants_json
     FROM trend_candidates
     WHERE card_id = ? AND fetched_at >= ?
@@ -140,6 +147,12 @@ function toObservedPost(row: CandidateRow): ObservedPost {
   const engagement = parseJson(row.engagement_json) as { likes?: number | null; replies?: number | null; reposts?: number | null; shares?: number | null } | null
   const imagesRaw = parseJson(row.images_json)
   const images = Array.isArray(imagesRaw) ? imagesRaw.filter((src): src is string => typeof src === 'string') : []
+  const videosRaw = parseJson(row.videos_json)
+  const videos: ObservedVideo[] = Array.isArray(videosRaw)
+    ? videosRaw
+        .filter((v): v is { src: string; poster?: string | null } => Boolean(v) && typeof (v as { src?: unknown }).src === 'string')
+        .map((v) => ({ src: v.src, poster: typeof v.poster === 'string' ? v.poster : null }))
+    : []
 
   const firstVariant = variants && variants.length > 0 ? variants[0]! : null
   return {
@@ -154,6 +167,7 @@ function toObservedPost(row: CandidateRow): ObservedPost {
     shares: engagement?.shares ?? null,
     excerpt: cleanExcerptForDisplay(row.text),
     images,
+    videos,
     fetchedAt: row.fetched_at,
     pipelineStatus: row.pipeline_status,
     pipelineError: row.pipeline_error,
