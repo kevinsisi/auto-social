@@ -47,6 +47,17 @@ export function isTaiwanRelevant(text: string, _query: string): boolean {
   return true
 }
 
+export function isKeywordRelevant(text: string, keyword: string): boolean {
+  const trimmedKeyword = keyword.trim()
+  if (!trimmedKeyword) return true
+  const normalizedText = text.normalize('NFKC')
+  const normalizedKeyword = trimmedKeyword.normalize('NFKC')
+  const hasCjk = /[一-鿿]/.test(normalizedKeyword)
+  if (hasCjk) return normalizedText.includes(normalizedKeyword)
+  const escaped = normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(normalizedText)
+}
+
 export function cleanThreadsExcerptForDisplay(text: string): string {
   let cleaned = text
   cleaned = cleaned.replace(/^追蹤[A-Za-z0-9_.]+\s*/u, '')
@@ -236,7 +247,8 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
     }, limit)
 
     const localeFiltered = items.filter((item) => isTaiwanRelevant(item.excerpt, trimmed))
-    return localeFiltered.map((item) => ({ ...item, source: 'threads_playwright' as const }))
+    const keywordFiltered = localeFiltered.filter((item) => isKeywordRelevant(`${item.title} ${item.excerpt}`, trimmed))
+    return keywordFiltered.map((item) => ({ ...item, source: 'threads_playwright' as const }))
   } catch (error) {
     if (error instanceof ThreadsSearchError) throw error
     throw new ThreadsSearchError(error instanceof Error ? error.message : 'Threads Playwright 搜尋失敗。')
