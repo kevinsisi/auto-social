@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { nanoid } from 'nanoid'
 import type { AppDatabase } from './db.js'
-import { runPipelineOnCandidate } from './scheduler/pipeline-runner.js'
+import { enqueueTask } from './scheduler/task-queue.js'
 import { fetchThreadsSearchCandidates } from './sources/threads-search.js'
 import { searchThreadsWithPlaywright } from './threads-bot/search.js'
 import { DailyQuotaExceededError, KillSwitchActiveError } from './threads-bot/throttle.js'
@@ -128,17 +128,15 @@ export async function scanRadarTrends(db: AppDatabase): Promise<RadarScanResult>
 }
 
 export function schedulePipelineForCandidates(db: AppDatabase, candidateIds: string[]) {
-  if (candidateIds.length === 0) return
-  void (async () => {
-    for (const id of candidateIds) {
-      try {
-        await runPipelineOnCandidate(db, id)
-      } catch (error) {
-        const reason = error instanceof Error ? error.message : 'pipeline_blocked'
-        console.warn(`[pipeline] candidate ${id} failed: ${reason}`)
-      }
-    }
-  })()
+  for (const id of candidateIds) {
+    const row = db.prepare('SELECT substr(text, 1, 40) AS preview FROM trend_candidates WHERE id = ?').get(id) as { preview: string } | undefined
+    enqueueTask(db, {
+      type: 'pipeline',
+      label: row?.preview ? `pipeline · ${row.preview.trim()}` : `pipeline · ${id}`,
+      payload: { candidateId: id },
+      dedupeKey: `pipeline:${id}`
+    })
+  }
 }
 
 async function fetchRadarCandidates(db: AppDatabase, query: string): Promise<RadarCandidate[]> {

@@ -1,4 +1,4 @@
-import type { AdminSession, CandidateStatus, FeedbackDecision, KeyStatus, KeywordObservation, PatrolCard, PatrolCardDetail, RadarTrend, ThreadsLoginJob, ThreadsSessionStatus } from './types'
+import type { AdminSession, CandidateStatus, FeedbackDecision, KeyStatus, KeywordObservation, PatrolCard, PatrolCardDetail, QueueSnapshot, RadarTrend, ThreadsLoginJob, ThreadsSessionStatus } from './types'
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers)
@@ -181,5 +181,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input)
     })
+  },
+  async getAiStatus() {
+    return request<{ queue: QueueSnapshot }>('/api/ai/status')
   }
 }

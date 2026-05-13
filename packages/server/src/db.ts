@@ -187,12 +187,52 @@ export function migrate(db: AppDatabase) {
   ensureColumns(db, 'trend_candidates', [
     { name: 'classify_json', type: 'TEXT' },
     { name: 'sponsored_json', type: 'TEXT' },
+    { name: 'scam_json', type: 'TEXT' },
     { name: 'score_json', type: 'TEXT' },
     { name: 'draft_variants_json', type: 'TEXT' },
     { name: 'pipeline_error', type: 'TEXT' },
     { name: 'pipeline_completed_at', type: 'TEXT' },
     { name: 'images_json', type: 'TEXT' }
   ])
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS post_drafts (
+      id TEXT PRIMARY KEY,
+      seed_keyword TEXT,
+      seed_topic TEXT,
+      angle TEXT,
+      text TEXT NOT NULL,
+      image_prompt TEXT,
+      image_path TEXT,
+      image_provider TEXT,
+      image_error TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL,
+      decided_at TEXT,
+      posted_at TEXT,
+      posted_url TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_post_drafts_status ON post_drafts(status, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS ai_tasks (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      label TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      priority INTEGER NOT NULL DEFAULT 5,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      max_attempts INTEGER NOT NULL DEFAULT 3,
+      enqueued_at TEXT NOT NULL,
+      claimed_at TEXT,
+      completed_at TEXT,
+      result_json TEXT,
+      error TEXT,
+      next_retry_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_ai_tasks_pickable ON ai_tasks(status, priority, enqueued_at);
+    CREATE INDEX IF NOT EXISTS idx_ai_tasks_type ON ai_tasks(type, status);
+  `)
 }
 
 function ensureColumns(db: AppDatabase, table: string, columns: Array<{ name: string; type: string }>) {

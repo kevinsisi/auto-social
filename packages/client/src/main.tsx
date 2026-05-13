@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import './styles.css'
-import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, RadarTerm, Sentiment, SponsoredSignal, ThreadsSessionStatus } from './types'
+import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, QueueSnapshot, RadarTerm, ScamSignal, Sentiment, SponsoredSignal, TaskStatus, TaskType, ThreadsSessionStatus } from './types'
 import { APP_VERSION } from './version'
 
 const SENTIMENT_LABELS: Record<Sentiment, string> = {
@@ -39,6 +39,24 @@ const SPONSORED_TONE: Record<SponsoredSignal, string> = {
   likely: 'border-red-600 bg-red-100'
 }
 
+const SCAM_LABELS: Record<ScamSignal, string> = {
+  none: '不像詐騙',
+  suspect: '疑似詐騙',
+  likely: '高機率詐騙'
+}
+
+const SCAM_TONE: Record<ScamSignal, string> = {
+  none: 'border-asphalt bg-paper',
+  suspect: 'border-pink-500 bg-pink-100',
+  likely: 'border-red-700 bg-red-200 text-red-900'
+}
+
+const TASK_TYPE_LABELS: Record<TaskType, string> = {
+  pipeline: '貼文判讀',
+  compose_post: '發文發想',
+  image_gen: '生圖'
+}
+
 type Page = 'dashboard' | 'settings'
 type SettingsSection = 'admin' | 'keys' | 'threads' | 'pipeline'
 
@@ -66,16 +84,31 @@ function App() {
   const [radarTerms, setRadarTerms] = useState<RadarTerm[]>([])
   const [radarLoading, setRadarLoading] = useState(false)
   const [radarMeta, setRadarMeta] = useState<string | null>(null)
+  const [aiQueue, setAiQueue] = useState<QueueSnapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
     void loadCards()
     void loadRadarTrends()
+    void loadAiStatus()
+    const aiTimer = window.setInterval(() => void loadAiStatus(), 3000)
     const onHashChange = () => setPage(getPageFromHash())
     window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
+    return () => {
+      window.removeEventListener('hashchange', onHashChange)
+      window.clearInterval(aiTimer)
+    }
   }, [])
+
+  async function loadAiStatus() {
+    try {
+      const data = await api.getAiStatus()
+      setAiQueue(data.queue)
+    } catch {
+      setAiQueue(null)
+    }
+  }
 
   useEffect(() => {
     if (!selectedId) {
@@ -282,6 +315,7 @@ function App() {
           {notice && <Message tone="notice" text={notice} onClose={() => setNotice(null)} />}
           {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
           <HotKeywordCloud terms={radarTerms} loading={radarLoading} meta={radarMeta} onRefresh={runRadarScan} onSelect={(keyword) => void monitorRadarTerm(keyword)} />
+          <AiQueuePanel queue={aiQueue} />
           {selectedId
             ? <KeywordObservationPanel observation={observation} loading={observationLoading} onScanThreads={scanThreads} onAddManualLink={addManualLink} onFeedback={submitFeedback} />
             : <EmptyState />}
@@ -620,6 +654,7 @@ function KeywordObservationPanel({ observation, loading, onScanThreads, onAddMan
               {aggregate.totalSamples} 則樣本（過去 24h）·
               已判讀 {aggregate.classifiedSamples} 則 ·
               葉配率 {formatPct(aggregate.sponsoredRate)} ·
+              詐騙率 {formatPct(aggregate.scamRate)} ·
               主要情緒：{dominant ? `${SENTIMENT_LABELS[dominant]}` : '尚不足判斷'}
               {aggregate.pipelineBlockedCount > 0 ? ` · ${aggregate.pipelineBlockedCount} 則 AI 判讀失敗` : ''}
             </p>
@@ -711,6 +746,9 @@ function ObservedPostCard({ post, onFeedback, highlight = false }: { post: Obser
   const [lastDecision, setLastDecision] = useState<FeedbackDecision | null>(null)
   const sponsoredBadge = post.sponsoredSignal ?? null
   const sponsoredClass = sponsoredBadge ? SPONSORED_TONE[sponsoredBadge] : 'border-asphalt bg-paper'
+  const scamBadge = post.scamSignal ?? null
+  const scamClass = scamBadge ? SCAM_TONE[scamBadge] : 'border-asphalt bg-paper'
+  const [scamExpanded, setScamExpanded] = useState(false)
   const engagementScore = (post.likes ?? 0) + (post.replyCount ?? 0) * 3 + (post.reposts ?? 0) * 5 + (post.shares ?? 0) * 2
 
   return (
@@ -759,11 +797,21 @@ function ObservedPostCard({ post, onFeedback, highlight = false }: { post: Obser
             {SPONSORED_LABELS[sponsoredBadge]} {post.sponsoredReasons.length > 0 ? (expandedReasons ? '▲' : '▼') : ''}
           </button>
         )}
+        {scamBadge && scamBadge !== 'none' && (
+          <button type="button" onClick={() => setScamExpanded((v) => !v)} className={`border-2 px-2 py-1 ${scamClass}`}>
+            {SCAM_LABELS[scamBadge]} {post.scamReasons.length > 0 ? (scamExpanded ? '▲' : '▼') : ''}
+          </button>
+        )}
         {post.pipelineStatus === 'pipeline_blocked' && <span className="border-2 border-red-600 bg-red-100 px-2 py-1 text-red-700">AI 判讀失敗</span>}
       </div>
       {expandedReasons && post.sponsoredReasons.length > 0 && (
         <ul className="mt-2 list-disc border-2 border-asphalt bg-paper p-3 pl-6 text-sm">
           {post.sponsoredReasons.map((reason, idx) => <li key={idx}>{reason}</li>)}
+        </ul>
+      )}
+      {scamExpanded && post.scamReasons.length > 0 && (
+        <ul className="mt-2 list-disc border-2 border-red-700 bg-red-50 p-3 pl-6 text-sm text-red-900">
+          {post.scamReasons.map((reason, idx) => <li key={idx}>{reason}</li>)}
         </ul>
       )}
 
@@ -851,6 +899,78 @@ function dominantSentiment(distribution: Record<Sentiment, { count: number; pct:
 
 function formatPct(value: number) {
   return `${Math.round(value * 100)}%`
+}
+
+function AiQueuePanel({ queue }: { queue: QueueSnapshot | null }) {
+  if (!queue) {
+    return (
+      <section className="border-2 border-dashed border-asphalt bg-paper p-4 font-mono text-xs">
+        AI Worker · 連線中…
+      </section>
+    )
+  }
+  const types: TaskType[] = ['pipeline', 'compose_post', 'image_gen']
+  const totalPending = types.reduce((sum, t) => sum + (queue.countsByType[t]?.pending ?? 0), 0)
+  const totalRunning = types.reduce((sum, t) => sum + (queue.countsByType[t]?.running ?? 0), 0)
+  const totalFailed = types.reduce((sum, t) => sum + (queue.countsByType[t]?.failed ?? 0), 0)
+  return (
+    <section className="border-4 border-asphalt bg-paper p-4 shadow-[5px_5px_0_#171717]">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">AI Worker</p>
+          <h3 className="text-xl font-black">AI 工作站</h3>
+        </div>
+        <p className="font-mono text-xs text-asphalt/60">排隊 {totalPending} · 進行中 {totalRunning} · 失敗 {totalFailed}</p>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+        {types.map((type) => {
+          const bucket = queue.countsByType[type] ?? { pending: 0, running: 0, completed: 0, failed: 0, cancelled: 0 }
+          const active = bucket.pending + bucket.running > 0
+          return (
+            <div key={type} className={`border-2 border-asphalt p-2 ${active ? 'bg-[#fffaf2]' : 'bg-paper'}`}>
+              <p className="font-mono text-[0.65rem] uppercase tracking-[0.15em] text-signal">{TASK_TYPE_LABELS[type]}</p>
+              <p className="mt-1 text-xs">排隊 {bucket.pending} / 跑 {bucket.running}</p>
+              <p className="font-mono text-[0.65rem] text-asphalt/60">完成 {bucket.completed} · 失敗 {bucket.failed}</p>
+            </div>
+          )
+        })}
+      </div>
+      {queue.inflight.length > 0 && (
+        <div className="mt-3 border-2 border-asphalt bg-[#fffaf2] p-2 text-xs">
+          <p className="font-mono uppercase tracking-[0.2em] text-signal">正在處理</p>
+          <ul className="mt-1 space-y-1">
+            {queue.inflight.map((task) => (
+              <li key={task.id} className="flex items-center gap-2">
+                <span className="rounded-sm bg-asphalt px-1 py-0.5 text-[0.65rem] font-bold text-paper">{TASK_TYPE_LABELS[task.type]}</span>
+                <span className="truncate">{task.label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {queue.recent.length > 0 && (
+        <details className="mt-3">
+          <summary className="cursor-pointer font-mono text-xs uppercase tracking-[0.2em] text-signal">最近 10 筆紀錄</summary>
+          <ul className="mt-2 space-y-1 text-xs">
+            {queue.recent.map((task) => (
+              <li key={task.id} className="flex items-center gap-2">
+                <span className={`rounded-sm px-1 py-0.5 text-[0.65rem] font-bold ${recentTone(task.status)}`}>{task.status}</span>
+                <span className="truncate">{task.label}</span>
+                {task.error && <span className="truncate text-red-700">— {task.error}</span>}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
+  )
+}
+
+function recentTone(status: TaskStatus): string {
+  if (status === 'completed') return 'bg-green-200 text-green-900'
+  if (status === 'failed') return 'bg-red-200 text-red-900'
+  if (status === 'cancelled') return 'bg-asphalt/30 text-asphalt'
+  return 'bg-paper text-asphalt'
 }
 
 function Info({ label, value }: { label: string; value: string }) {

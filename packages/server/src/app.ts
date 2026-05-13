@@ -9,6 +9,7 @@ import type { AppDatabase } from './db.js'
 import { registerKeyPoolRoutes } from './key-pool/routes.js'
 import { getKeywordObservation, saveVoiceFeedback } from './observe.js'
 import { getRadarTrends, scanRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
+import { getQueueSnapshot } from './scheduler/task-queue.js'
 import { PatrolRepository } from './repository.js'
 import { fetchThreadsSearchCandidates } from './sources/threads-search.js'
 import { searchThreadsWithPlaywright } from './threads-bot/search.js'
@@ -166,6 +167,10 @@ export function createApp(db: AppDatabase) {
   app.post('/api/cards/:cardId/scan-threads', scanThreads)
   app.post('/api/cards/:cardId/scan-dcard', (_req, res) => {
     res.status(410).json({ error: 'Dcard 海巡路由已停用。請重新整理頁面後使用 Threads 出勤海巡。' })
+  })
+
+  app.get('/api/ai/status', (_req, res) => {
+    res.json({ queue: getQueueSnapshot(db) })
   })
 
   app.get('/api/radar/trends', async (_req, res) => {

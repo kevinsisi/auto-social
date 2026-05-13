@@ -5,12 +5,14 @@ import { buildClassifyPrompt, parseClassify } from './steps/classify.js'
 import { buildDraftPrompt, parseDraft } from './steps/draft.js'
 import { buildMemePrompt, parseMeme } from './steps/meme.js'
 import { buildScorePrompt, parseScore } from './steps/score.js'
+import { buildScamDetectPrompt, parseScamDetect } from './steps/scam-detect.js'
 import { buildSponsoredDetectPrompt, parseSponsoredDetect } from './steps/sponsored-detect.js'
-import { DEFAULT_VOICE_PROFILE, type PipelineResult, type SocialPipelineOptions, type SourceCandidateInput, type SponsoredResult, type TextGenerator, type VoiceProfile } from './types.js'
+import { DEFAULT_VOICE_PROFILE, type PipelineResult, type ScamResult, type SocialPipelineOptions, type SourceCandidateInput, type SponsoredResult, type TextGenerator, type VoiceProfile } from './types.js'
 
 const STEP_DEFINITIONS = [
   { id: 'classify', name: 'Classify candidate', allowSharedFallback: true },
   { id: 'sponsored', name: 'Sponsored detect', allowSharedFallback: true },
+  { id: 'scam', name: 'Scam detect', allowSharedFallback: true },
   { id: 'score', name: 'Score candidate', allowSharedFallback: true },
   { id: 'draft', name: 'Draft variants', allowSharedFallback: true },
   { id: 'meme', name: 'Meme prompt', allowSharedFallback: true }
@@ -27,6 +29,7 @@ export class SocialPipeline {
   ) {
     this.options = {
       runSponsored: options.runSponsored ?? false,
+      runScam: options.runScam ?? false,
       runMeme: options.runMeme ?? true
     }
   }
@@ -43,6 +46,7 @@ export class SocialPipeline {
         return {
           classify,
           sponsored: null,
+          scam: null,
           score: { engagementWorth: 0, risk: 'high', timeliness: 'cold', shouldDraft: false, reason: 'topic matched voice no-go zone' },
           draft: null,
           meme: null,
@@ -56,12 +60,18 @@ export class SocialPipeline {
         sponsored = parseSponsoredDetect(await this.generate(runner, 'sponsored', analysisSystem, buildSponsoredDetectPrompt(candidate), assignments))
       }
 
+      let scam: ScamResult | null = null
+      if (this.options.runScam) {
+        scam = parseScamDetect(await this.generate(runner, 'scam', analysisSystem, buildScamDetectPrompt(candidate), assignments))
+      }
+
       const score = parseScore(await this.generate(runner, 'score', analysisSystem, buildScorePrompt(candidate, classify), assignments))
 
       if (!score.shouldDraft) {
         return {
           classify,
           sponsored,
+          scam,
           score,
           draft: null,
           meme: null,
@@ -84,6 +94,7 @@ export class SocialPipeline {
       return {
         classify,
         sponsored,
+        scam,
         score,
         draft: safeDraft,
         meme,
