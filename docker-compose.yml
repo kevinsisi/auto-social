@@ -12,7 +12,7 @@ services:
       PORT: 4323
       AUTO_SOCIAL_DB: /app/data/auto-social.db
       CORS_ORIGIN: http://localhost:4323
-      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-auto-social-local-single-user}
       KEY_MANAGER_URL: ${KEY_MANAGER_URL:-}
       AUTO_SOCIAL_SESSION_KEY: ${AUTO_SOCIAL_SESSION_KEY:-}
     ports:
