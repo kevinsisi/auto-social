@@ -46,6 +46,26 @@ curl https://social.sisihome.org/api/radar/trends
 
 Expected healthy shape: `source:"threads_playwright"`, `sampledCandidates > 0`, and no canned/filler terms.
 
+## Keyword Auto Scan
+
+Current production now runs keyword-card auto scan every 15 minutes in `Asia/Taipei` with cron `*/15 * * * *`.
+
+Check runtime status:
+
+```bash
+curl https://social.sisihome.org/api/scheduler/status
+```
+
+Key fields:
+
+- `running`
+- `lastStartedAt`
+- `lastCompletedAt`
+- `lastCardCount`
+- `lastInsertedCount`
+- `lastStatus`
+- `lastError`
+
 ## Version Rule
 
 Every committed code/spec/docs change for this project must bump the root and workspace package versions in the same batch unless the user explicitly says not to.

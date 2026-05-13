@@ -129,6 +129,19 @@ export type QueueSnapshot = {
   recent: AiTask[]
 }
 
+export type SchedulerStatus = {
+  enabled: boolean
+  cadence: string
+  running: boolean
+  lastStatus: 'idle' | 'running' | 'completed' | 'failed' | 'skipped_overlap'
+  lastStartedAt: string | null
+  lastCompletedAt: string | null
+  lastSkippedAt: string | null
+  lastError: string | null
+  lastCardCount: number
+  lastInsertedCount: number
+}
+
 export type PostDraft = {
   id: string
   seedKeyword: string | null

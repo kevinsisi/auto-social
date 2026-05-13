@@ -7,14 +7,14 @@ import { getAdminSessionStatus, loginAdmin, logoutAdmin, requireAdmin } from './
 import { browserProxy } from './browser-proxy.js'
 import type { AppDatabase } from './db.js'
 import { registerKeyPoolRoutes } from './key-pool/routes.js'
+import { scanKeywordCard } from './keyword-scan.js'
 import { getKeywordObservation, saveVoiceFeedback } from './observe.js'
 import { enqueueComposePostDraft, listPostDrafts } from './post-drafts.js'
 import { getRadarTrends, scanRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
 import { getQueueSnapshot } from './scheduler/task-queue.js'
+import { getKeywordSchedulerStatus } from './scheduler/keyword-scheduler.js'
 import { PatrolRepository } from './repository.js'
-import { fetchThreadsSearchCandidates } from './sources/threads-search.js'
-import { searchThreadsWithPlaywright } from './threads-bot/search.js'
-import { DailyQuotaExceededError, getKillSwitch, getThrottleSnapshot, KillSwitchActiveError, setKillSwitch } from './threads-bot/throttle.js'
+import { getKillSwitch, getThrottleSnapshot, KillSwitchActiveError, setKillSwitch } from './threads-bot/throttle.js'
 import { clearThreadsSession, getThreadsSessionStatus, importThreadsStorageState } from './threads-bot/session.js'
 import { cancelThreadsLoginJob, clickThreadsLoginJob, finishThreadsLoginJob, getThreadsLoginJobStatus, pressThreadsLoginJob, screenshotThreadsLoginJob, startThreadsLoginJob, typeThreadsLoginJob } from './threads-bot/login.js'
 import { APP_VERSION } from './version.js'
@@ -144,22 +144,7 @@ export function createApp(db: AppDatabase) {
   async function scanThreads(req: express.Request, res: express.Response) {
     try {
       const cardId = String(req.params.cardId)
-      const card = repo.getCardDetail(cardId)
-      if (!card) return res.status(404).json({ error: '找不到這張海巡卡。' })
-      try {
-        const items = await searchThreadsWithPlaywright(db, card.keyword)
-        persistAndSchedule(db, cardId, items)
-        res.status(202).json({ run: repo.createThreadsSearchRun(cardId, items) })
-      } catch (playwrightError) {
-        if (playwrightError instanceof KillSwitchActiveError || playwrightError instanceof DailyQuotaExceededError) {
-          throw playwrightError
-        }
-        const items = await fetchThreadsSearchCandidates(card.keyword)
-        persistAndSchedule(db, cardId, items)
-        const run = repo.createThreadsSearchRun(cardId, items)
-        const reason = playwrightError instanceof Error ? playwrightError.message : 'Threads Playwright 搜尋失敗'
-        res.status(202).json({ run: { ...run, message: `${run.message}（Playwright 失敗，已改用 site:threads.net 備援：${reason}）` } })
-      }
+      res.status(202).json({ run: await scanKeywordCard(db, cardId) })
     } catch (error) {
       sendError(res, error)
     }
@@ -172,6 +157,10 @@ export function createApp(db: AppDatabase) {
 
   app.get('/api/ai/status', (_req, res) => {
     res.json({ queue: getQueueSnapshot(db) })
+  })
+
+  app.get('/api/scheduler/status', (_req, res) => {
+    res.json({ scheduler: getKeywordSchedulerStatus() })
   })
 
   app.get('/api/post-drafts', (_req, res) => {
@@ -344,24 +333,4 @@ function sendError(res: express.Response, error: unknown) {
     return res.status(400).json({ error: error.message })
   }
   return res.status(400).json({ error: '操作失敗，這很難評，但我們有記下來。' })
-}
-
-type ScanCandidate = {
-  url: string
-  title: string
-  excerpt: string
-  source: 'threads_playwright' | 'threads_search'
-  author?: string | null
-  postedAt?: string | null
-  likes?: number | null
-  replyCount?: number | null
-}
-
-function persistAndSchedule(db: AppDatabase, cardId: string, items: ScanCandidate[]) {
-  const newIds: string[] = []
-  for (const item of items) {
-    const result = upsertTrendCandidate(db, item, { cardId, isTrending: false })
-    if (result.inserted && result.id) newIds.push(result.id)
-  }
-  schedulePipelineForCandidates(db, newIds)
 }

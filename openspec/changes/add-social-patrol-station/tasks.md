@@ -261,3 +261,9 @@ User feedback after A1 deploy drove a tight iteration cycle. Every item below is
 - [x] 17.A.2 Add `GET /api/post-drafts` and `POST /api/admin/post-drafts/run-now`; Dashboard can trigger one compose task and list recent generated drafts.
 - [x] 17.A.3 Dashboard adds a `發文發想` panel with queue-aware status, copy button, and image prompt details. This slice remains human-gated and does not publish automatically.
 - [x] 17.A.4 Add tests for compose prompt parsing and persistence path; ship through `typecheck → test → build → push → deploy`.
+
+### 17.B Interim keyword auto scheduler
+
+- [x] 17.B.1 Add a real server-started keyword auto scan scheduler with default cadence `*/15 * * * *` in `Asia/Taipei`, scanning all current keyword cards via existing Threads search flow.
+- [x] 17.B.2 Add no-overlap guard and scheduler runtime status (`running`, `lastStartedAt`, `lastCompletedAt`, `lastInsertedCount`, `lastCardCount`, `lastStatus`, `lastError`) exposed via `GET /api/scheduler/status`.
+- [x] 17.B.3 Dashboard adds a `關鍵字自動海巡` panel so the operator can see cadence and latest keyword-scan result without opening logs.
