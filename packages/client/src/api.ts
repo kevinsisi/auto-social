@@ -58,6 +58,13 @@ export const api = {
   async getCard(cardId: string) {
     return request<{ card: PatrolCardDetail }>(`/api/cards/${cardId}`)
   },
+  async deleteCard(cardId: string) {
+    const response = await fetch(`/api/cards/${cardId}`, { method: 'DELETE', credentials: 'same-origin' })
+    if (!response.ok && response.status !== 204) {
+      const text = await response.text()
+      throw new Error(text || `刪除失敗，HTTP ${response.status}`)
+    }
+  },
   async addCandidate(cardId: string, url: string, title: string, excerpt: string) {
     return request('/api/cards/' + cardId + '/candidates', {
       method: 'POST',

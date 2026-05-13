@@ -99,6 +99,12 @@ export function createApp(db: AppDatabase) {
     res.json({ card })
   })
 
+  app.delete('/api/cards/:cardId', (req, res) => {
+    const removed = repo.deleteCard(req.params.cardId)
+    if (!removed) return res.status(404).json({ error: '找不到這張海巡卡。' })
+    res.status(204).end()
+  })
+
   app.get('/api/keywords/:cardId/observe', (req, res) => {
     const observation = getKeywordObservation(db, String(req.params.cardId))
     if (!observation) return res.status(404).json({ error: '找不到這張海巡卡。' })

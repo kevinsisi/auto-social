@@ -37,6 +37,13 @@ export class PatrolRepository {
     return card
   }
 
+  deleteCard(cardId: string): boolean {
+    const result = this.db.prepare('DELETE FROM patrol_cards WHERE id = ?').run(cardId)
+    if (result.changes === 0) return false
+    this.db.prepare('DELETE FROM trend_candidates WHERE card_id = ?').run(cardId)
+    return true
+  }
+
   getCardDetail(cardId: string): PatrolCardDetail | null {
     const cardRow = this.db.prepare('SELECT * FROM patrol_cards WHERE id = ?').get(cardId) as CardRow | undefined
     if (!cardRow) return null

@@ -34,10 +34,11 @@ export class SocialPipeline {
   async run(candidate: SourceCandidateInput): Promise<PipelineResult> {
     const assignments = await planPreferredKeys(this.pool, STEP_DEFINITIONS)
     const runner = new StepRunner(this.pool)
-    const systemInstruction = buildSystemInstruction(this.profile)
+    const analysisSystem = buildSystemInstruction(this.profile, 'analysis')
+    const voiceSystem = buildSystemInstruction(this.profile, 'voice')
 
     try {
-      const classify = parseClassify(await this.generate(runner, 'classify', systemInstruction, buildClassifyPrompt(candidate), assignments))
+      const classify = parseClassify(await this.generate(runner, 'classify', analysisSystem, buildClassifyPrompt(candidate), assignments))
       if (classify.sensitivity === 'high' && this.profile.noGoZones.includes(classify.topic)) {
         return {
           classify,
@@ -52,10 +53,10 @@ export class SocialPipeline {
 
       let sponsored: SponsoredResult | null = null
       if (this.options.runSponsored) {
-        sponsored = parseSponsoredDetect(await this.generate(runner, 'sponsored', systemInstruction, buildSponsoredDetectPrompt(candidate), assignments))
+        sponsored = parseSponsoredDetect(await this.generate(runner, 'sponsored', analysisSystem, buildSponsoredDetectPrompt(candidate), assignments))
       }
 
-      const score = parseScore(await this.generate(runner, 'score', systemInstruction, buildScorePrompt(candidate, classify), assignments))
+      const score = parseScore(await this.generate(runner, 'score', analysisSystem, buildScorePrompt(candidate, classify), assignments))
 
       if (!score.shouldDraft) {
         return {
@@ -69,7 +70,7 @@ export class SocialPipeline {
         }
       }
 
-      const draft = parseDraft(await this.generate(runner, 'draft', systemInstruction, buildDraftPrompt(candidate, classify, score, this.profile), assignments))
+      const draft = parseDraft(await this.generate(runner, 'draft', voiceSystem, buildDraftPrompt(candidate, classify, score, this.profile), assignments))
       const safeDraft = {
         variants: draft.variants.filter((variant) => isVariantSafe(variant.text, this.profile.noGoZones))
       }
@@ -77,7 +78,7 @@ export class SocialPipeline {
         throw new Error('pipeline_blocked: all draft variants violated voice no-go zones')
       }
       const meme = this.options.runMeme
-        ? parseMeme(await this.generate(runner, 'meme', systemInstruction, buildMemePrompt(candidate, safeDraft), assignments))
+        ? parseMeme(await this.generate(runner, 'meme', voiceSystem, buildMemePrompt(candidate, safeDraft), assignments))
         : null
 
       return {

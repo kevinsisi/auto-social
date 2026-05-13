@@ -192,6 +192,22 @@ function App() {
     }
   }
 
+  async function removeCard(card: PatrolCard) {
+    if (!window.confirm(`確認刪除「${card.keyword}」？這會把該關鍵字的監控、候選樣本一起清掉。`)) return
+    setError(null)
+    try {
+      await api.deleteCard(card.id)
+      if (selectedId === card.id) {
+        setSelectedId(null)
+        setObservation(null)
+      }
+      await loadCards()
+      setNotice(`已刪除關鍵字「${card.keyword}」。`)
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
   async function submitFeedback(post: ObservedPost, decision: FeedbackDecision, comment?: string) {
     if (!post.draft) return
     try {
@@ -241,14 +257,23 @@ function App() {
 
           <div className="space-y-2">
             {cards.map((card) => (
-              <button
-                key={card.id}
-                onClick={() => setSelectedId(card.id)}
-                className={`w-full border-2 p-3 text-left transition-colors ${selectedId === card.id ? 'border-signal bg-asphalt text-paper' : 'border-asphalt bg-paper hover:bg-[#fffaf2]'}`}
-              >
-                <div className="text-lg font-black">{card.keyword}</div>
-                <div className="font-mono text-xs opacity-70">{formatDate(card.updatedAt)}</div>
-              </button>
+              <div key={card.id} className={`flex items-stretch border-2 transition-colors ${selectedId === card.id ? 'border-signal bg-asphalt text-paper' : 'border-asphalt bg-paper hover:bg-[#fffaf2]'}`}>
+                <button
+                  onClick={() => setSelectedId(card.id)}
+                  className="flex-1 p-3 text-left"
+                >
+                  <div className="text-lg font-black">{card.keyword}</div>
+                  <div className="font-mono text-xs opacity-70">{formatDate(card.updatedAt)}</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void removeCard(card)}
+                  title="刪除關鍵字"
+                  className={`px-3 font-mono text-sm ${selectedId === card.id ? 'border-l border-paper/40 hover:bg-red-700' : 'border-l-2 border-asphalt hover:bg-red-100 hover:text-red-700'}`}
+                >
+                  ✕
+                </button>
+              </div>
             ))}
           </div>
         </aside>
