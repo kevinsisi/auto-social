@@ -49,6 +49,7 @@ const stopWords = new Set([
   'Threads', 'threads', 'Thread', 'thread', 'Meta', 'meta', 'Instagram', 'instagram',
   'Playwright', 'playwright', 'query',
   '搜尋', '結果', '連結', '找到', '抓到', '開頁', '確認', '原文', '互動', '觀察', 'Google', 'google',
+  '分享', '更多', '留言', '轉發', '翻譯', '靜音', '編輯',
   'https', 'http', 'www', 'com', 'net', 'post', 'search', 'login', 'privacy',
   '這個', '那個', '一個', '我們', '你們', '他們', '她們', '自己', '大家', '什麼', '怎麼',
   '可以', '不是', '沒有', '就是', '因為', '所以', '如果', '今天', '現在', '真的', '覺得',
