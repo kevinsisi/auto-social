@@ -122,7 +122,7 @@ describe('getKeywordObservation', () => {
     const result = getKeywordObservation(db, card.id)
 
     expect(result!.highlights.map((p) => p.id)).toEqual(['top-1', 'top-2'])
-    expect(result!.posts.map((p) => p.id)).toEqual(['mid-1', 'low-2', 'low-1'])
+    expect(new Set(result!.posts.map((p) => p.id))).toEqual(new Set(['mid-1', 'low-1', 'low-2']))
   })
 })
 

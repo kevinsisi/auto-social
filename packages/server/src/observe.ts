@@ -90,19 +90,26 @@ export function getKeywordObservation(db: AppDatabase, cardId: string, now: Date
     LIMIT ?
   `).all(cardId, since, MAX_POSTS) as CandidateRow[]
 
-  const posts = rows.map(toObservedPost).sort(byEngagementDesc)
+  const posts = rows.map(toObservedPost)
   const aggregate = aggregate24h(posts, since)
+
+  const byEngagement = [...posts].sort(byEngagementDesc)
   const highlightIds = new Set<string>()
   const highlights: ObservedPost[] = []
-  for (const post of posts) {
+  for (const post of byEngagement) {
     if (highlights.length >= HIGHLIGHT_LIMIT) break
     if (engagementScore(post) < HIGHLIGHT_MIN_ENGAGEMENT) break
     highlights.push(post)
     highlightIds.add(post.id)
   }
-  const tail = posts.filter((post) => !highlightIds.has(post.id))
+
+  const tail = posts.filter((post) => !highlightIds.has(post.id)).sort(byRecencyDesc)
 
   return { card, aggregate, highlights, posts: tail }
+}
+
+function byRecencyDesc(a: ObservedPost, b: ObservedPost): number {
+  return (b.postedAt ?? b.fetchedAt ?? '').localeCompare(a.postedAt ?? a.fetchedAt ?? '')
 }
 
 function engagementScore(post: ObservedPost): number {
