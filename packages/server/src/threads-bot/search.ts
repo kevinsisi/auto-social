@@ -1,12 +1,17 @@
 import type { AppDatabase } from '../db.js'
 import { createThreadsContext } from './browser.js'
 import { markThreadsSessionUnhealthy } from './session.js'
+import { gate, type GateOptions } from './throttle.js'
 
 export type ThreadsPlaywrightCandidate = {
   url: string
   title: string
   excerpt: string
   source: 'threads_playwright'
+  author: string | null
+  postedAt: string | null
+  likes: number | null
+  replyCount: number | null
 }
 
 const DEFAULT_LIMIT = 10
@@ -19,9 +24,11 @@ export class ThreadsSearchError extends Error {
   }
 }
 
-export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: string, limit = DEFAULT_LIMIT): Promise<ThreadsPlaywrightCandidate[]> {
+export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: string, limit = DEFAULT_LIMIT, throttleOptions: GateOptions = {}): Promise<ThreadsPlaywrightCandidate[]> {
   const trimmed = keyword.trim()
   if (!trimmed) throw new ThreadsSearchError('Threads 搜尋關鍵字不可為空。')
+
+  await gate(db, 'search', throttleOptions)
 
   const context = await createThreadsContext(db)
   const page = await context.newPage()
@@ -39,9 +46,48 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
     }
 
     const items = await page.evaluate((maxResults) => {
+      function parseCount(raw: string | null | undefined): number | null {
+        if (!raw) return null
+        const cleaned = String(raw).replace(/\s+/g, ' ').trim()
+        const match = cleaned.match(/([\d,]+(?:\.\d+)?)\s*(K|M|k|m|萬|千)?/)
+        if (!match || !match[1]) return null
+        const num = Number(match[1].replace(/,/g, ''))
+        if (!Number.isFinite(num)) return null
+        const unit = match[2] ?? ''
+        if (unit === 'K' || unit === 'k' || unit === '千') return Math.round(num * 1000)
+        if (unit === 'M' || unit === 'm') return Math.round(num * 1_000_000)
+        if (unit === '萬') return Math.round(num * 10000)
+        return Math.round(num)
+      }
+
+      function findAuthor(container: Element): string | null {
+        for (const link of Array.from(container.querySelectorAll<HTMLAnchorElement>('a[href]'))) {
+          const href = link.getAttribute('href') ?? ''
+          const match = href.match(/^(?:https:\/\/(?:www\.)?threads\.(?:net|com))?\/@([^/?#\s]+)\/?$/)
+          if (match && match[1]) return `@${match[1]}`
+        }
+        return null
+      }
+
+      function findPostedAt(container: Element): string | null {
+        const timeEl = container.querySelector<HTMLTimeElement>('time[datetime]')
+        return timeEl?.getAttribute('datetime') ?? null
+      }
+
+      function findCountByHint(container: Element, hintRegex: RegExp): number | null {
+        for (const el of Array.from(container.querySelectorAll<HTMLElement>('[aria-label], [title]'))) {
+          const label = el.getAttribute('aria-label') ?? el.getAttribute('title') ?? ''
+          if (hintRegex.test(label)) {
+            const n = parseCount(label)
+            if (n !== null) return n
+          }
+        }
+        return null
+      }
+
       const threadsHostPattern = /^https:\/\/(www\.)?threads\.(net|com)\//i
       const seen = new Set<string>()
-      const results: Array<{ url: string; title: string; excerpt: string }> = []
+      const results: Array<{ url: string; title: string; excerpt: string; author: string | null; postedAt: string | null; likes: number | null; replyCount: number | null }> = []
       for (const anchor of Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]'))) {
         const href = anchor.href
         if (!threadsHostPattern.test(href)) continue
@@ -50,18 +96,27 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
         const normalized = href.split('?')[0]
         if (seen.has(normalized)) continue
         let container: Element | null = anchor.closest('article') ?? anchor.closest('[role="article"]') ?? anchor.parentElement
+        let bestContainer: Element | null = container
         let text = ''
         for (let depth = 0; container && depth < 8; depth += 1) {
           const candidateText = (container.textContent ?? '').replace(/\s+/g, ' ').trim()
-          if (candidateText.length > text.length && candidateText.length < 1200) text = candidateText
+          if (candidateText.length > text.length && candidateText.length < 1200) {
+            text = candidateText
+            bestContainer = container
+          }
           container = container.parentElement
         }
         if (text.length < 8) continue
         seen.add(normalized)
+        const ctx = bestContainer ?? anchor.parentElement
         results.push({
           url: normalized,
           title: text ? text.slice(0, 80) : 'Threads 搜尋結果',
-          excerpt: text.slice(0, 240)
+          excerpt: text.slice(0, 240),
+          author: ctx ? findAuthor(ctx) : null,
+          postedAt: ctx ? findPostedAt(ctx) : null,
+          likes: ctx ? findCountByHint(ctx, /like|讚/i) : null,
+          replyCount: ctx ? findCountByHint(ctx, /repl|留言|comment/i) : null
         })
         if (results.length >= maxResults) break
       }

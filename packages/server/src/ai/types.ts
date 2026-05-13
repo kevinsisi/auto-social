@@ -22,11 +22,23 @@ export type VoiceProfile = {
   language: 'zh-TW' | 'en'
 }
 
+export type Sentiment = 'anger' | 'complaint' | 'help' | 'sarcasm' | 'neutral' | 'positive' | 'support'
+
+export const SENTIMENT_CLASSES: readonly Sentiment[] = ['anger', 'complaint', 'help', 'sarcasm', 'neutral', 'positive', 'support']
+
 export type ClassifyResult = {
   topic: string
   sensitivity: 'low' | 'medium' | 'high'
   voiceFit: number
+  sentiment: Sentiment
   reason: string
+}
+
+export type SponsoredSignal = 'none' | 'suspect' | 'likely'
+
+export type SponsoredResult = {
+  sponsoredSignal: SponsoredSignal
+  reasons: string[]
 }
 
 export type ScoreResult = {
@@ -48,11 +60,17 @@ export type MemeResult = {
 
 export type PipelineResult = {
   classify: ClassifyResult
+  sponsored: SponsoredResult | null
   score: ScoreResult
   draft: DraftResult | null
   meme: MemeResult | null
   shortCircuited: boolean
   plannedKeys: Array<{ stepId: string; preferredKey: string | null; sharedFallbackRequired: boolean }>
+}
+
+export type SocialPipelineOptions = {
+  runSponsored?: boolean
+  runMeme?: boolean
 }
 
 export type TextGenerator = (input: { stepId: string; systemInstruction: string; prompt: string; preferredKey: string | null }) => Promise<string>

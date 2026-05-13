@@ -43,7 +43,7 @@ describe('SocialPipeline', () => {
 
   it('short-circuits when classify hits a no-go topic', async () => {
     const { pipeline, calls } = await createPipeline(async ({ stepId }) => {
-      if (stepId === 'classify') return JSON.stringify({ topic: 'politics', sensitivity: 'high', voiceFit: 0.1, reason: '政治高風險' })
+      if (stepId === 'classify') return JSON.stringify({ topic: 'politics', sensitivity: 'high', voiceFit: 0.1, sentiment: 'anger', reason: '政治高風險' })
       return fixtures[stepId]
     })
 
@@ -83,7 +83,7 @@ async function createPipeline(generator: TextGenerator) {
 }
 
 const fixtures: Record<string, string> = {
-  classify: JSON.stringify({ topic: 'AI social editor', sensitivity: 'low', voiceFit: 0.8, reason: '貼近個人品牌小編題材' }),
+  classify: JSON.stringify({ topic: 'AI social editor', sensitivity: 'low', voiceFit: 0.8, sentiment: 'neutral', reason: '貼近個人品牌小編題材' }),
   score: JSON.stringify({ engagementWorth: 0.76, risk: 'low', timeliness: 'hot', shouldDraft: true, reason: '熱門且可輕鬆接話' }),
   draft: JSON.stringify({ variants: [
     { angle: '觀察家', text: '先說結論，AI 小編不是要取代人，是幫人少熬一點夜。', length: 31 },

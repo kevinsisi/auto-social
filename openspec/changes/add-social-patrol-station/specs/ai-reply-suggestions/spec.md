@@ -51,6 +51,68 @@ The system SHALL run the four-step pipeline (`classify`, `score`, `draft`, `meme
 - **WHEN** the pool has fewer healthy keys than the pipeline has steps
 - **THEN** later steps are explicitly marked `sharedFallbackRequired` and `allowSharedFallback = true` permits the run to proceed; the step result records `sharedFallbackUsed = true`
 
+## ADDED Requirements
+
+### Requirement: Classify candidate sentiment (7 classes)
+The `classify` step SHALL return a `sentiment` label for every candidate, chosen from a fixed 7-class enum: `anger`, `complaint`, `help`, `sarcasm`, `neutral`, `positive`, `support`. The label SHALL describe the *post author's* emotional posture, not the topic or any third party. Every candidate gets exactly one label.
+
+#### Scenario: Complaint post
+- **WHEN** a Threads post says `又斷線了，這家網路真的爛`
+- **THEN** `classify.sentiment = 'complaint'`
+
+#### Scenario: Help-seeking post
+- **WHEN** a Threads post says `有沒有人推薦台北的牙醫，洗牙不會痛的那種`
+- **THEN** `classify.sentiment = 'help'`
+
+#### Scenario: Sarcasm post
+- **WHEN** a Threads post uses obvious irony or backhanded praise (`真不愧是台灣之光，連手搖飲都漲三次`)
+- **THEN** `classify.sentiment = 'sarcasm'`
+
+#### Scenario: Neutral statement
+- **WHEN** a Threads post is factual or descriptive without emotional cue (`今天台北 28 度多雲`)
+- **THEN** `classify.sentiment = 'neutral'`
+
+### Requirement: Detect sponsored content as an independent dimension
+The pipeline SHALL include a `sponsored-detect` step run after `classify` that returns `{ sponsoredSignal: 'none' | 'suspect' | 'likely', reasons: string[] }`. The dimension is independent of `sentiment` (any sentiment can be sponsored or organic) and independent of `risk`. `reasons[]` SHALL be short human-readable Traditional-Chinese strings explaining *which* signals triggered the classification.
+
+#### Scenario: Clear ad with disclosure
+- **WHEN** a Threads post says `感謝 @某品牌 邀請！折扣碼 ABC123，#廣告 #合作`
+- **THEN** `sponsoredSignal = 'likely'` and `reasons` includes `明示廣告 hashtag` and `出現優惠碼`
+
+#### Scenario: Suspicious organic post
+- **WHEN** a Threads post is overly positive about a single brand with polished copy, no negatives, and an implicit CTA (`私訊我拿連結`) but no disclosure
+- **THEN** `sponsoredSignal = 'suspect'` and `reasons` includes at least two of: `過度正向品牌植入`, `用語過度乾淨`, `隱性 CTA`
+
+#### Scenario: Clearly organic post
+- **WHEN** a Threads post is a first-person opinion or observation with no brand promotion, no CTA, no ad markers
+- **THEN** `sponsoredSignal = 'none'` and `reasons` is empty
+
+#### Scenario: Sponsored signal is orthogonal to sentiment
+- **WHEN** the same post is classified as `sentiment = 'complaint'` (complaining about a competitor while praising the sponsor)
+- **THEN** `sponsoredSignal` can still be `'likely'`; the two fields are reported independently
+
+### Requirement: Generate one training draft on every observed candidate
+For every candidate not dropped by `classify` short-circuit (sensitivity-high in no-go zones) or `score.shouldDraft = false`, the system SHALL generate one draft variant using the active voice profile (or a sane default if none is saved). The draft is stored on the candidate's `drafts` row regardless of whether the user ever reviews it; this provides a continuous voice-training corpus.
+
+#### Scenario: Draft generated for every observable candidate
+- **WHEN** the pipeline runs on a candidate with `score.shouldDraft = true`
+- **THEN** a `drafts` row is created with one entry in `variants_json` and `status = 'pending'`
+
+#### Scenario: Draft generation failure does not block observation
+- **WHEN** the `draft` step throws or returns invalid JSON
+- **THEN** the candidate is still saved with `classify_json`, `sponsored_json`, and `score_json` populated; `drafts` row is created with `last_error_reason` set and surfaced in the UI as "AI 草稿暫不可用"
+
+### Requirement: Collect per-draft voice training feedback
+The system SHALL accept `POST /api/voice/feedback` with `{ draftId, variantIdx, decision: 'like' | 'dislike' | 'rewrite', comment? }` and write a `voice_feedback` row. Feedback is collected starting in Phase A1; voice-profile evolution from accumulated feedback is deferred to Phase A2+.
+
+#### Scenario: User likes a draft
+- **WHEN** the user clicks `👍 像我` on a draft
+- **THEN** a `voice_feedback` row is inserted with `decision = 'like'` and is immediately visible if the same draft is fetched again
+
+#### Scenario: User rewrites a draft
+- **WHEN** the user clicks `✏️ 改寫` and submits a comment with their corrected wording
+- **THEN** a `voice_feedback` row is inserted with `decision = 'rewrite'` and the corrected text stored in `comment`
+
 ## REMOVED Requirements
 
 ### Requirement: Generate `普通` and `比較酸` sarcastic-but-non-offensive Traditional Chinese reply drafts per candidate

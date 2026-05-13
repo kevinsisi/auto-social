@@ -147,3 +147,46 @@
 - [x] 14.3 Verified `/api/health` returns `{"ok":true,"version":"1.0.0"}` from a fresh `node packages/server/dist/index.js` run.
 - [x] 14.4 `npm install` ran during dependency add; lockfile reflects new version and new deps.
 - [ ] 14.5 Add a short note in `README.md` describing the version-bump rule and where the constant lives, so future contributors do not miss it. (Defer to Batch 6 docs sweep.)
+
+## 15. Phase A1 — Observation MVP (active)
+
+The A1 slice flips the product to observation-first. Drafts ride alongside observation for voice training; Voice Studio (Section 6) and Draft Inbox (Section 10) stay deferred. Each A1 sub-batch ships through `typecheck → build → test → local docker rebuild → push → production verify` before the next starts.
+
+### 15.A Throttle first (blocking prerequisite)
+
+- [x] 15.A.1 Make `threads-bot/throttle.ts` `gate(op)` load-bearing: read `settings.killSwitch` and throw `KillSwitchActiveError`; read `settings.threads.dailyLimits` and `daily_quotas` and throw `DailyQuotaExceededError`; apply random jitter from `settings.threads.jitterMs`; increment `daily_quotas` atomically via `INSERT … ON CONFLICT … WHERE count < limit`. `searchThreadsWithPlaywright` now gates before opening any Playwright context.
+- [x] 15.A.2 Add `GET /api/threads/kill-switch`, `PUT /api/threads/kill-switch` (admin), `GET /api/threads/throttle` (snapshot of settings + today's counts). UI toggle lands in 15.E with the rest of the observation UI.
+- [x] 15.A.3 Unit-test `gate(op)` with injected sleep + random + mocked kill switch + mocked quota table (8 cases in `tests/throttle.test.ts`).
+
+### 15.B Threads search depth
+
+- [x] 15.B.1 Extend `threads-bot/search.ts` `page.evaluate` to extract `author` (handle), `postedAt` (ISO via `time[datetime]`), `likes` and `replyCount` (parsed from aria-label/title hints with K/M/萬/千 unit support); fields are nullable when DOM doesn't surface them.
+- [x] 15.B.2 No new columns needed — existing `trend_candidates.author`, `published_at`, `engagement_json` already cover the contract; engagement is stored as `{ likes, replies }` JSON.
+- [x] 15.B.3 `radar-trends.ts` `insertTrendCandidate` now writes `author`, `published_at`, `engagement_json` when present.
+
+### 15.C AI sentiment + sponsored detection
+
+- [x] 15.C.1 Extend `ai/steps/classify.ts` output schema: add `sentiment` (enum: `anger` / `complaint` / `help` / `sarcasm` / `neutral` / `positive` / `support`). Prompt now ships definitions + 1 example per class.
+- [x] 15.C.2 Add `ai/steps/sponsored-detect.ts` returning `{ sponsoredSignal: 'none' | 'suspect' | 'likely', reasons: string[] }`. Prompt enumerates 5 signals (brand placement, PR-clean copy, hidden CTA, ad hashtags, brand-name repetition); `none` is normalised to empty reasons[]. Wired into `SocialPipeline` behind `options.runSponsored`; meme can be disabled via `options.runMeme = false`.
+- [x] 15.C.3a Unit-test classify sentiment via `tests/classify.test.ts` (6 cases: 7-class roundtrip + missing/unknown sentiment rejection + markdown-fence stripping + prompt content).
+- [x] 15.C.3b Unit-test sponsored-detect via `tests/sponsored-detect.test.ts` (10 cases: none/suspect/likely roundtrip + reason normalisation + length cap + markdown-fence + prompt content + sentiment-orthogonality note).
+
+### 15.D Pipeline runner on every candidate
+
+- [x] 15.D.1 Add `scheduler/pipeline-runner.ts` `runPipelineOnCandidate(db, id)` that runs `classify → sponsored-detect → score → draft (3 variants kept; UI shows first as the training draft)` with `runMeme: false`. Persists `classify_json`, `sponsored_json`, `score_json`, `draft_variants_json`, and `pipeline_status` ∈ {`drafted`, `short_circuited`, `pipeline_blocked`} directly on `trend_candidates`. Drafts table is deferred until A2 Draft Inbox.
+- [x] 15.D.2 `radar-trends.ts` `scanRadarTrends` and the keyword-card scan-threads route both call `schedulePipelineForCandidates(db, ids)` which fire-and-forgets pipeline on every newly inserted candidate. The legacy `candidates` table is still populated for back-compat; new UI in 15.E reads from `trend_candidates`.
+- [x] 15.D.3 `pipeline_blocked` is recorded on the candidate row with `pipeline_error`. Unit test `tests/pipeline-runner.test.ts` covers drafted / short-circuited / blocked / missing-id paths (4 cases).
+
+### 15.E Observation API + UI
+
+- [x] 15.E.1 `GET /api/keywords/:cardId/observe` returns `{ card, aggregate: { totalSamples, classifiedSamples, since, sentimentDistribution: { [class]: { count, pct } }, sponsoredRate, pipelineBlockedCount }, posts: [{ id, source, url, author, postedAt, likes, replyCount, excerpt, fetchedAt, pipelineStatus, pipelineError, topic, sentiment, voiceFit, sponsoredSignal, sponsoredReasons, shouldDraft, scoreReason, draft } ] }`. Window: 24h, max 50 posts, sorted newest first. Implementation in `src/observe.ts`.
+- [x] 15.E.2 `POST /api/voice/feedback` `{ draftId, variantIdx, decision: 'like' | 'dislike' | 'rewrite', comment? }` writes to `voice_feedback`. `draftId` is the `trend_candidates.id` in Phase A1.
+- [x] 15.E.3 Replaced `PatrolDetail` with `KeywordObservationPanel` (`packages/client/src/main.tsx`): top 風向卡 with 7-colour stacked bar + dominant-sentiment label + 葉配 rate + sample count, post list with author/time/likes/replies/excerpt/sentiment tag (colour-coded)/葉配 badge expanding to show `sponsored_reasons[]`/AI 建議留言 text + copy + `👍 像我` / `👎 不像` / `✏️ 改寫` buttons. Polls observe API every 30s. `pipeline_blocked` posts show a "AI 判讀失敗" badge and "草稿暫不可用" instead of fake content.
+- [x] 15.E.4 Manual Threads link import preserved as `ManualLinkImport` block below the post list with a note that AI 風向 comes from the scheduled pipeline.
+
+### 15.F Verification + ship
+
+- [ ] 15.F.1 `npm run typecheck` + `npm run build` + `npm run test` pass in both packages.
+- [ ] 15.F.2 Local Docker rebuild on company net: `docker pull node:22-bookworm-slim` → `DOCKER_BUILDKIT=0 docker compose build` → `docker compose up -d`; verify `/api/health` returns ok + new version.
+- [ ] 15.F.3 Bump version (`1.0.6` → `1.1.0` — minor for the observation pivot), update README's status block.
+- [ ] 15.F.4 Commit + push; CI/CD deploys to `https://social.sisihome.org`; user runs a real observation pass on a keyword and reports back.

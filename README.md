@@ -8,13 +8,14 @@
 
 ## 目前狀態（2026-05-13）
 
-- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.0.6`
+- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.1.0`
 - ✅ MVP 0.1.0 可跑（舊版「遇見好車海巡台」），UI 已轉為「社群海巡工作站」
 - ✅ 已完成官方 API 可行性盤點（見 [`openspec/specs/mvp/spec.md`](openspec/specs/mvp/spec.md)）
 - ✅ OpenSpec change `add-keyword-patrol-cards`（舊版 MVP，已實作完成）
-- 🚧 **新方向 OpenSpec change：[`openspec/changes/add-social-patrol-station`](openspec/changes/add-social-patrol-station)** — Phase 0 實作中
-- ✅ **Phase 0 Batch 1（rebrand + deps + DB + v1.0.0）已完成** — 改名「社群海巡工作站」、引入 `@kevinsisi/ai-core` + `playwright` + `node-cron`、新增 9 張 DB table、版本 0.1.0 → 1.0.0、`APP_VERSION` 由各 package 自己的 `package.json` 動態讀（不再硬寫常數）
-- 🚧 Phase 0 Batch 2（AI backbone + Threads patrol）進行中：已加入 KeyPool admin API、key-manager sync 骨架、GeminiClient wrapper、4 步 pipeline 骨架、Settings key 頁、熱門關鍵字雲、Threads Playwright 唯讀搜尋優先 + `site:threads.net OR site:threads.com` fallback；Voice Studio 尚未開始
+- 🚧 **新方向 OpenSpec change：[`openspec/changes/add-social-patrol-station`](openspec/changes/add-social-patrol-station)** — Phase A1 觀察站 MVP 已實作
+- ✅ **Phase A1（觀察站 + 訓練起步）已完成** — 點關鍵字 → 看到該關鍵字在 Threads 的「主要情緒風向」+ 貼文清單 + 每則 AI 建議留言 + 👍像我 / 👎不像 / ✏️改寫 訓練回饋；獨立葉配偵測（none / suspect / likely 加 reasons[]）；throttle.ts kill switch + daily quota + jitter 真的可擋
+- ✅ Phase 0 Batch 1+2 基礎：`@kevinsisi/ai-core` + `playwright` + `node-cron`、KeyPool admin API、5 步 AI pipeline（classify + sponsored + score + draft + meme）、Threads Playwright 唯讀搜尋優先 + `site:threads.net OR site:threads.com` fallback、Settings 路由
+- 🚧 Phase A2 待辦：進貼文內頁抓留言（`threads-bot/post-detail.ts`）、留言情緒、留言列入整體風向加權、voice profile 從 feedback 進化、Voice Studio 整頁
 - ✅ Threads session 已支援電腦本機登入 helper：`npm run threads:login` 產生 `data/threads-storage-state.json`，Settings 可上傳並加密保存
 - ✅ Production 已驗證 Threads Playwright 雷達可抓真實貼文候選，`/api/radar/trends` 讀最近 persisted candidates，不使用罐頭詞
 - ✅ 本機 Docker 可建可跑（`docker compose up -d --build`；公司網路需 `DOCKER_BUILDKIT=0`）
