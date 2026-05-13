@@ -68,6 +68,7 @@ For full reasoning see `D:\Projects\_HomeProject\company-doc\skills\local-docker
 - Do not claim CI, CD, deployment, or runtime success from guesswork; use trustworthy evidence.
 - When a code change is complete, treat follow-through as part of the work, not an optional extra.
 - Every code change must update memory, update spec, commit, and push unless the user explicitly says not to.
+- Every committed code/spec change must bump the project version in `package.json` and workspace package manifests before commit.
 - Prefer commit-first, push-later batching for larger work groups when repeated pushes would only retrigger CI/CD without adding review value.
 - If a requirement should govern future implementation, write it into the formal rule sources instead of leaving it only in chat context.
 - Avoid magic numbers in implementation; prefer existing enums, or introduce named constants when no enum exists.
@@ -102,6 +103,7 @@ Mirror locations (`.claude/skills/`, `.gemini/skills/`, `.opencode/skills/`, `.g
 ## Persistent Standards
 
 - Every code change must update memory (if applicable), update OpenSpec (if applicable), commit, and push; larger work batches may commit in checkpoints and push once the batch is ready. Rule home: `skills/completion-checklist/SKILL.md`.
+- Every code/spec change must include a version bump in the same work batch before commit/push, unless the user explicitly says not to bump for that change.
 - Complex tasks must carry workflow checkpoints in the task list, and major task boundaries must trigger a fresh rule check. Rule home: `skills/execution-style/SKILL.md` and `skills/completion-checklist/SKILL.md`.
 - Any requirement that should govern future implementation must be written into the formal rule sources (this file or a skill), not left only in chat context. Rule home: `skills/execution-style/SKILL.md`.
 - Any non-trivial feature request should first go through an exploration/confirmation step and be captured in OpenSpec before implementation.
