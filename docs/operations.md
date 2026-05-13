@@ -4,7 +4,7 @@
 
 - Domain: `https://social.sisihome.org`
 - Health check: `https://social.sisihome.org/api/health`
-- Current expected API version after the latest deployment: `1.2.5`
+- Current expected API version after the latest deployment: `1.2.6`
 
 ## Threads Login
 

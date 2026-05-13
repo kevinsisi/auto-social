@@ -26,7 +26,7 @@ function seed(db: ReturnType<typeof openMemoryDatabase>): Seed {
     ids.push(id)
     db.prepare(`
       INSERT INTO trend_candidates (id, source, external_id, fingerprint, card_id, is_trending, url, author, title, text, published_at, engagement_json, fetched_at, pipeline_status, classify_json, sponsored_json, score_json, draft_variants_json, pipeline_error, pipeline_completed_at)
-      VALUES (?, 'threads_playwright', ?, ?, ?, 0, ?, '@u', '貼文', '貼文內容', ?, ?, ?, 'drafted', ?, ?, ?, ?, NULL, ?)
+      VALUES (?, 'threads_playwright', ?, ?, ?, 0, ?, '@u', 'AI 小編貼文', 'AI 小編貼文內容', ?, ?, ?, 'drafted', ?, ?, ?, ?, NULL, ?)
     `).run(
       id,
       `ext-${id}`,
@@ -69,6 +69,24 @@ describe('getKeywordObservation', () => {
   it('returns null for an unknown card', () => {
     const db = openMemoryDatabase()
     expect(getKeywordObservation(db, 'no-such-card')).toBeNull()
+  })
+
+  it('hides unrelated legacy rows that do not mention the card keyword', () => {
+    const db = openMemoryDatabase()
+    const repo = new PatrolRepository(db)
+    const card = repo.createCard('Urus')
+
+    db.prepare(`
+      INSERT INTO trend_candidates (id, source, external_id, fingerprint, card_id, is_trending, url, author, title, text, published_at, engagement_json, fetched_at, pipeline_status)
+      VALUES ('legacy-noise', 'threads_playwright', 'legacy-noise', 'fp-legacy-noise', ?, 0, 'https://www.threads.com/@girl/post/1', '@girl', '自拍', 'Mastaruu.. selfie post', ?, ?, ?, 'short_circuited')
+    `).run(card.id, nowIso(), JSON.stringify({ likes: 676, replies: 91, reposts: 4, shares: 13 }), nowIso())
+
+    const result = getKeywordObservation(db, card.id)
+
+    expect(result).not.toBeNull()
+    expect(result!.aggregate.totalSamples).toBe(0)
+    expect(result!.highlights).toEqual([])
+    expect(result!.posts).toEqual([])
   })
 
   it('returns empty aggregate for a card with no recent candidates', () => {
@@ -115,7 +133,7 @@ describe('getKeywordObservation', () => {
     for (const s of samples) {
       db.prepare(`
         INSERT INTO trend_candidates (id, source, external_id, fingerprint, card_id, is_trending, url, author, title, text, published_at, engagement_json, fetched_at, pipeline_status)
-        VALUES (?, 'threads_playwright', ?, ?, ?, 0, ?, '@u', '貼文', '貼文內容', ?, ?, ?, 'drafted')
+        VALUES (?, 'threads_playwright', ?, ?, ?, 0, ?, '@u', '排序測試貼文', '排序測試貼文內容', ?, ?, ?, 'drafted')
       `).run(s.ext, s.ext, `fp-${s.ext}`, card.id, `https://www.threads.com/@u/post/${s.ext}`, nowIso(), JSON.stringify({ likes: s.likes, replies: s.replies }), nowIso())
     }
 
