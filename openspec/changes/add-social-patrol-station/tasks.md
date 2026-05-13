@@ -63,17 +63,17 @@
 
 ## 8. Threads Automation (Playwright)
 
-- [ ] 8.1 Add `threads-bot/session.ts` with `loginInteractive()`, `loadSession()`, `clearSession()`. Encrypt `storageState` with AES-256-GCM derived from `AUTO_SOCIAL_SESSION_KEY` env.
+- [~] 8.1 Add `threads-bot/session.ts` with `loginInteractive()`, `loadSession()`, `clearSession()`. Encrypted `storageState` import/load/clear/status is implemented with AES-256-GCM derived from `AUTO_SOCIAL_SESSION_KEY`; interactive login is available through noVNC fallback plus the preferred desktop helper, but the original `loginInteractive()` API shape remains deferred.
 - [ ] 8.2 Add `threads-bot/browser.ts` that lazy-initializes a single `playwright-extra` chromium context with stealth plugin, real UA, 1280×800 viewport.
-- [x] 8.3 Add `threads-bot/search.ts` `search(keyword, opts)` that opens `https://www.threads.net/search?q=<kw>`, scrolls once, returns up to N parsed candidates. On failure (login expired, layout changed, blocked) throw a typed error and do not invent results.
+- [x] 8.3 Add `threads-bot/search.ts` `search(keyword, opts)` that opens Threads search, follows current `threads.com` redirects, scrolls once, returns parsed post candidates only, and on failure (login expired, layout changed, blocked) throws a typed error without inventing results.
 - [ ] 8.4 Add `threads-bot/explore.ts` `fetchTrending(opts)` that opens the Threads explore / for-you feed via Playwright, scrolls once, parses top posts. Same failure modes as search.
 - [ ] 8.5 Stub `threads-bot/publish.ts` and `threads-bot/reply.ts` files with TODO + Phase 1 marker; corresponding HTTP endpoints respond `501 Not Implemented` in Phase 0.
 - [~] 8.6 Add `threads-bot/throttle.ts` `gate(op)` enforcing kill switch, daily quota (op-aware), random jitter 5–30s. Phase 0 now has kill-switch read gate; quota + jitter remain for scheduler batch.
-- [~] 8.7 Add `/api/threads/session/start` (returns interactive login channel info), `/api/threads/session/status`, `/api/threads/session/clear`. Status/clear/start endpoints exist; Settings can import encrypted Playwright `storageState` JSON and drive a real remote Chromium browser through noVNC; sub-account acknowledgement remains.
+- [~] 8.7 Add `/api/threads/session/start` (returns interactive login channel info), `/api/threads/session/status`, `/api/threads/session/clear`. Status/clear/start/import endpoints exist; Settings can upload/import encrypted Playwright `storageState` JSON; noVNC remains fallback, while desktop helper is the preferred path. Sub-account acknowledgement remains.
 - [x] 8.7a Add desktop helper `npm run threads:login` that opens local Chromium, lets the user complete Instagram/Threads login on their computer, writes `data/threads-storage-state.json`, and Settings can upload that JSON for encrypted session import.
 - [ ] 8.8 Add `/api/threads/kill-switch` GET/PUT and surface in UI with a big red button.
 - [ ] 8.9 Add `/api/threads/quotas` GET (today's counts + limits + remaining) and PUT for limits.
-- [ ] 8.10 Decide and document where the Playwright worker actually runs (in-container vs sidecar container). Default: in-container, single worker, mounted volume for `~/.cache/ms-playwright`.
+- [x] 8.10 Decide and document where the Playwright worker actually runs (in-container vs sidecar container). Current production uses in-container Playwright on a Playwright base image; desktop login helper is local-only for creating importable `storageState`.
 - [ ] 8.11 Parse the bound Threads handle from `storageState` after login and store in `threads_session.bound_handle`; surface in Settings → Threads Session tab.
 
 ## 9. Scan Scheduler
@@ -81,9 +81,9 @@
 - [ ] 9.1 Add `scheduler/scanner.ts` that, on each tick, calls every enabled `SourceAdapter.fetchTrending()` and `SourceAdapter.fetch({ keywords })` in parallel with a per-source-per-mode timeout (default 60s), dedupes by `fingerprint`, inserts new rows into `trend_candidates`; trending-mode results are marked `is_trending = true`.
 - [ ] 9.2 Add `scheduler/pipeline-runner.ts` that for each new candidate runs `ai/pipeline.ts`, persists the draft, and marks `pipeline_status` final.
 - [ ] 9.3 Add `scheduler/cron.ts` that wires `scanner` + `pipeline-runner` on a `*/15 * * * *` schedule (configurable via `settings.scan.cadence`).
-- [ ] 9.4 Add `/api/admin/scan/run-now` POST to trigger a scan manually for testing.
+- [x] 9.4 Add `/api/admin/scan/run-now` POST to trigger a scan manually for testing.
 - [x] 9.4a Interim radar scan: `POST /api/admin/scan/run-now` scans broad Threads observation queries, persists real candidates to `trend_candidates`, and `/api/radar/trends` reads recent persisted rows instead of live request-time fetches.
-- [ ] 9.5 Add scheduler observability: each run produces a `scan_runs` row (started_at, ended_at, sources_summary_json, candidates_added, drafts_produced, errors_json).
+- [~] 9.5 Add scheduler observability: manual radar scan writes `scan_runs` rows with started/ended/status/sources/candidates/errors; recurring scheduler draft counters remain deferred.
 - [ ] 9.6 Ensure the scheduler does not stack: if a previous run is still in progress when the next tick fires, the new tick is skipped and logged.
 
 ## 10. Draft Inbox
@@ -99,12 +99,12 @@
 
 ## 11. Dashboard & Keyword Management
 
-- [~] 11.1 Rework Dashboard to show two tabs: `全網熱門` (candidates with `is_trending = true`) and `我的關鍵字` (candidates with `card_id` set); both sorted by score-by-engagement; both lead into the same per-draft view. Interim dashboard now has a hot keyword cloud plus keyword monitoring list; radar terms come from real Threads-targeted candidate text and must not use canned filler terms.
+- [~] 11.1 Rework Dashboard to show two tabs: `全網熱門` (candidates with `is_trending = true`) and `我的關鍵字` (candidates with `card_id` set); both sorted by score-by-engagement; both lead into the same per-draft view. Interim dashboard now has a hot keyword cloud plus keyword monitoring list; production v1.0.5 radar terms come from persisted real Threads Playwright candidates and filter internal/Threads UI labels instead of canned filler terms.
 - [ ] 11.2 Dashboard header: today's draft count, per-source health, scan history button, pool status, kill-switch + (Phase 1) quota summary.
 - [ ] 11.3 Move keyword-card list management into a `Sources & Keywords` sub-page; cards remain the source of keyword input for scans.
 - [ ] 11.4 Preserve the existing manual link import path on a keyword card as a fallback when an interesting thread is found out-of-band.
 - [ ] 11.5 Remove the old "patrol-detail" Threads-search browser-open button; replace with "run scan for this keyword now" that triggers `/api/admin/scan/run-now?keyword=...`.
-- [x] 11.6 Add an interim `Threads 出勤海巡` button that performs Threads-targeted fallback discovery using `site:threads.net` search and stores only Threads links. This is explicitly not a Dcard substitute and remains a fallback until Playwright search lands.
+- [x] 11.6 Add an interim `Threads 出勤海巡` button that performs Threads-targeted fallback discovery using `site:threads.net OR site:threads.com` search and stores only Threads links. This is explicitly not a Dcard substitute and remains a fallback when Playwright search fails.
 
 ## 11A. Settings Page
 
@@ -116,7 +116,7 @@
   - [ ] 11A.3.2 `匯入` button calls a new `POST /api/admin/keys/batch-import` endpoint; reports `新增 N 把、重複略過 M 把`.
   - [ ] 11A.3.3 `KEY_MANAGER_URL` input + `從 key-manager 同步` button that triggers `/api/admin/keys/sync`.
   - [ ] 11A.3.4 Per-key table by suffix showing health (`available` / `cooldown` / `leased` / `inactive`), `usage_count`, `cooldown_until`, delete button.
-- [ ] 11A.4 `#threads-session` tab: red sub-account warning banner on first-bind; current session health badge; bound handle from `threads_session.bound_handle`; `登入 Threads` + `清除 Session` buttons.
+- [~] 11A.4 `#threads-session` tab: red sub-account warning banner on first-bind; current session health badge; bound handle from `threads_session.bound_handle`; `登入 Threads` + `清除 Session` buttons. Current UI exposes session health, local-helper JSON upload/import, remote-browser fallback start, and clear; reliable bound-handle extraction remains deferred.
 - [ ] 11A.5 `#sources` tab: per-source toggle + trending limit input; last-success / last-failure timestamps.
 - [ ] 11A.6 `#voice` tab: short copy + button linking to Voice Studio page.
 - [ ] 11A.7 `#about` tab: version, `KEY_MANAGER_URL` host, `GEMINI_DEFAULT_MODEL`, `AUTO_SOCIAL_SESSION_KEY 已設定` boolean, link to risk-acknowledgement doc.
@@ -127,15 +127,15 @@
 - [x] 12.2 `npm run build` passes for both packages.
 - [~] 12.3 `npm run test` covers: ai pipeline parsing, voice prompt builder, source adapter fingerprinting, throttle gate (mocked time + mocked killswitch), session encryption round-trip. (Batch 2 covers key import + AI pipeline parsing/short-circuit; source/throttle/session tests remain for later batches.)
 - [ ] 12.4 Local Docker `docker compose up -d --build` boots; `/api/health` reports OK; the Playwright base image is used; `~/.cache/ms-playwright` mount is intact.
-- [ ] 12.5 End-to-end smoke (manual, Phase 0): set voice profile → batch-import 2+ keys via Settings → trigger scan-now → verify trending Dcard candidates appear in `全網熱門` tab → trigger keyword-card scan-now → verify keyword candidates appear in `我的關鍵字` tab → start interactive Threads login (副帳號 acknowledgement) → trigger scan-now again → verify Threads candidates appear → `定稿` a draft → confirm clipboard copy + Threads opens in new tab → paste a fake Threads URL into `已發` → confirm draft moves to `posted_manually`.
+- [~] 12.5 End-to-end smoke (manual, Phase 0): set voice profile → batch-import 2+ keys via Settings → trigger scan-now → verify trending Dcard candidates appear in `全網熱門` tab → trigger keyword-card scan-now → verify keyword candidates appear in `我的關鍵字` tab → start interactive Threads login (副帳號 acknowledgement) → trigger scan-now again → verify Threads candidates appear → `定稿` a draft → confirm clipboard copy + Threads opens in new tab → paste a fake Threads URL into `已發` → confirm draft moves to `posted_manually`. Production v1.0.5 verified health/version, session `hasSession:true healthy:true`, and radar scan from Threads Playwright with persisted candidates; full Draft Inbox flow remains pending.
 - [ ] 12.6 Confirm per-scan search quota enforcement by setting `perScanSearchLimit` to 1 and running a scan with 3+ keyword cards; only 1 Threads search per tick should fire, rest should record `quota` errors.
 - [ ] 12.7 Confirm kill switch by engaging it and triggering a scan; Threads adapter must report `KillSwitchActiveError` and Dcard adapter must still run.
 - [ ] 12.8 Confirm `POST /api/drafts/:id/publish` returns `501 Not Implemented` in Phase 0.
 
 ## 13. Documentation
 
-- [ ] 13.1 Update `README.md` quick-start to reflect new modules, env vars (`KEY_MANAGER_URL`, `AUTO_SOCIAL_SESSION_KEY`, `GEMINI_DEFAULT_MODEL`), and the Phase 0 = read-only / manual-publish flow.
-- [ ] 13.2 Add `docs/operations.md` covering: first-time Threads login (副帳號), recovering from expired session, tuning quotas, kill-switch usage, manual scan trigger, batch-importing keys.
+- [~] 13.1 Update `README.md` quick-start to reflect new modules, env vars (`KEY_MANAGER_URL`, `AUTO_SOCIAL_SESSION_KEY`, `GEMINI_DEFAULT_MODEL`), and the Phase 0 = read-only / manual-publish flow. README now reflects production v1.0.5, desktop helper, encrypted session import, Threads Playwright radar, and `threads.com` fallback; remaining docs for draft/publish flow deferred.
+- [~] 13.2 Add `docs/operations.md` covering: first-time Threads login (副帳號), recovering from expired session, tuning quotas, kill-switch usage, manual scan trigger, batch-importing keys. Initial operations doc covers production health, desktop login/import, session recovery, manual scan, and version rule; quotas/kill-switch/key batch import details remain deferred.
 - [ ] 13.3 Add `docs/risk-acknowledgement.md` stating the Meta ToS situation and the user's explicit acceptance.
 - [x] 13.4 Add `.env.example` at repo root containing `AUTO_SOCIAL_SESSION_KEY=` placeholder with a comment `# generate with: openssl rand -hex 32`, and `KEY_MANAGER_URL=` placeholder; ensure `.env` is gitignored.
 - [ ] 13.5 Update `docker-compose.yml` to `env_file: - .env` so the session key is injected at container start.
