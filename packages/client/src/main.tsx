@@ -652,7 +652,7 @@ function KeywordObservationPanel({ observation, loading, onScanThreads, onAddMan
 
       {posts.length > 0 && (
         <div className="space-y-2">
-          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">其它樣本（按互動由高到低）</p>
+          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">其它樣本（最新優先）</p>
           <div className="grid gap-4 xl:grid-cols-2">
             {posts.map((post) => <ObservedPostCard key={post.id} post={post} onFeedback={onFeedback} />)}
           </div>
