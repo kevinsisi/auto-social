@@ -47,6 +47,7 @@ const RADAR_WINDOW_MS = 24 * 60 * 60 * 1000
 
 const stopWords = new Set([
   'Threads', 'threads', 'Thread', 'thread', 'Meta', 'meta', 'Instagram', 'instagram',
+  'Playwright', 'playwright', 'query',
   '搜尋', '結果', '連結', '找到', '開頁', '確認', '原文', '互動', 'Google', 'google',
   'https', 'http', 'www', 'com', 'net', 'post', 'search', 'login', 'privacy',
   '這個', '那個', '一個', '我們', '你們', '他們', '她們', '自己', '大家', '什麼', '怎麼',
@@ -120,12 +121,12 @@ async function fetchRadarCandidates(db: AppDatabase, query: string): Promise<Rad
   }
 }
 
-function insertTrendCandidate(db: AppDatabase, query: string, candidate: RadarCandidate) {
+function insertTrendCandidate(db: AppDatabase, _query: string, candidate: RadarCandidate) {
   const fingerprint = createHash('sha256').update(`${candidate.source}:${candidate.url}`).digest('hex')
   const result = db.prepare(`
     INSERT OR IGNORE INTO trend_candidates (id, source, external_id, fingerprint, is_trending, url, title, text, fetched_at, pipeline_status)
     VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, 'pending')
-  `).run(nanoid(), candidate.source, candidate.url, fingerprint, candidate.url, candidate.title, `${candidate.excerpt}\n\n觀察 query：${query}`, nowIso())
+  `).run(nanoid(), candidate.source, candidate.url, fingerprint, candidate.url, candidate.title, candidate.excerpt, nowIso())
   return result.changes
 }
 
