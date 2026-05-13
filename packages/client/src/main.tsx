@@ -605,8 +605,9 @@ function KeywordObservationPanel({ observation, loading, onScanThreads, onAddMan
   if (!observation) {
     return <div className="border-4 border-asphalt p-8 text-center text-lg font-black sm:p-10">{loading ? '正在讀取觀察站資料...' : '請先選一個關鍵字，或點上方雷達中的詞加入監控。'}</div>
   }
-  const { card, aggregate, posts } = observation
+  const { card, aggregate, highlights, posts } = observation
   const dominant = useMemo(() => dominantSentiment(aggregate.sentimentDistribution), [aggregate.sentimentDistribution])
+  const hasAnyPost = highlights.length + posts.length > 0
 
   return (
     <div className="space-y-4">
@@ -632,14 +633,37 @@ function KeywordObservationPanel({ observation, loading, onScanThreads, onAddMan
         <SentimentBar distribution={aggregate.sentimentDistribution} classifiedSamples={aggregate.classifiedSamples} />
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        {posts.map((post) => <ObservedPostCard key={post.id} post={post} onFeedback={onFeedback} />)}
-        {posts.length === 0 && (
-          <div className="border-2 border-dashed border-asphalt p-8 text-center xl:col-span-2">
-            尚無樣本。按上方「Threads 出勤海巡」抓一輪，或等下一次自動排程。
+      {highlights.length > 0 && (
+        <section className="border-4 border-signal bg-[#fff5e6] p-4 shadow-[6px_6px_0_#171717]">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">High-engagement Highlights</p>
+              <h3 className="text-2xl font-black">重點貼文（按互動排序）</h3>
+            </div>
+            <p className="font-mono text-xs text-asphalt/60">讚 + 留言×3 計分，門檻 ≥ 50</p>
           </div>
-        )}
-      </div>
+          <div className="grid gap-4 xl:grid-cols-2">
+            {highlights.map((post) => (
+              <ObservedPostCard key={post.id} post={post} onFeedback={onFeedback} highlight />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {posts.length > 0 && (
+        <div className="space-y-2">
+          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">其它樣本（按互動由高到低）</p>
+          <div className="grid gap-4 xl:grid-cols-2">
+            {posts.map((post) => <ObservedPostCard key={post.id} post={post} onFeedback={onFeedback} />)}
+          </div>
+        </div>
+      )}
+
+      {!hasAnyPost && (
+        <div className="border-2 border-dashed border-asphalt p-8 text-center">
+          尚無樣本。按上方「Threads 出勤海巡」抓一輪，或等下一次自動排程。
+        </div>
+      )}
 
       <ManualLinkImport onSubmit={onAddManualLink} />
     </div>
@@ -680,16 +704,20 @@ function SentimentBar({ distribution, classifiedSamples }: { distribution: Recor
   )
 }
 
-function ObservedPostCard({ post, onFeedback }: { post: ObservedPost; onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void> }) {
+function ObservedPostCard({ post, onFeedback, highlight = false }: { post: ObservedPost; onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>; highlight?: boolean }) {
   const [expandedReasons, setExpandedReasons] = useState(false)
   const [rewriting, setRewriting] = useState(false)
   const [rewriteText, setRewriteText] = useState('')
   const [lastDecision, setLastDecision] = useState<FeedbackDecision | null>(null)
   const sponsoredBadge = post.sponsoredSignal ?? null
   const sponsoredClass = sponsoredBadge ? SPONSORED_TONE[sponsoredBadge] : 'border-asphalt bg-paper'
+  const engagementScore = (post.likes ?? 0) + (post.replyCount ?? 0) * 3
 
   return (
-    <article className="border-4 border-asphalt bg-[#fffaf2] p-4 shadow-[6px_6px_0_#171717]">
+    <article className={`p-4 ${highlight ? 'border-4 border-signal bg-white shadow-[8px_8px_0_#f97316]' : 'border-4 border-asphalt bg-[#fffaf2] shadow-[6px_6px_0_#171717]'}`}>
+      {highlight && (
+        <p className="mb-2 inline-block bg-signal px-2 py-0.5 text-xs font-black text-white">熱門 · 互動分 {engagementScore}</p>
+      )}
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">{post.author ?? '匿名作者'} · {post.source}</p>

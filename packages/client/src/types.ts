@@ -146,5 +146,6 @@ export type KeywordObservation = {
     sponsoredRate: number
     pipelineBlockedCount: number
   }
+  highlights: ObservedPost[]
   posts: ObservedPost[]
 }
