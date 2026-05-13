@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
 import { nanoid } from 'nanoid'
 import type { AppDatabase } from '../db.js'
+import { isInsecureTlsEnabled } from './browser.js'
 import { saveThreadsStorageState } from './session.js'
 
 export type ThreadsLoginJobStatus = {
@@ -43,7 +44,8 @@ export async function startThreadsLoginJob(): Promise<ThreadsLoginJobStatus> {
     locale: 'zh-TW',
     timezoneId: 'Asia/Taipei',
     viewport: VIEWPORT,
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36'
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36',
+    ignoreHTTPSErrors: isInsecureTlsEnabled()
   })
   const page = await context.newPage()
   await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 30_000 })
