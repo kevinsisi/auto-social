@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import './styles.css'
-import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, RadarTerm, Sentiment, SponsoredSignal, ThreadsLoginJob, ThreadsSessionStatus } from './types'
+import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, RadarTerm, Sentiment, SponsoredSignal, ThreadsSessionStatus } from './types'
 import { APP_VERSION } from './version'
 
 const SENTIMENT_LABELS: Record<Sentiment, string> = {
@@ -312,8 +312,6 @@ function SettingsPage() {
   const [adminSession, setAdminSession] = useState<AdminSession | null>(null)
   const [keys, setKeys] = useState<KeyStatus[]>([])
   const [threadsSession, setThreadsSession] = useState<ThreadsSessionStatus | null>(null)
-  const [threadsLogin, setThreadsLogin] = useState<ThreadsLoginJob | null>(null)
-  const [threadsLoginText, setThreadsLoginText] = useState('')
   const [keyText, setKeyText] = useState('')
   const [threadsStorageState, setThreadsStorageState] = useState('')
   const [message, setMessage] = useState<string | null>(null)
@@ -382,68 +380,6 @@ function SettingsPage() {
     }
   }
 
-  async function startThreadsSession() {
-    setError(null)
-    try {
-      const data = await api.startThreadsSession()
-      setThreadsLogin(data.login)
-      setMessage(data.message)
-      await refreshThreadsSession()
-    } catch (err) {
-      setError(getMessage(err))
-    }
-  }
-
-  async function finishThreadsLogin() {
-    if (!threadsLogin) return
-    setError(null)
-    try {
-      const data = await api.finishThreadsLogin(threadsLogin.id)
-      setThreadsSession(data.session)
-      setThreadsLogin(null)
-      setMessage('Threads session 已加密保存。現在可以掃描真實 Threads 雷達。')
-    } catch (err) {
-      setError(getMessage(err))
-    }
-  }
-
-  async function submitRemoteText(event: React.FormEvent) {
-    event.preventDefault()
-    if (!threadsLogin || !threadsLoginText) return
-    setError(null)
-    try {
-      const data = await api.typeThreadsLogin(threadsLogin.id, threadsLoginText)
-      setThreadsLogin(data.login)
-      setThreadsLoginText('')
-    } catch (err) {
-      setError(getMessage(err))
-    }
-  }
-
-  async function pressRemoteKey(key: 'Enter' | 'Tab' | 'Escape' | 'Backspace') {
-    if (!threadsLogin) return
-    setError(null)
-    try {
-      const data = await api.pressThreadsLogin(threadsLogin.id, key)
-      setThreadsLogin(data.login)
-    } catch (err) {
-      setError(getMessage(err))
-    }
-  }
-
-  async function cancelThreadsLogin() {
-    if (!threadsLogin) return
-    setError(null)
-    try {
-      const data = await api.cancelThreadsLogin(threadsLogin.id)
-      setThreadsSession(data.session)
-      setThreadsLogin(null)
-      setMessage('Threads 登入已取消。')
-    } catch (err) {
-      setError(getMessage(err))
-    }
-  }
-
   async function clearThreadsSession() {
     setError(null)
     try {
@@ -463,6 +399,17 @@ function SettingsPage() {
       setThreadsSession(data.session)
       setThreadsStorageState('')
       setMessage('Threads storageState 已加密保存。下次海巡會優先帶 session 搜尋。')
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  async function importThreadsSessionFromFile() {
+    setError(null)
+    try {
+      const data = await api.importThreadsSessionFromFile()
+      setThreadsSession(data.session)
+      setMessage(`Threads session 已從 ${data.importedFrom} 匯入並加密保存。`)
     } catch (err) {
       setError(getMessage(err))
     }
@@ -531,7 +478,7 @@ function SettingsPage() {
 
       {section === 'threads' && <div className="border-2 border-asphalt bg-paper p-4">
         <h3 className="text-2xl font-black">Threads Session</h3>
-        <p className="mt-1 text-sm">Phase 0 先支援唯讀搜尋。可貼上 Playwright storageState JSON 保存 session；沒有 session 時會嘗試公開搜尋，失敗退回 `site:threads.net` 備援。</p>
+        <p className="mt-1 text-sm">流程：在電腦本機跑 <code>npm run threads:login</code> → 完成 IG/Threads 登入 → 把產出的 <code>data/threads-storage-state.json</code> 從下方表單上傳。沒 session 時搜尋會退回 <code>site:threads.net</code> 公開備援。</p>
         <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
           <Info label="AUTO_SOCIAL_SESSION_KEY" value={threadsSession?.configured ? '已設定' : '未設定，不能保存登入 session'} />
           <Info label="Session" value={threadsSession?.hasSession ? (threadsSession.healthy ? '已保存，狀態正常' : `異常：${threadsSession.healthNote ?? '未知原因'}`) : '尚未保存'} />
@@ -539,59 +486,44 @@ function SettingsPage() {
           <Info label="Last Login" value={threadsSession?.lastLoginAt ? formatDate(threadsSession.lastLoginAt) : '-'} />
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={startThreadsSession}>互動登入 Threads</button>
           <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshThreadsSession}>重新整理 Session</button>
           <button className="min-h-11 bg-red-700 px-4 py-2 font-bold text-white" type="button" onClick={clearThreadsSession}>清除 Session</button>
         </div>
-        {threadsLogin && (
-          <div className="mt-4 border-t-2 border-asphalt pt-4">
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="font-mono text-xs uppercase tracking-[0.2em] text-signal">Remote Browser</p>
-                <p className="text-sm">這是容器內的真 Chromium。iOS 不會替 noVNC canvas 跳鍵盤；先點遠端瀏覽器欄位，再用下方「手機鍵盤輸入」送字到目前 focus 的欄位。</p>
-                <p className="mt-1 break-all font-mono text-xs text-asphalt/60">{threadsLogin.url}</p>
+        <div className="mt-4 border-t-2 border-asphalt pt-4 space-y-3">
+          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">兩步登入</p>
+          <ol className="list-decimal space-y-3 pl-5 text-sm">
+            <li>
+              在電腦的 terminal 跑：
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <code className="block border-2 border-asphalt bg-[#fffaf2] px-3 py-2 font-mono text-sm">npm run threads:login</code>
+                <button type="button" onClick={() => copyText('npm run threads:login')} className="min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold hover:bg-asphalt hover:text-paper">複製指令</button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button className="min-h-10 bg-asphalt px-3 py-1 font-bold text-paper" type="button" onClick={finishThreadsLogin}>完成並保存</button>
-                <button className="min-h-10 bg-red-700 px-3 py-1 font-bold text-white" type="button" onClick={cancelThreadsLogin}>取消</button>
+              <p className="mt-1 text-xs text-asphalt/70">Playwright 會跳出真實 Chromium；登入 IG/Threads 完成、自動進入 Threads 首頁後，工具會把 session 寫到 <code>data/threads-storage-state.json</code>。</p>
+            </li>
+            <li>
+              登入完成回來這裡：
+              <div className="mt-1">
+                <button type="button" onClick={importThreadsSessionFromFile} className="min-h-11 bg-asphalt px-4 py-2 font-bold text-paper">從 data/threads-storage-state.json 匯入</button>
               </div>
-            </div>
-            <form onSubmit={submitRemoteText} className="sticky bottom-2 z-20 mt-3 border-2 border-asphalt bg-paper p-2 shadow-[4px_4px_0_#171717]">
-              <label className="text-xs font-bold">手機鍵盤輸入到遠端瀏覽器</label>
-              <input
-                className="mt-1 min-h-12 w-full border-2 border-asphalt bg-[#fffaf2] px-3 text-base outline-none"
-                value={threadsLoginText}
-                onChange={(event) => setThreadsLoginText(event.target.value)}
-                placeholder="先點遠端欄位，再在這裡輸入帳號、密碼或驗證碼"
-                type="text"
-                autoCapitalize="none"
-                autoCorrect="off"
-                autoComplete="off"
-              />
-              <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-                <button className="min-h-11 border-2 border-asphalt px-3 py-2 font-bold" type="submit">送到遠端</button>
-                <button className="min-h-11 border-2 border-asphalt px-3 py-2 font-bold" type="button" onClick={() => void pressRemoteKey('Enter')}>Enter</button>
-                <button className="min-h-11 border-2 border-asphalt px-3 py-2 font-bold" type="button" onClick={() => void pressRemoteKey('Tab')}>Tab 下一欄</button>
-                <button className="min-h-11 border-2 border-asphalt px-3 py-2 font-bold" type="button" onClick={() => void pressRemoteKey('Backspace')}>Backspace</button>
-              </div>
-            </form>
-            <div className="mt-3 overflow-hidden border-2 border-asphalt bg-black">
-              <iframe src={threadsLogin.vncUrl} className="h-[70vh] w-full" title="Remote browser login" />
-            </div>
-          </div>
-        )}
-        <form onSubmit={importThreadsSession} className="mt-4 border-t-2 border-asphalt pt-4">
-          <label className="text-sm font-bold">匯入 Playwright storageState JSON</label>
-          <p className="mt-1 text-sm">電腦執行 `npm run threads:login`，登入完成後上傳 `data/threads-storage-state.json`。</p>
-          <input className="mt-2 block w-full border-2 border-asphalt bg-paper p-2 text-sm" type="file" accept="application/json,.json" onChange={(event) => void loadThreadsStorageStateFile(event)} />
-          <textarea
-            className="mt-2 min-h-36 w-full border-2 border-asphalt bg-[#fffaf2] p-3 font-mono text-xs outline-none"
-            value={threadsStorageState}
-            onChange={(event) => setThreadsStorageState(event.target.value)}
-            placeholder={'{"cookies":[...],"origins":[...]}' }
-          />
-          <button className="mt-2 min-h-11 bg-asphalt px-4 py-2 font-bold text-paper" type="submit">加密保存 Session</button>
-        </form>
+              <p className="mt-1 text-xs text-asphalt/70">Server 會從 mount 的 data 資料夾讀檔，加密保存 session，原檔不會被刪。</p>
+            </li>
+          </ol>
+        </div>
+
+        <details className="mt-4 border-t-2 border-asphalt pt-4">
+          <summary className="cursor-pointer text-sm font-bold">進階：直接貼 storageState JSON</summary>
+          <form onSubmit={importThreadsSession} className="mt-3">
+            <p className="text-xs text-asphalt/70">適合手動準備 JSON 的情境；正常流程用上面兩步。</p>
+            <input className="mt-2 block w-full border-2 border-asphalt bg-paper p-2 text-sm" type="file" accept="application/json,.json" onChange={(event) => void loadThreadsStorageStateFile(event)} />
+            <textarea
+              className="mt-2 min-h-36 w-full border-2 border-asphalt bg-[#fffaf2] p-3 font-mono text-xs outline-none"
+              value={threadsStorageState}
+              onChange={(event) => setThreadsStorageState(event.target.value)}
+              placeholder={'{"cookies":[...],"origins":[...]}' }
+            />
+            <button className="mt-2 min-h-11 bg-asphalt px-4 py-2 font-bold text-paper" type="submit">加密保存 Session</button>
+          </form>
+        </details>
       </div>}
 
       {section === 'keys' && <div className="border-2 border-asphalt bg-[#fffaf2] p-4">
