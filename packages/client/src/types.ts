@@ -150,6 +150,7 @@ export type ObservedPost = {
   shares: number | null
   excerpt: string
   images: string[]
+  videos: Array<{ src: string; poster: string | null }>
   fetchedAt: string
   pipelineStatus: string
   pipelineError: string | null

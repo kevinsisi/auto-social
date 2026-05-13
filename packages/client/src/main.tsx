@@ -773,8 +773,20 @@ function ObservedPostCard({ post, onFeedback, highlight = false }: { post: Obser
 
       <p className="mt-3 whitespace-pre-line border-l-4 border-signal pl-3 text-sm">{post.excerpt}</p>
 
-      {post.images.length > 0 && (
+      {(post.images.length > 0 || post.videos.length > 0) && (
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {post.videos.slice(0, 4).map((video) => (
+            <a key={video.src} href={post.url} target="_blank" rel="noreferrer" className="relative block overflow-hidden border-2 border-asphalt bg-black">
+              {video.poster ? (
+                <img src={video.poster} alt="影片預覽" loading="lazy" referrerPolicy="no-referrer" className="h-32 w-full object-cover opacity-90" />
+              ) : (
+                <div className="flex h-32 w-full items-center justify-center bg-asphalt text-paper font-mono text-xs">影片</div>
+              )}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="border-2 border-paper bg-asphalt/80 px-2 py-1 text-xs font-black text-paper">▶ 影片</span>
+              </div>
+            </a>
+          ))}
           {post.images.slice(0, 6).map((src) => (
             <a key={src} href={post.url} target="_blank" rel="noreferrer" className="block overflow-hidden border-2 border-asphalt bg-paper">
               <img src={src} alt="Threads 貼文圖" loading="lazy" referrerPolicy="no-referrer" className="h-32 w-full object-cover" />
@@ -788,7 +800,7 @@ function ObservedPostCard({ post, onFeedback, highlight = false }: { post: Obser
           <span className="border-2 border-asphalt px-2 py-1 text-white" style={{ background: SENTIMENT_COLORS[post.sentiment] }}>
             {SENTIMENT_LABELS[post.sentiment]}
           </span>
-        ) : (
+        ) : post.pipelineStatus === 'pipeline_blocked' ? null : (
           <span className="border-2 border-asphalt px-2 py-1 bg-paper">情緒判讀中</span>
         )}
         {post.topic && <span className="border-2 border-asphalt px-2 py-1 bg-paper">主題：{post.topic}</span>}

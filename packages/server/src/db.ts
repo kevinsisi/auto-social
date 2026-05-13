@@ -192,7 +192,8 @@ export function migrate(db: AppDatabase) {
     { name: 'draft_variants_json', type: 'TEXT' },
     { name: 'pipeline_error', type: 'TEXT' },
     { name: 'pipeline_completed_at', type: 'TEXT' },
-    { name: 'images_json', type: 'TEXT' }
+    { name: 'images_json', type: 'TEXT' },
+    { name: 'videos_json', type: 'TEXT' }
   ])
 
   db.exec(`
