@@ -45,6 +45,7 @@ export type KeywordObservation = {
     sponsoredRate: number
     pipelineBlockedCount: number
   }
+  highlights: ObservedPost[]
   posts: ObservedPost[]
 }
 
@@ -68,6 +69,9 @@ type CandidateRow = {
   draft_variants_json: string | null
 }
 
+const HIGHLIGHT_LIMIT = 3
+const HIGHLIGHT_MIN_ENGAGEMENT = 50
+
 export function getKeywordObservation(db: AppDatabase, cardId: string, now: Date = new Date()): KeywordObservation | null {
   const card = db.prepare('SELECT id, keyword FROM patrol_cards WHERE id = ?').get(cardId) as CardRow | undefined
   if (!card) return null
@@ -82,10 +86,31 @@ export function getKeywordObservation(db: AppDatabase, cardId: string, now: Date
     LIMIT ?
   `).all(cardId, since, MAX_POSTS) as CandidateRow[]
 
-  const posts = rows.map(toObservedPost)
+  const posts = rows.map(toObservedPost).sort(byEngagementDesc)
   const aggregate = aggregate24h(posts, since)
+  const highlightIds = new Set<string>()
+  const highlights: ObservedPost[] = []
+  for (const post of posts) {
+    if (highlights.length >= HIGHLIGHT_LIMIT) break
+    if (engagementScore(post) < HIGHLIGHT_MIN_ENGAGEMENT) break
+    highlights.push(post)
+    highlightIds.add(post.id)
+  }
+  const tail = posts.filter((post) => !highlightIds.has(post.id))
 
-  return { card, aggregate, posts }
+  return { card, aggregate, highlights, posts: tail }
+}
+
+function engagementScore(post: ObservedPost): number {
+  const likes = post.likes ?? 0
+  const replies = post.replyCount ?? 0
+  return likes + replies * 3
+}
+
+function byEngagementDesc(a: ObservedPost, b: ObservedPost): number {
+  const diff = engagementScore(b) - engagementScore(a)
+  if (diff !== 0) return diff
+  return (b.fetchedAt ?? '').localeCompare(a.fetchedAt ?? '')
 }
 
 function toObservedPost(row: CandidateRow): ObservedPost {

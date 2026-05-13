@@ -94,10 +94,35 @@ describe('getKeywordObservation', () => {
     const { cardId } = seed(db)
 
     const result = getKeywordObservation(db, cardId)
-    const draftedPosts = result!.posts.filter((post) => post.draft !== null)
+    const allPosts = [...result!.highlights, ...result!.posts]
+    const draftedPosts = allPosts.filter((post) => post.draft !== null)
 
     expect(draftedPosts.length).toBeGreaterThan(0)
     expect(draftedPosts[0]!.draft).toMatchObject({ variantIdx: 0, angle: '觀察家', text: 'AI 草稿' })
+  })
+
+  it('splits high-engagement posts into highlights and sorts the rest by engagement', () => {
+    const db = openMemoryDatabase()
+    const repo = new PatrolRepository(db)
+    const card = repo.createCard('排序測試')
+    const samples = [
+      { ext: 'low-1', likes: 2, replies: 0 },
+      { ext: 'mid-1', likes: 30, replies: 5 },
+      { ext: 'top-1', likes: 500, replies: 80 },
+      { ext: 'top-2', likes: 100, replies: 30 },
+      { ext: 'low-2', likes: 0, replies: 1 }
+    ]
+    for (const s of samples) {
+      db.prepare(`
+        INSERT INTO trend_candidates (id, source, external_id, fingerprint, card_id, is_trending, url, author, title, text, published_at, engagement_json, fetched_at, pipeline_status)
+        VALUES (?, 'threads_playwright', ?, ?, ?, 0, ?, '@u', '貼文', '貼文內容', ?, ?, ?, 'drafted')
+      `).run(s.ext, s.ext, `fp-${s.ext}`, card.id, `https://www.threads.com/@u/post/${s.ext}`, nowIso(), JSON.stringify({ likes: s.likes, replies: s.replies }), nowIso())
+    }
+
+    const result = getKeywordObservation(db, card.id)
+
+    expect(result!.highlights.map((p) => p.id)).toEqual(['top-1', 'top-2'])
+    expect(result!.posts.map((p) => p.id)).toEqual(['mid-1', 'low-2', 'low-1'])
   })
 })
 
