@@ -1,6 +1,6 @@
 import type { AppDatabase } from './db.js'
 import { SENTIMENT_CLASSES, type ScamSignal, type Sentiment, type SponsoredSignal } from './ai/types.js'
-import { cleanThreadsExcerptForDisplay } from './threads-bot/search.js'
+import { cleanThreadsExcerptForDisplay, isKeywordRelevant } from './threads-bot/search.js'
 
 const WINDOW_HOURS = 24
 const MAX_POSTS = 50
@@ -102,7 +102,9 @@ export function getKeywordObservation(db: AppDatabase, cardId: string, now: Date
     LIMIT ?
   `).all(cardId, since, MAX_POSTS) as CandidateRow[]
 
-  const posts = rows.map(toObservedPost)
+  const posts = rows
+    .filter((row) => isKeywordRelevant(`${row.title ?? ''} ${row.text}`, card.keyword))
+    .map(toObservedPost)
   const aggregate = aggregate24h(posts, since)
 
   const byEngagement = [...posts].sort(byEngagementDesc)
