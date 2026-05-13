@@ -192,3 +192,60 @@ The A1 slice flips the product to observation-first. Drafts ride alongside obser
 - [~] 15.F.2 Local server smoke verified instead of full Docker rebuild: `node packages/server/dist/index.js` boots; `/api/health` returns `{"ok":true,"version":"1.1.0"}`; `/api/threads/throttle` returns expected snapshot; `/api/keywords/no-such-card/observe` 404s. Company-net Docker rebuild deferred — production deploys via GitHub Actions amd64 image, not local Docker.
 - [x] 15.F.3 Version bumped `1.0.6` → `1.1.0` across root + server + client `package.json`; README status block rewritten for Phase A1 deliverables.
 - [x] 15.F.4 Commit `e7ffee2` pushed to `main`; GitHub Actions `Deploy to amd64 Server via Tailscale` workflow ran 25777368557, status `success`. Production health verification from this workstation blocked because `social.sisihome.org` resolves to Tailscale CGNAT (100.126.x.x) and this company workstation has no Tailscale; user verifies on their own machine.
+
+## 16. Phase A1.5 — Observation hardening (active, shipped)
+
+User feedback after A1 deploy drove a tight iteration cycle. Every item below is implemented and pushed.
+
+### 16.A Local-dev container ergonomics
+
+- [x] 16.A.1 `docker-compose.yml` (root) defaults `ADMIN_TOKEN`, `AUTO_SOCIAL_SESSION_KEY`, `AUTO_SOCIAL_INSECURE_TLS`, `GEMINI_DEFAULT_MODEL=gemini-2.0-flash` so a single-user homelab container boots fully functional without users touching env vars. `deploy/docker-compose.yml` stays strict (real .env required).
+- [x] 16.A.2 `AUTO_SOCIAL_INSECURE_TLS=1` propagated to in-container Playwright contexts (search + login) and to the desktop `npm run threads:login` script, so corporate-MITM TLS interception no longer blocks login pages.
+- [x] 16.A.3 Embedded noVNC interactive-login UI removed; UI surfaces the two-step desktop flow (`npm run threads:login` then click "從 data/threads-storage-state.json 匯入"). New `POST /api/threads/session/import-from-file` reads the mounted JSON. Manual JSON paste stays as a `<details>` fallback. New `scripts/threads-dump-session.ts` re-reads the persistent profile and writes the file without re-running the polling loop, for cases where the auto-detect didn't trigger.
+- [x] 16.A.4 Local docker `ADMIN_TOKEN` default removes the red `未設定 ADMIN_TOKEN` banner that fired because docker bridge IP is not 127.0.0.1; `isSingleUserMode()` now short-circuits `requireAdmin`.
+
+### 16.B Threads search depth + locale + media
+
+- [x] 16.B.1 Engagement parser extended from 2 fields to 4: 讚 / 留言 / 轉發 / 分享, via aria-label hints with a text-based fallback that handles "32讚", "讚32", and K/M/萬/千 unit suffixes. Engagement persisted as `{ likes, replies, reposts, shares }` JSON.
+- [x] 16.B.2 Excerpt cleaner: leading `追蹤<username>` regex tightened from `\S+` (CJK-eating) to `[A-Za-z0-9_.]+`; trailing engagement-numeral chains (`1/2讚 N回覆 N轉發 N分享` + "讚 N", "N則讚" variants, split "分 享") aggressively stripped both at scrape time and at observe read time, so legacy rows show clean text without rescan.
+- [x] 16.B.3 URL canonical: `/post/<id>/media`, `/post/<id>/likes`, `?...` all canonicalise to `/post/<id>`. Existing duplicates cleaned by ops query (9 rows dropped, 59 unique kept on dev container).
+- [x] 16.B.4 Taiwan-first locale filter: drop posts dominated by English (asciiLetters > chineseChars × 2 and > 30), Japanese kana, or Korean hangul, regardless of query. 6 unit tests cover Chinese-dominant / English-dominant / Japanese / Korean / mixed cases.
+- [x] 16.B.5 Image extraction: only `cdninstagram.com` / `fbcdn.net` sources, ≥ 120×120 rendered, alt not in 大頭貼 / profile picture / verified, not under a non-post `/@user` link. Up to 6 per post.
+- [x] 16.B.6 Video extraction: `findVideos` walks `<video>` + nested `<source>` (or `currentSrc`), captures `poster`. Up to 4 per post. New `videos_json` column. UI renders a video thumbnail with `▶ 影片` overlay above the image grid; click opens original Threads.
+
+### 16.C Independent scam dimension
+
+- [x] 16.C.1 Add `ai/steps/scam-detect.ts` returning `{ scamSignal: 'none' | 'suspect' | 'likely', reasons: string[] }`. 6 detection signals: sexual-solicitation phrasing + price tags, DM-lure with LINE/WeChat/TG IDs, fake invest/dating (「報明牌」「保證獲利」「我月入 X 萬」), phishing short-links, scripted high-frequency reply patterns, urgency-plus-money (「最後機會」「先匯款」). Orthogonal to sentiment and to sponsored.
+- [x] 16.C.2 `SocialPipeline.options.runScam` (default on for A1.5), `scam_json` column, observe surface, aggregate `scamRate`. UI: per-post pink/red `疑似詐騙 / 高機率詐騙` badge expanding to `scamReasons[]`; 風向卡 header shows 詐騙率.
+- [x] 16.C.3 9-test `tests/scam-detect.test.ts` covers none / suspect / likely roundtrip, normalisation, length cap, markdown-fence, and the orthogonality prompt section.
+
+### 16.D AI pipeline JSON robustness + voice cleanup
+
+- [x] 16.D.1 Split system instruction: analysis steps (classify / sponsored / scam / score) get a `buildAnalysisSystemInstruction()` with strict "JSON only, no preamble, no markdown, no signature phrases" wording. Only `draft` + `meme` use the voice-flavoured instruction. This eliminated the bug where Gemini opened classify output with "先說結論，這則貼文..." (a voice signature phrase) and crashed JSON parsing.
+- [x] 16.D.2 `parseJsonObject` fall-back: when the cleaned-fence parse fails, try extracting the last `{...}` block as a second attempt before raising.
+- [x] 16.D.3 Draft prompt rewrite: zod `refine` rejects any variant containing emoji (broad emoji Unicode range), prompt bans 開頭話術 (「先說結論」「總而言之」「我覺得」「個人認為」「確實」「其實」「不得不說」「老實說」), bans hashtag / @-mention / link / AI 客氣話 ("希望對你有幫助" 等). Variants are 10–25 chars typically, capped at 35. The rigid 觀察家/自嘲/短梗 trio replaced by free-form angle ≤ 6 chars. Prompt seeds with Taiwan internet phrases (笑死 / 真假 / 蛤 / 蹲 / +1 / 推 / 等更 / 好慘 / 是說 / 啊就 / QQ / 我就問 / 不就 / 也太 / 無言 / 躺平 / 秒懂) for grounding.
+- [x] 16.D.4 Local default `GEMINI_DEFAULT_MODEL` switched to `gemini-2.0-flash` (1500 RPD per project free tier) from 2.5-flash (20 RPD).
+
+### 16.E AI task queue + worker
+
+- [x] 16.E.1 Add `ai_tasks` SQLite table (id / type / label / payload / status / priority / attempts / retry / result / error) + indexes.
+- [x] 16.E.2 New `scheduler/task-queue.ts`: `enqueueTask` (with `dedupeKey` to suppress double-enqueue), `claimNextTask` (atomic transaction), `completeTask`, `failTask` (parses "retry in Ns" + 429 backoff to schedule `nextRetryAt`), `cancelTask`, `getQueueSnapshot`, `reclaimStaleTasks`.
+- [x] 16.E.3 New `scheduler/worker.ts`: single-flight poll-and-execute loop (1.5s default), per-type handler registry, automatic retry with backoff, stale-task reclaim on boot. Single-flight avoids the prior "56 candidates × 4 calls" thundering-herd that previously exhausted free-tier RPD instantly.
+- [x] 16.E.4 `schedulePipelineForCandidates` rewritten to enqueue `pipeline` tasks (one per candidate, dedupe key = `pipeline:<id>`). Worker drains the queue. Restart-safe because queue lives in SQLite.
+- [x] 16.E.5 `GET /api/ai/status` returns countsByType + inflight + recent task rows.
+- [x] 16.E.6 `AiQueuePanel` widget on Dashboard polls every 3s, shows排隊 / 跑 / 完成 / 失敗 per task type (`pipeline` 貼文判讀 / `compose_post` 發文發想 / `image_gen` 生圖), with a folded-up "最近 10 筆紀錄" details list.
+
+### 16.F Observation UI polish
+
+- [x] 16.F.1 4-tile engagement row (讚 / 留言 / 轉發 / 分享) replaces the old inline ♥/↩ badges; K/M abbreviations; em-dash placeholder for missing counts; colour tints (紅/藍/綠/黃).
+- [x] 16.F.2 重點貼文 highlights split: top 3 by engagement (likes×1 + replies×3 + reposts×5 + shares×2) above the 50-point threshold, rendered in a separate signal-orange-bordered grid above the main feed. Main feed sorts newest-first by postedAt (falling back to fetchedAt).
+- [x] 16.F.3 Delete keyword button (`✕`) on each watchlist card with confirm dialog; DELETE `/api/cards/:id` cascades into `trend_candidates`.
+- [x] 16.F.4 Image + video media grid below excerpt; up to 6 images and 4 videos per post; videos overlay `▶ 影片` label.
+- [x] 16.F.5 UI exclusivity: `pipeline_blocked` posts no longer show conflicting "情緒判讀中" + "AI 判讀失敗" badges simultaneously.
+
+### 16.G Verification + ship
+
+- [x] 16.G.1 74/74 server tests pass across 12 files including new scam-detect, taiwan-relevant filter, dedup, queue-related units.
+- [x] 16.G.2 Versions bumped through 1.1.0 → 1.1.2 → 1.2.0 → 1.2.1 → 1.2.2 in lockstep across root + server + client `package.json`.
+- [x] 16.G.3 Commits pushed to `main` (8 commits since A1 ship): scam + queue, scam UI badge, taiwan filter, video media, no-emoji drafts, canonical URL dedup, etc. Production auto-deploys via existing Tailscale workflow.
+- [ ] 16.G.4 Live production observation pass with a billing-enabled Gemini key — pending user-side validation (free-tier keys exhausted; user has confirmed a billing key is on hand).

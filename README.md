@@ -8,14 +8,15 @@
 
 ## 目前狀態（2026-05-13）
 
-- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.1.2`
+- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.2.2`
 - ✅ MVP 0.1.0 可跑（舊版「遇見好車海巡台」），UI 已轉為「社群海巡工作站」
 - ✅ 已完成官方 API 可行性盤點（見 [`openspec/specs/mvp/spec.md`](openspec/specs/mvp/spec.md)）
 - ✅ OpenSpec change `add-keyword-patrol-cards`（舊版 MVP，已實作完成）
 - 🚧 **新方向 OpenSpec change：[`openspec/changes/add-social-patrol-station`](openspec/changes/add-social-patrol-station)** — Phase A1 觀察站 MVP 已實作
 - ✅ **Phase A1（觀察站 + 訓練起步）已完成** — 點關鍵字 → 看到該關鍵字在 Threads 的「主要情緒風向」+ 貼文清單 + 每則 AI 建議留言 + 👍像我 / 👎不像 / ✏️改寫 訓練回饋；獨立葉配偵測（none / suspect / likely 加 reasons[]）；throttle.ts kill switch + daily quota + jitter 真的可擋
-- ✅ Phase 0 Batch 1+2 基礎：`@kevinsisi/ai-core` + `playwright` + `node-cron`、KeyPool admin API、5 步 AI pipeline（classify + sponsored + score + draft + meme）、Threads Playwright 唯讀搜尋優先 + `site:threads.net OR site:threads.com` fallback、Settings 路由
-- 🚧 Phase A2 待辦：進貼文內頁抓留言（`threads-bot/post-detail.ts`）、留言情緒、留言列入整體風向加權、voice profile 從 feedback 進化、Voice Studio 整頁
+- ✅ **Phase A1.5（觀察站持續強化）** — 詐騙偵測（性暗示邀約 / 私訊誘導 / 假投資 / 釣魚連結 / 制式話術 / 急迫感+金錢）獨立維度；SQLite-backed AI 任務 queue + single-flight worker（取代之前 fire-and-forget，避免 quota 瞬間爆掉）；Dashboard 上 AI 工作站 widget；貼文 4 個獨立計數 tile（讚/留言/轉發/分享）+ K/M 縮寫；重點貼文 highlights 按互動分（讚+留言×3+轉發×5+分享×2 ≥ 50）獨立區塊；圖片 + **影片**多媒體縮圖（▶ 影片覆蓋）；URL canonical /post/<id>（自動去重 /media）；Taiwan-first 過濾（丟英/日/韓主導貼文）；草稿全面禁 emoji + 禁開頭話術 + 台灣 Threads 真人口頭禪 prompt 重寫
+- ✅ Phase 0 Batch 1+2 基礎：`@kevinsisi/ai-core` + `playwright` + `node-cron`、KeyPool admin API、5 步 AI pipeline（classify + sponsored + scam + score + draft）、Threads Playwright 唯讀搜尋優先 + `site:threads.net OR site:threads.com` fallback、Settings 路由
+- 🚧 Phase A2 待辦：發文發想 composer（4h cron 從熱門關鍵字產文 → Gemini 生圖 → 半自動發布）、進貼文內頁抓留言、留言情緒、Voice Studio 整頁、voice profile 從 feedback 進化
 - ✅ Threads session 已支援電腦本機登入 helper：`npm run threads:login` 產生 `data/threads-storage-state.json`，Settings 可上傳並加密保存
 - ✅ Production 已驗證 Threads Playwright 雷達可抓真實貼文候選，`/api/radar/trends` 讀最近 persisted candidates，不使用罐頭詞
 - ✅ 本機 Docker 可建可跑（`docker compose up -d --build`；公司網路需 `DOCKER_BUILDKIT=0`）
