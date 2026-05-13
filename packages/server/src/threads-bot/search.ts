@@ -46,16 +46,22 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
         const href = anchor.href
         if (!threadsHostPattern.test(href)) continue
         if (href.includes('/search?') || href.includes('/privacy') || href.includes('/login')) continue
-        if (!href.includes('/@') && !href.includes('/post/')) continue
+        if (!href.includes('/post/')) continue
         const normalized = href.split('?')[0]
         if (seen.has(normalized)) continue
-        const container = anchor.closest('article') ?? anchor.closest('[role="article"]') ?? anchor.parentElement
-        const text = (container?.textContent ?? anchor.textContent ?? '').replace(/\s+/g, ' ').trim()
+        let container: Element | null = anchor.closest('article') ?? anchor.closest('[role="article"]') ?? anchor.parentElement
+        let text = ''
+        for (let depth = 0; container && depth < 8; depth += 1) {
+          const candidateText = (container.textContent ?? '').replace(/\s+/g, ' ').trim()
+          if (candidateText.length > text.length && candidateText.length < 1200) text = candidateText
+          container = container.parentElement
+        }
+        if (text.length < 8) continue
         seen.add(normalized)
         results.push({
           url: normalized,
           title: text ? text.slice(0, 80) : 'Threads 搜尋結果',
-          excerpt: text ? text.slice(0, 240) : 'Playwright 從 Threads 搜尋頁抓到的連結；開頁確認原文後再互動。'
+          excerpt: text.slice(0, 240)
         })
         if (results.length >= maxResults) break
       }
