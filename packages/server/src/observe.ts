@@ -1,5 +1,5 @@
 import type { AppDatabase } from './db.js'
-import { SENTIMENT_CLASSES, type Sentiment, type SponsoredSignal } from './ai/types.js'
+import { SENTIMENT_CLASSES, type ScamSignal, type Sentiment, type SponsoredSignal } from './ai/types.js'
 import { cleanThreadsExcerptForDisplay } from './threads-bot/search.js'
 
 const WINDOW_HOURS = 24
@@ -34,6 +34,8 @@ export type ObservedPost = {
   voiceFit: number | null
   sponsoredSignal: SponsoredSignal | null
   sponsoredReasons: string[]
+  scamSignal: ScamSignal | null
+  scamReasons: string[]
   shouldDraft: boolean | null
   scoreReason: string | null
   draft: ObservedDraft | null
@@ -47,6 +49,7 @@ export type KeywordObservation = {
     since: string
     sentimentDistribution: Record<Sentiment, SentimentBucket>
     sponsoredRate: number
+    scamRate: number
     pipelineBlockedCount: number
   }
   highlights: ObservedPost[]
@@ -70,6 +73,7 @@ type CandidateRow = {
   pipeline_error: string | null
   classify_json: string | null
   sponsored_json: string | null
+  scam_json: string | null
   score_json: string | null
   draft_variants_json: string | null
 }
@@ -84,7 +88,7 @@ export function getKeywordObservation(db: AppDatabase, cardId: string, now: Date
   const since = new Date(now.getTime() - WINDOW_HOURS * 60 * 60 * 1000).toISOString()
   const rows = db.prepare(`
     SELECT id, source, url, author, title, text, published_at, engagement_json, images_json, fetched_at,
-           pipeline_status, pipeline_error, classify_json, sponsored_json, score_json, draft_variants_json
+           pipeline_status, pipeline_error, classify_json, sponsored_json, scam_json, score_json, draft_variants_json
     FROM trend_candidates
     WHERE card_id = ? AND fetched_at >= ?
     ORDER BY fetched_at DESC
@@ -130,6 +134,7 @@ function byEngagementDesc(a: ObservedPost, b: ObservedPost): number {
 function toObservedPost(row: CandidateRow): ObservedPost {
   const classify = parseJson(row.classify_json) as { topic?: string; sentiment?: Sentiment; voiceFit?: number } | null
   const sponsored = parseJson(row.sponsored_json) as { sponsoredSignal?: SponsoredSignal; reasons?: string[] } | null
+  const scam = parseJson(row.scam_json) as { scamSignal?: ScamSignal; reasons?: string[] } | null
   const score = parseJson(row.score_json) as { shouldDraft?: boolean; reason?: string } | null
   const variants = parseJson(row.draft_variants_json) as Array<{ angle: string; text: string; length: number }> | null
   const engagement = parseJson(row.engagement_json) as { likes?: number | null; replies?: number | null; reposts?: number | null; shares?: number | null } | null
@@ -157,6 +162,8 @@ function toObservedPost(row: CandidateRow): ObservedPost {
     voiceFit: classify?.voiceFit ?? null,
     sponsoredSignal: sponsored?.sponsoredSignal ?? null,
     sponsoredReasons: sponsored?.reasons ?? [],
+    scamSignal: scam?.scamSignal ?? null,
+    scamReasons: scam?.reasons ?? [],
     shouldDraft: score?.shouldDraft ?? null,
     scoreReason: score?.reason ?? null,
     draft: firstVariant
@@ -169,6 +176,7 @@ function aggregate24h(posts: ObservedPost[], since: string) {
   const distribution = emptyDistribution()
   let classifiedSamples = 0
   let sponsoredCount = 0
+  let scamCount = 0
   let pipelineBlockedCount = 0
 
   for (const post of posts) {
@@ -178,6 +186,7 @@ function aggregate24h(posts: ObservedPost[], since: string) {
       classifiedSamples += 1
     }
     if (post.sponsoredSignal && post.sponsoredSignal !== 'none') sponsoredCount += 1
+    if (post.scamSignal && post.scamSignal !== 'none') scamCount += 1
   }
 
   for (const key of SENTIMENT_CLASSES) {
@@ -187,6 +196,8 @@ function aggregate24h(posts: ObservedPost[], since: string) {
 
   const sponsoredEligible = posts.filter((post) => post.sponsoredSignal !== null).length
   const sponsoredRate = sponsoredEligible > 0 ? sponsoredCount / sponsoredEligible : 0
+  const scamEligible = posts.filter((post) => post.scamSignal !== null).length
+  const scamRate = scamEligible > 0 ? scamCount / scamEligible : 0
 
   return {
     totalSamples: posts.length,
@@ -194,6 +205,7 @@ function aggregate24h(posts: ObservedPost[], since: string) {
     since,
     sentimentDistribution: distribution,
     sponsoredRate,
+    scamRate,
     pipelineBlockedCount
   }
 }

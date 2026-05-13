@@ -19,6 +19,7 @@ function fixtures(overrides: Partial<Record<string, string>> = {}): TextGenerato
   const defaults: Record<string, string> = {
     classify: JSON.stringify({ topic: '手搖飲抱怨', sensitivity: 'low', voiceFit: 0.7, sentiment: 'complaint', reason: '在抱怨一家店' }),
     sponsored: JSON.stringify({ sponsoredSignal: 'none', reasons: [] }),
+    scam: JSON.stringify({ scamSignal: 'none', reasons: [] }),
     score: JSON.stringify({ engagementWorth: 0.6, risk: 'low', timeliness: 'warm', shouldDraft: true, reason: '可以接話' }),
     draft: JSON.stringify({ variants: [
       { angle: '觀察家', text: '飲料貴又難喝這個 combo 真的是經典款。', length: 18 },

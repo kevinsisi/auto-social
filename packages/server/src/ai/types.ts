@@ -41,6 +41,13 @@ export type SponsoredResult = {
   reasons: string[]
 }
 
+export type ScamSignal = 'none' | 'suspect' | 'likely'
+
+export type ScamResult = {
+  scamSignal: ScamSignal
+  reasons: string[]
+}
+
 export type ScoreResult = {
   engagementWorth: number
   risk: 'low' | 'medium' | 'high'
@@ -61,6 +68,7 @@ export type MemeResult = {
 export type PipelineResult = {
   classify: ClassifyResult
   sponsored: SponsoredResult | null
+  scam: ScamResult | null
   score: ScoreResult
   draft: DraftResult | null
   meme: MemeResult | null
@@ -70,6 +78,7 @@ export type PipelineResult = {
 
 export type SocialPipelineOptions = {
   runSponsored?: boolean
+  runScam?: boolean
   runMeme?: boolean
 }
 

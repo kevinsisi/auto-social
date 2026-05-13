@@ -14,6 +14,7 @@ export type PipelineRunnerOptions = {
 
 const A1_PIPELINE_OPTIONS: SocialPipelineOptions = {
   runSponsored: true,
+  runScam: true,
   runMeme: false
 }
 
@@ -75,6 +76,7 @@ function persistResult(db: AppDatabase, candidateId: string, result: PipelineRes
     SET pipeline_status = ?,
         classify_json = ?,
         sponsored_json = ?,
+        scam_json = ?,
         score_json = ?,
         draft_variants_json = ?,
         pipeline_error = NULL,
@@ -84,6 +86,7 @@ function persistResult(db: AppDatabase, candidateId: string, result: PipelineRes
     status,
     JSON.stringify(result.classify),
     result.sponsored ? JSON.stringify(result.sponsored) : null,
+    result.scam ? JSON.stringify(result.scam) : null,
     JSON.stringify(result.score),
     result.draft ? JSON.stringify(result.draft.variants) : null,
     nowIso(),
@@ -112,4 +115,12 @@ export async function runPipelineOnPending(db: AppDatabase, limit = 20, options:
     outcomes.push(await runPipelineOnCandidate(db, row.id, options))
   }
   return outcomes
+}
+
+export async function pipelineTaskHandler(db: AppDatabase, payload: { candidateId: string }) {
+  const outcome = await runPipelineOnCandidate(db, payload.candidateId)
+  if (outcome.status === 'pipeline_blocked') {
+    throw new Error(outcome.error)
+  }
+  return { candidateId: payload.candidateId, status: outcome.status }
 }

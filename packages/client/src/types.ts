@@ -103,7 +103,31 @@ export type RadarTrend = {
 
 export type Sentiment = 'anger' | 'complaint' | 'help' | 'sarcasm' | 'neutral' | 'positive' | 'support'
 export type SponsoredSignal = 'none' | 'suspect' | 'likely'
+export type ScamSignal = 'none' | 'suspect' | 'likely'
 export type FeedbackDecision = 'like' | 'dislike' | 'rewrite'
+
+export type TaskType = 'pipeline' | 'compose_post' | 'image_gen'
+export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export type AiTask = {
+  id: string
+  type: TaskType
+  label: string
+  status: TaskStatus
+  attempts: number
+  maxAttempts: number
+  enqueuedAt: string
+  claimedAt: string | null
+  completedAt: string | null
+  error: string | null
+  nextRetryAt: string | null
+}
+
+export type QueueSnapshot = {
+  countsByType: Record<TaskType, Record<TaskStatus, number>>
+  inflight: AiTask[]
+  recent: AiTask[]
+}
 
 export type SentimentBucket = { count: number; pct: number }
 
@@ -134,6 +158,8 @@ export type ObservedPost = {
   voiceFit: number | null
   sponsoredSignal: SponsoredSignal | null
   sponsoredReasons: string[]
+  scamSignal: ScamSignal | null
+  scamReasons: string[]
   shouldDraft: boolean | null
   scoreReason: string | null
   draft: ObservedDraft | null
@@ -147,6 +173,7 @@ export type KeywordObservation = {
     since: string
     sentimentDistribution: Record<Sentiment, SentimentBucket>
     sponsoredRate: number
+    scamRate: number
     pipelineBlockedCount: number
   }
   highlights: ObservedPost[]
