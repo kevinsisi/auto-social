@@ -9,7 +9,7 @@ const REQUEST_TIMEOUT_MS = 15_000
 const MAX_RESULTS = 10
 
 export async function fetchThreadsSearchCandidates(keyword: string, limit = MAX_RESULTS): Promise<ThreadsSearchCandidate[]> {
-  const query = `${keyword.trim()} site:threads.net`
+  const query = `${keyword.trim()} (site:threads.net OR site:threads.com)`
   const url = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=zh-TW`
   const response = await fetch(url, {
     headers: {
@@ -25,7 +25,7 @@ export async function fetchThreadsSearchCandidates(keyword: string, limit = MAX_
 
 export function extractThreadsLinks(html: string, keyword: string): ThreadsSearchCandidate[] {
   const links = new Map<string, ThreadsSearchCandidate>()
-  const hrefPattern = /href="(?:\/url\?q=)?(https:\/\/(?:www\.)?threads\.net\/[^"&]+)[^">]*"/g
+  const hrefPattern = /href="(?:\/url\?q=)?(https:\/\/(?:www\.)?threads\.(?:net|com)\/[^"&]+)[^">]*"/g
   for (const match of html.matchAll(hrefPattern)) {
     const rawUrl = match[1]
     if (!rawUrl) continue
