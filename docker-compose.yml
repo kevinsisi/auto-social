@@ -15,6 +15,10 @@ services:
       ADMIN_TOKEN: ${ADMIN_TOKEN:-auto-social-local-single-user}
       KEY_MANAGER_URL: ${KEY_MANAGER_URL:-}
       AUTO_SOCIAL_SESSION_KEY: ${AUTO_SOCIAL_SESSION_KEY:-}
+      # LOCAL-TEST ONLY: lets Playwright accept the corporate MITM cert when
+      # logging in to Threads from the company network. The deploy compose
+      # file does not set this, so production keeps strict TLS verification.
+      AUTO_SOCIAL_INSECURE_TLS: ${AUTO_SOCIAL_INSECURE_TLS:-1}
     ports:
       - "4323:4323"
     volumes:
