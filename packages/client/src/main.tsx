@@ -277,14 +277,14 @@ function App() {
   }
 
   return (
-    <main className="min-h-screen bg-paper text-asphalt">
+    <main className="min-h-screen overflow-x-hidden bg-paper text-asphalt">
       <header className="sticky top-0 z-10 border-b-4 border-asphalt bg-paper/95 px-3 py-3 backdrop-blur sm:px-4">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="mx-auto flex max-w-7xl min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="min-w-0">
             <p className="font-mono text-[0.65rem] uppercase tracking-[0.28em] text-signal sm:text-xs sm:tracking-[0.35em]">Social Patrol</p>
             <h1 className="font-display text-3xl font-black leading-none tracking-tight sm:whitespace-nowrap sm:text-2xl md:text-4xl">社群海巡工作站</h1>
           </div>
-          <nav className="grid grid-cols-[1fr_1fr_auto] items-stretch gap-2 sm:flex sm:items-center">
+          <nav className="grid min-w-0 grid-cols-[1fr_1fr_auto] items-stretch gap-2 sm:flex sm:items-center">
             <button onClick={() => navigate('dashboard')} className={`min-h-10 border-2 border-asphalt px-2 py-1 text-sm font-bold sm:px-3 sm:text-base ${page === 'dashboard' ? 'bg-asphalt text-paper' : 'bg-paper'}`}>Dashboard</button>
             <button onClick={() => navigate('settings/admin')} className={`min-h-10 border-2 border-asphalt px-2 py-1 text-sm font-bold sm:px-3 sm:text-base ${page === 'settings' ? 'bg-asphalt text-paper' : 'bg-paper'}`}>Settings</button>
             <div className="flex min-h-10 items-center border-2 border-asphalt px-2 py-1 font-mono text-xs sm:px-3 sm:py-2 sm:text-sm">v{APP_VERSION}</div>
@@ -292,8 +292,8 @@ function App() {
         </div>
       </header>
 
-      {page === 'settings' ? <SettingsPage /> : <section className="mx-auto grid max-w-7xl gap-4 px-3 py-4 sm:px-4 sm:py-6 lg:grid-cols-[320px_1fr]">
-        <aside className="space-y-4 lg:order-first">
+      {page === 'settings' ? <SettingsPage /> : <section className="mx-auto grid max-w-7xl min-w-0 gap-4 px-3 py-4 sm:px-4 sm:py-6 lg:grid-cols-[320px_1fr]">
+        <aside className="min-w-0 space-y-4 lg:order-first">
           <form onSubmit={createCard} className="border-4 border-asphalt bg-[#fffaf2] p-4 shadow-[5px_5px_0_#171717] sm:shadow-[8px_8px_0_#171717]">
             <label className="block text-sm font-bold">新增監控關鍵字</label>
             <input
@@ -336,7 +336,7 @@ function App() {
           </div>
         </aside>
 
-        <section className="space-y-4">
+        <section className="min-w-0 space-y-4">
           {notice && <Message tone="notice" text={notice} onClose={() => setNotice(null)} />}
           {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
           <HotKeywordCloud terms={radarTerms} loading={radarLoading} meta={radarMeta} onRefresh={runRadarScan} onSelect={(keyword) => void monitorRadarTerm(keyword)} />
@@ -370,13 +370,13 @@ function HotKeywordCloud({ terms, loading, meta, onRefresh, onSelect }: { terms:
         {loading ? (
           <div className="flex min-h-[220px] items-center justify-center text-center text-xl font-black text-asphalt/50">正在掃描 Threads 並寫入候選資料...</div>
         ) : terms.length > 0 ? (
-          <div className="flex h-full flex-wrap items-center justify-center gap-x-4 gap-y-2 leading-none">
+          <div className="flex h-full min-w-0 flex-wrap items-center justify-center gap-x-4 gap-y-2 leading-none">
             {terms.map((term, index) => (
               <button
                 key={`${term.word}-${index}`}
                 type="button"
                 onClick={() => onSelect(term.word)}
-                className="font-black transition-transform hover:scale-110"
+                className="max-w-full break-all text-center font-black leading-tight transition-transform hover:scale-110 sm:break-normal"
                 style={{ color: cloudColor(index), fontSize: `${Math.round(16 + (term.count / max) * 42)}px`, transform: `rotate(${cloudRotate(index)}deg)` }}
                 title={`出現 ${term.count} 次`}
               >

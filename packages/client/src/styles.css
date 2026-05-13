@@ -11,6 +11,11 @@
 body {
   margin: 0;
   font-family: 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+#root {
+  overflow-x: hidden;
 }
 
 button,
