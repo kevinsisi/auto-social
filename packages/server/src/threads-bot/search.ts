@@ -12,6 +12,8 @@ export type ThreadsPlaywrightCandidate = {
   postedAt: string | null
   likes: number | null
   replyCount: number | null
+  reposts: number | null
+  shares: number | null
   images: string[]
 }
 
@@ -86,6 +88,20 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
         return null
       }
 
+      function cleanExcerpt(text: string, counts: { likes: number | null; replyCount: number | null; reposts: number | null; shares: number | null }): string {
+        let cleaned = text
+        cleaned = cleaned.replace(/^追蹤\S+\s*/u, '')
+        cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?\s*更多/gu, '')
+        cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?/gu, ' ')
+        cleaned = cleaned.replace(/更多|翻譯|靜音|編輯/gu, ' ')
+        cleaned = cleaned.replace(/\d+\s*\/\s*\d+\s*讚\s*[\d.,KMkm萬千]+(?:\s*(?:回覆|轉發|分享)\s*[\d.,KMkm萬千]+)*/gu, '')
+        cleaned = cleaned.replace(/讚\s*[\d.,KMkm萬千]+/gu, '')
+        cleaned = cleaned.replace(/回覆\s*[\d.,KMkm萬千]+/gu, '')
+        cleaned = cleaned.replace(/轉發\s*[\d.,KMkm萬千]+/gu, '')
+        cleaned = cleaned.replace(/分享\s*[\d.,KMkm萬千]+/gu, '')
+        return cleaned.replace(/\s+/g, ' ').trim()
+      }
+
       function findImages(container: Element): string[] {
         const out = new Set<string>()
         for (const img of Array.from(container.querySelectorAll<HTMLImageElement>('img'))) {
@@ -110,7 +126,7 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
 
       const threadsHostPattern = /^https:\/\/(www\.)?threads\.(net|com)\//i
       const seen = new Set<string>()
-      const results: Array<{ url: string; title: string; excerpt: string; author: string | null; postedAt: string | null; likes: number | null; replyCount: number | null; images: string[] }> = []
+      const results: Array<{ url: string; title: string; excerpt: string; author: string | null; postedAt: string | null; likes: number | null; replyCount: number | null; reposts: number | null; shares: number | null; images: string[] }> = []
       for (const anchor of Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]'))) {
         const href = anchor.href
         if (!threadsHostPattern.test(href)) continue
@@ -132,14 +148,21 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
         if (text.length < 8) continue
         seen.add(normalized)
         const ctx = bestContainer ?? anchor.parentElement
+        const likes = ctx ? findCountByHint(ctx, /like|讚/i) : null
+        const replyCount = ctx ? findCountByHint(ctx, /repl|留言|comment/i) : null
+        const reposts = ctx ? findCountByHint(ctx, /repost|轉發/i) : null
+        const shares = ctx ? findCountByHint(ctx, /share|分享/i) : null
+        const cleanedExcerpt = cleanExcerpt(text, { likes, replyCount, reposts, shares })
         results.push({
           url: normalized,
-          title: text ? text.slice(0, 80) : 'Threads 搜尋結果',
-          excerpt: text.slice(0, 240),
+          title: cleanedExcerpt.slice(0, 80) || 'Threads 搜尋結果',
+          excerpt: cleanedExcerpt.slice(0, 240),
           author: ctx ? findAuthor(ctx) : null,
           postedAt: ctx ? findPostedAt(ctx) : null,
-          likes: ctx ? findCountByHint(ctx, /like|讚/i) : null,
-          replyCount: ctx ? findCountByHint(ctx, /repl|留言|comment/i) : null,
+          likes,
+          replyCount,
+          reposts,
+          shares,
           images: ctx ? findImages(ctx) : []
         })
         if (results.length >= maxResults) break

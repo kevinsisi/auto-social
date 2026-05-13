@@ -37,6 +37,8 @@ export type RadarCandidate = {
   postedAt?: string | null
   likes?: number | null
   replyCount?: number | null
+  reposts?: number | null
+  shares?: number | null
   images?: string[] | null
 }
 
@@ -164,8 +166,14 @@ export type UpsertTrendCandidateResult = {
 
 export function upsertTrendCandidate(db: AppDatabase, candidate: RadarCandidate, options: UpsertTrendCandidateOptions = {}): UpsertTrendCandidateResult {
   const fingerprint = createHash('sha256').update(`${candidate.source}:${candidate.url}`).digest('hex')
-  const hasEngagement = (candidate.likes ?? null) !== null || (candidate.replyCount ?? null) !== null
-  const engagementJson = hasEngagement ? JSON.stringify({ likes: candidate.likes ?? null, replies: candidate.replyCount ?? null }) : null
+  const engagementValues = {
+    likes: candidate.likes ?? null,
+    replies: candidate.replyCount ?? null,
+    reposts: candidate.reposts ?? null,
+    shares: candidate.shares ?? null
+  }
+  const hasEngagement = Object.values(engagementValues).some((value) => value !== null)
+  const engagementJson = hasEngagement ? JSON.stringify(engagementValues) : null
   const images = candidate.images?.filter((src) => typeof src === 'string' && src.length > 0) ?? []
   const imagesJson = images.length > 0 ? JSON.stringify(images) : null
   const id = nanoid()

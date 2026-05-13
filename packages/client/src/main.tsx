@@ -711,7 +711,7 @@ function ObservedPostCard({ post, onFeedback, highlight = false }: { post: Obser
   const [lastDecision, setLastDecision] = useState<FeedbackDecision | null>(null)
   const sponsoredBadge = post.sponsoredSignal ?? null
   const sponsoredClass = sponsoredBadge ? SPONSORED_TONE[sponsoredBadge] : 'border-asphalt bg-paper'
-  const engagementScore = (post.likes ?? 0) + (post.replyCount ?? 0) * 3
+  const engagementScore = (post.likes ?? 0) + (post.replyCount ?? 0) * 3 + (post.reposts ?? 0) * 5 + (post.shares ?? 0) * 2
 
   return (
     <article className={`p-4 ${highlight ? 'border-4 border-signal bg-white shadow-[8px_8px_0_#f97316]' : 'border-4 border-asphalt bg-[#fffaf2] shadow-[6px_6px_0_#171717]'}`}>
@@ -723,12 +723,15 @@ function ObservedPostCard({ post, onFeedback, highlight = false }: { post: Obser
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">{post.author ?? '匿名作者'} · {post.source}</p>
           <a className="mt-1 block break-all text-sm underline" href={post.url} target="_blank" rel="noreferrer">{post.url}</a>
         </div>
-        <div className="flex flex-wrap items-center gap-1 text-xs font-mono">
-          {post.postedAt && <span className="border-2 border-asphalt px-2 py-1">{formatDate(post.postedAt)}</span>}
-          {post.likes !== null && <span className="border-2 border-asphalt px-2 py-1">♥ {post.likes}</span>}
-          {post.replyCount !== null && <span className="border-2 border-asphalt px-2 py-1">↩ {post.replyCount}</span>}
-        </div>
+        {post.postedAt && <span className="border-2 border-asphalt px-2 py-1 font-mono text-xs">{formatDate(post.postedAt)}</span>}
       </header>
+
+      <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+        <Stat label="讚" value={post.likes} accent="bg-red-100" />
+        <Stat label="留言" value={post.replyCount} accent="bg-blue-100" />
+        <Stat label="轉發" value={post.reposts} accent="bg-green-100" />
+        <Stat label="分享" value={post.shares} accent="bg-yellow-100" />
+      </div>
 
       <p className="mt-3 whitespace-pre-line border-l-4 border-signal pl-3 text-sm">{post.excerpt}</p>
 
@@ -852,6 +855,23 @@ function formatPct(value: number) {
 
 function Info({ label, value }: { label: string; value: string }) {
   return <div><p className="font-mono text-xs uppercase tracking-[0.18em] text-signal">{label}</p><p className="mt-1 leading-relaxed">{value}</p></div>
+}
+
+function Stat({ label, value, accent }: { label: string; value: number | null; accent: string }) {
+  return (
+    <div className={`border-2 border-asphalt ${value === null ? 'bg-paper text-asphalt/40' : accent} py-1`}>
+      <div className="text-xl font-black leading-tight">{value === null ? '—' : formatCount(value)}</div>
+      <div className="font-mono text-[0.65rem] uppercase tracking-[0.15em] opacity-70">{label}</div>
+    </div>
+  )
+}
+
+function formatCount(value: number): string {
+  if (value >= 10_000_000) return `${(value / 1_000_000).toFixed(1)}M`
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`
+  if (value >= 10_000) return `${(value / 1000).toFixed(1)}K`
+  if (value >= 1_000) return `${(value / 1000).toFixed(2)}K`
+  return String(value)
 }
 
 function Message({ text, tone, onClose }: { text: string; tone: 'notice' | 'error'; onClose: () => void }) {

@@ -21,6 +21,8 @@ export type ObservedPost = {
   postedAt: string | null
   likes: number | null
   replyCount: number | null
+  reposts: number | null
+  shares: number | null
   excerpt: string
   images: string[]
   fetchedAt: string
@@ -106,7 +108,9 @@ export function getKeywordObservation(db: AppDatabase, cardId: string, now: Date
 function engagementScore(post: ObservedPost): number {
   const likes = post.likes ?? 0
   const replies = post.replyCount ?? 0
-  return likes + replies * 3
+  const reposts = post.reposts ?? 0
+  const shares = post.shares ?? 0
+  return likes + replies * 3 + reposts * 5 + shares * 2
 }
 
 function byEngagementDesc(a: ObservedPost, b: ObservedPost): number {
@@ -120,7 +124,7 @@ function toObservedPost(row: CandidateRow): ObservedPost {
   const sponsored = parseJson(row.sponsored_json) as { sponsoredSignal?: SponsoredSignal; reasons?: string[] } | null
   const score = parseJson(row.score_json) as { shouldDraft?: boolean; reason?: string } | null
   const variants = parseJson(row.draft_variants_json) as Array<{ angle: string; text: string; length: number }> | null
-  const engagement = parseJson(row.engagement_json) as { likes?: number | null; replies?: number | null } | null
+  const engagement = parseJson(row.engagement_json) as { likes?: number | null; replies?: number | null; reposts?: number | null; shares?: number | null } | null
   const imagesRaw = parseJson(row.images_json)
   const images = Array.isArray(imagesRaw) ? imagesRaw.filter((src): src is string => typeof src === 'string') : []
 
@@ -133,7 +137,9 @@ function toObservedPost(row: CandidateRow): ObservedPost {
     postedAt: row.published_at,
     likes: engagement?.likes ?? null,
     replyCount: engagement?.replies ?? null,
-    excerpt: row.text,
+    reposts: engagement?.reposts ?? null,
+    shares: engagement?.shares ?? null,
+    excerpt: cleanExcerptForDisplay(row.text),
     images,
     fetchedAt: row.fetched_at,
     pipelineStatus: row.pipeline_status,
@@ -186,6 +192,20 @@ function aggregate24h(posts: ObservedPost[], since: string) {
 
 function emptyDistribution(): Record<Sentiment, SentimentBucket> {
   return Object.fromEntries(SENTIMENT_CLASSES.map((key) => [key, { count: 0, pct: 0 }])) as Record<Sentiment, SentimentBucket>
+}
+
+function cleanExcerptForDisplay(text: string): string {
+  let cleaned = text
+  cleaned = cleaned.replace(/^追蹤\S+\s*/u, '')
+  cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?\s*更多/gu, '')
+  cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?/gu, ' ')
+  cleaned = cleaned.replace(/更多|翻譯|靜音|編輯/gu, ' ')
+  cleaned = cleaned.replace(/\d+\s*\/\s*\d+\s*讚\s*[\d.,KMkm萬千]+(?:\s*(?:回覆|轉發|分享)\s*[\d.,KMkm萬千]+)*/gu, '')
+  cleaned = cleaned.replace(/讚\s*[\d.,KMkm萬千]+/gu, '')
+  cleaned = cleaned.replace(/回覆\s*[\d.,KMkm萬千]+/gu, '')
+  cleaned = cleaned.replace(/轉發\s*[\d.,KMkm萬千]+/gu, '')
+  cleaned = cleaned.replace(/分享\s*[\d.,KMkm萬千]+/gu, '')
+  return cleaned.replace(/\s+/g, ' ').trim()
 }
 
 function parseJson(text: string | null): unknown {
