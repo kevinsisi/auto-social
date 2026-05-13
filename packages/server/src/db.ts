@@ -183,4 +183,23 @@ export function migrate(db: AppDatabase) {
       usage_count   INTEGER NOT NULL DEFAULT 0
     );
   `)
+
+  ensureColumns(db, 'trend_candidates', [
+    { name: 'classify_json', type: 'TEXT' },
+    { name: 'sponsored_json', type: 'TEXT' },
+    { name: 'score_json', type: 'TEXT' },
+    { name: 'draft_variants_json', type: 'TEXT' },
+    { name: 'pipeline_error', type: 'TEXT' },
+    { name: 'pipeline_completed_at', type: 'TEXT' }
+  ])
+}
+
+function ensureColumns(db: AppDatabase, table: string, columns: Array<{ name: string; type: string }>) {
+  const existing = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+  const have = new Set(existing.map((row) => row.name))
+  for (const col of columns) {
+    if (!have.has(col.name)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${col.name} ${col.type}`)
+    }
+  }
 }

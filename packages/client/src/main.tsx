@@ -1,21 +1,42 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import './styles.css'
-import type { AdminSession, Candidate, CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RadarTerm, RiskLevel, ThreadsLoginJob, ThreadsSessionStatus } from './types'
+import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, RadarTerm, Sentiment, SponsoredSignal, ThreadsLoginJob, ThreadsSessionStatus } from './types'
 import { APP_VERSION } from './version'
 
-const statusLabels: Record<CandidateStatus, string> = {
-  useful: '值得回',
-  ignored: '先放過他',
-  replied: '已回覆',
-  needs_follow_up: '待判斷'
+const SENTIMENT_LABELS: Record<Sentiment, string> = {
+  anger: '憤怒',
+  complaint: '抱怨',
+  help: '求助',
+  sarcasm: '嘲諷',
+  neutral: '中立',
+  positive: '開心',
+  support: '鼓勵'
 }
 
-const riskLabels: Record<RiskLevel, string> = {
-  low: '低風險',
-  medium: '中風險',
-  high: '高風險'
+const SENTIMENT_COLORS: Record<Sentiment, string> = {
+  anger: '#dc2626',
+  complaint: '#f97316',
+  sarcasm: '#a855f7',
+  help: '#0ea5e9',
+  neutral: '#94a3b8',
+  positive: '#16a34a',
+  support: '#eab308'
+}
+
+const SENTIMENT_BAR_ORDER: Sentiment[] = ['anger', 'complaint', 'sarcasm', 'help', 'neutral', 'positive', 'support']
+
+const SPONSORED_LABELS: Record<SponsoredSignal, string> = {
+  none: '看起來自然',
+  suspect: '可疑葉配',
+  likely: '高機率葉配'
+}
+
+const SPONSORED_TONE: Record<SponsoredSignal, string> = {
+  none: 'border-asphalt bg-paper',
+  suspect: 'border-orange-500 bg-orange-100',
+  likely: 'border-red-600 bg-red-100'
 }
 
 type Page = 'dashboard' | 'settings'
@@ -39,7 +60,8 @@ function App() {
   const [page, setPage] = useState<'dashboard' | 'settings'>(() => getPageFromHash())
   const [cards, setCards] = useState<PatrolCard[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [detail, setDetail] = useState<PatrolCardDetail | null>(null)
+  const [observation, setObservation] = useState<KeywordObservation | null>(null)
+  const [observationLoading, setObservationLoading] = useState(false)
   const [keyword, setKeyword] = useState('')
   const [radarTerms, setRadarTerms] = useState<RadarTerm[]>([])
   const [radarLoading, setRadarLoading] = useState(false)
@@ -56,7 +78,13 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (selectedId) void loadDetail(selectedId)
+    if (!selectedId) {
+      setObservation(null)
+      return
+    }
+    void loadObservation(selectedId)
+    const id = window.setInterval(() => void loadObservation(selectedId), 30_000)
+    return () => window.clearInterval(id)
   }, [selectedId])
 
   async function loadCards() {
@@ -65,9 +93,17 @@ function App() {
     if (!selectedId && data.cards.length > 0) setSelectedId(data.cards[0].id)
   }
 
-  async function loadDetail(cardId: string) {
-    const data = await api.getCard(cardId)
-    setDetail(data.card)
+  async function loadObservation(cardId: string) {
+    setObservationLoading(true)
+    try {
+      const data = await api.getKeywordObservation(cardId)
+      setObservation(data.observation)
+    } catch (err) {
+      setObservation(null)
+      setError(getMessage(err))
+    } finally {
+      setObservationLoading(false)
+    }
   }
 
   async function loadRadarTrends() {
@@ -127,32 +163,40 @@ function App() {
       setSelectedId(card.id)
       const data = await api.scanThreads(card.id)
       setNotice(`已把「${term}」加入監控並出勤。${data.run.message}`)
-      await loadDetail(card.id)
+      await loadObservation(card.id)
     } catch (err) {
       setError(getMessage(err))
     }
   }
 
   async function scanThreads() {
-    if (!detail) return
+    if (!selectedId) return
     setError(null)
     try {
-      const data = await api.scanThreads(detail.id)
-      setNotice(data.run.message)
-      await loadDetail(detail.id)
+      const data = await api.scanThreads(selectedId)
+      setNotice(`${data.run.message} AI 正在背景判讀；30 秒內會自動刷新。`)
+      await loadObservation(selectedId)
     } catch (err) {
       setError(getMessage(err))
     }
   }
 
-  async function startBrowserRun() {
-    if (!detail) return
+  async function addManualLink(url: string, title: string, excerpt: string) {
+    if (!selectedId) return
     setError(null)
     try {
-      const data = await api.startBrowserRun(detail.id)
-      window.open(data.run.searchUrl, '_blank', 'noopener,noreferrer')
-      setNotice(data.run.message)
-      await loadDetail(detail.id)
+      await api.addCandidate(selectedId, url, title, excerpt)
+      setNotice('手動連結已加入，但目前僅進入舊管線；AI 風向觀察以排程結果為主。')
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  async function submitFeedback(post: ObservedPost, decision: FeedbackDecision, comment?: string) {
+    if (!post.draft) return
+    try {
+      await api.submitVoiceFeedback({ draftId: post.id, variantIdx: post.draft.variantIdx, decision, comment })
+      setNotice(decision === 'rewrite' ? '改寫意見收到，會餵進 voice 訓練。' : '紀錄了你的回饋。')
     } catch (err) {
       setError(getMessage(err))
     }
@@ -213,7 +257,9 @@ function App() {
           {notice && <Message tone="notice" text={notice} onClose={() => setNotice(null)} />}
           {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
           <HotKeywordCloud terms={radarTerms} loading={radarLoading} meta={radarMeta} onRefresh={runRadarScan} onSelect={(keyword) => void monitorRadarTerm(keyword)} />
-          {detail ? <PatrolDetail card={detail} onRefresh={() => loadDetail(detail.id)} onThreadsScan={scanThreads} onBrowserRun={startBrowserRun} /> : <EmptyState />}
+          {selectedId
+            ? <KeywordObservationPanel observation={observation} loading={observationLoading} onScanThreads={scanThreads} onAddManualLink={addManualLink} onFeedback={submitFeedback} />
+            : <EmptyState />}
         </section>
       </section>}
     </main>
@@ -592,120 +638,221 @@ function SettingsPage() {
   )
 }
 
-function PatrolDetail({ card, onRefresh, onThreadsScan, onBrowserRun }: { card: PatrolCardDetail; onRefresh: () => void; onThreadsScan: () => void; onBrowserRun: () => void }) {
-  const [url, setUrl] = useState('')
-  const [title, setTitle] = useState('')
-  const [excerpt, setExcerpt] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
-  async function addCandidate(event: React.FormEvent) {
-    event.preventDefault()
-    setError(null)
-    try {
-      await api.addCandidate(card.id, url, title, excerpt)
-      setUrl('')
-      setTitle('')
-      setExcerpt('')
-      onRefresh()
-    } catch (err) {
-      setError(getMessage(err))
-    }
+function KeywordObservationPanel({ observation, loading, onScanThreads, onAddManualLink, onFeedback }: {
+  observation: KeywordObservation | null
+  loading: boolean
+  onScanThreads: () => void
+  onAddManualLink: (url: string, title: string, excerpt: string) => Promise<void>
+  onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>
+}) {
+  if (!observation) {
+    return <div className="border-4 border-asphalt p-8 text-center text-lg font-black sm:p-10">{loading ? '正在讀取觀察站資料...' : '請先選一個關鍵字，或點上方雷達中的詞加入監控。'}</div>
   }
+  const { card, aggregate, posts } = observation
+  const dominant = useMemo(() => dominantSentiment(aggregate.sentimentDistribution), [aggregate.sentimentDistribution])
 
   return (
     <div className="space-y-4">
-      <div className="border-4 border-asphalt bg-[#fffaf2] p-5">
+      <section className="border-4 border-asphalt bg-[#fffaf2] p-5 shadow-[6px_6px_0_#171717] sm:p-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Keyword Card</p>
-            <h2 className="mt-1 text-4xl font-black">{card.keyword}</h2>
-            <p className="mt-2 text-sm">海巡隊已就位。等情報進來。</p>
+            <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Keyword Observation</p>
+            <h2 className="mt-1 text-3xl font-black sm:text-4xl">{card.keyword} 風向</h2>
+            <p className="mt-2 text-sm">
+              {aggregate.totalSamples} 則樣本（過去 24h）·
+              已判讀 {aggregate.classifiedSamples} 則 ·
+              葉配率 {formatPct(aggregate.sponsoredRate)} ·
+              主要情緒：{dominant ? `${SENTIMENT_LABELS[dominant]}` : '尚不足判斷'}
+              {aggregate.pipelineBlockedCount > 0 ? ` · ${aggregate.pipelineBlockedCount} 則 AI 判讀失敗` : ''}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={onThreadsScan} className="min-h-11 bg-signal px-4 py-2 font-bold text-white transition-colors hover:bg-asphalt">
+            <button onClick={onScanThreads} className="min-h-11 bg-signal px-4 py-2 font-bold text-white transition-colors hover:bg-asphalt">
               Threads 出勤海巡
-            </button>
-            <button onClick={onBrowserRun} className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold transition-colors hover:bg-asphalt hover:text-paper">
-              開 Threads 搜尋
             </button>
           </div>
         </div>
-      </div>
-
-      <form onSubmit={addCandidate} className="grid gap-3 border-2 border-asphalt p-4 md:grid-cols-[1.5fr_1fr]">
-        <div className="md:col-span-2">
-          <label className="text-sm font-bold">手動加入 Threads 連結</label>
-          <input className="mt-1 min-h-11 w-full border-2 border-asphalt bg-paper px-3 text-base" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://www.threads.net/..." />
-        </div>
-        <input className="min-h-11 border-2 border-asphalt bg-paper px-3 text-base" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="標題，可空白" />
-        <input className="min-h-11 border-2 border-asphalt bg-paper px-3 text-base" value={excerpt} onChange={(event) => setExcerpt(event.target.value)} placeholder="摘錄，可空白" />
-        <button className="min-h-11 bg-signal px-4 py-2 font-black text-white md:col-span-2" type="submit">加入結果並產生建議</button>
-        {error && <p className="text-sm font-bold text-red-700 md:col-span-2">{error}</p>}
-      </form>
+        <SentimentBar distribution={aggregate.sentimentDistribution} classifiedSamples={aggregate.classifiedSamples} />
+      </section>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        {card.candidates.map((candidate) => <CandidateCard key={candidate.id} candidate={candidate} onRefresh={onRefresh} />)}
-        {card.candidates.length === 0 && <div className="border-2 border-dashed border-asphalt p-8 text-center">目前還沒有結果。靠，海巡隊剛穿鞋。</div>}
+        {posts.map((post) => <ObservedPostCard key={post.id} post={post} onFeedback={onFeedback} />)}
+        {posts.length === 0 && (
+          <div className="border-2 border-dashed border-asphalt p-8 text-center xl:col-span-2">
+            尚無樣本。按上方「Threads 出勤海巡」抓一輪，或等下一次自動排程。
+          </div>
+        )}
       </div>
+
+      <ManualLinkImport onSubmit={onAddManualLink} />
     </div>
   )
 }
 
-function CandidateCard({ candidate, onRefresh }: { candidate: Candidate; onRefresh: () => void }) {
-  async function setStatus(status: CandidateStatus) {
-    await api.updateCandidateStatus(candidate.id, status)
-    onRefresh()
+function SentimentBar({ distribution, classifiedSamples }: { distribution: Record<Sentiment, { count: number; pct: number }>; classifiedSamples: number }) {
+  if (classifiedSamples === 0) {
+    return <div className="mt-4 flex h-10 items-center justify-center border-2 border-dashed border-asphalt/40 text-sm text-asphalt/60">尚無 AI 判讀樣本，跑一次 Threads 海巡讓 AI 上工。</div>
   }
+  return (
+    <>
+      <div className="mt-4 flex h-10 w-full overflow-hidden border-2 border-asphalt">
+        {SENTIMENT_BAR_ORDER.map((key) => {
+          const bucket = distribution[key]
+          if (bucket.count === 0) return null
+          return (
+            <div
+              key={key}
+              className="flex items-center justify-center text-xs font-black text-white"
+              style={{ width: `${Math.max(bucket.pct * 100, 4)}%`, background: SENTIMENT_COLORS[key] }}
+              title={`${SENTIMENT_LABELS[key]} ${bucket.count} 則 (${formatPct(bucket.pct)})`}
+            >
+              {bucket.pct >= 0.08 ? SENTIMENT_LABELS[key] : null}
+            </div>
+          )
+        })}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs font-mono">
+        {SENTIMENT_BAR_ORDER.map((key) => (
+          <span key={key} className="inline-flex items-center gap-1">
+            <span className="inline-block h-3 w-3 border border-asphalt" style={{ background: SENTIMENT_COLORS[key] }} />
+            {SENTIMENT_LABELS[key]} {distribution[key].count}
+          </span>
+        ))}
+      </div>
+    </>
+  )
+}
+
+function ObservedPostCard({ post, onFeedback }: { post: ObservedPost; onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void> }) {
+  const [expandedReasons, setExpandedReasons] = useState(false)
+  const [rewriting, setRewriting] = useState(false)
+  const [rewriteText, setRewriteText] = useState('')
+  const [lastDecision, setLastDecision] = useState<FeedbackDecision | null>(null)
+  const sponsoredBadge = post.sponsoredSignal ?? null
+  const sponsoredClass = sponsoredBadge ? SPONSORED_TONE[sponsoredBadge] : 'border-asphalt bg-paper'
 
   return (
     <article className="border-4 border-asphalt bg-[#fffaf2] p-4 shadow-[6px_6px_0_#171717]">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">{candidate.source}</p>
-          <h3 className="mt-1 text-xl font-black">{candidate.title || 'Threads 連結待確認'}</h3>
+      <header className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">{post.author ?? '匿名作者'} · {post.source}</p>
+          <a className="mt-1 block break-all text-sm underline" href={post.url} target="_blank" rel="noreferrer">{post.url}</a>
         </div>
-        <span className="border-2 border-asphalt px-2 py-1 text-xs font-bold">{statusLabels[candidate.status]}</span>
-      </div>
-      <a className="mt-2 block break-all text-sm underline" href={candidate.url} target="_blank" rel="noreferrer">{candidate.url}</a>
-      {candidate.excerpt && <p className="mt-3 border-l-4 border-signal pl-3">{candidate.excerpt}</p>}
+        <div className="flex flex-wrap items-center gap-1 text-xs font-mono">
+          {post.postedAt && <span className="border-2 border-asphalt px-2 py-1">{formatDate(post.postedAt)}</span>}
+          {post.likes !== null && <span className="border-2 border-asphalt px-2 py-1">♥ {post.likes}</span>}
+          {post.replyCount !== null && <span className="border-2 border-asphalt px-2 py-1">↩ {post.replyCount}</span>}
+        </div>
+      </header>
 
-      {candidate.analysis && (
-        <div className="mt-4 space-y-3">
-          <div className="grid gap-2 text-sm md:grid-cols-2">
-            <Info label="值不值得回" value={candidate.analysis.worthReplying ? '可以，請保持優雅又欠揍' : '先不要，這可能會變售後地獄'} />
-            <Info label="風險" value={`${riskLabels[candidate.analysis.riskLevel]}：${candidate.analysis.riskNote}`} />
-          </div>
-          <Info label="摘要" value={candidate.analysis.summary} />
-          <Info label="回覆角度" value={candidate.analysis.replyAngle} />
-          <Info label="圖片建議" value={candidate.analysis.imageIdea} />
-          <Info label="迷因圖卡 Prompt" value={candidate.analysis.memePrompt} />
-          <div className="space-y-2">
-            {candidate.analysis.suggestions.map((suggestion) => (
-              <div key={suggestion.id} className="border-2 border-asphalt bg-paper p-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <strong>{suggestion.label}</strong>
-                  <span className="font-mono text-xs">{riskLabels[suggestion.riskLevel]}</span>
-                </div>
-                <p>{suggestion.text}</p>
-                <button onClick={() => copyText(suggestion.text)} className="mt-2 min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold hover:bg-asphalt hover:text-paper">
-                  複製回覆
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+      <p className="mt-3 whitespace-pre-line border-l-4 border-signal pl-3 text-sm">{post.excerpt}</p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold">
+        {post.sentiment ? (
+          <span className="border-2 border-asphalt px-2 py-1 text-white" style={{ background: SENTIMENT_COLORS[post.sentiment] }}>
+            {SENTIMENT_LABELS[post.sentiment]}
+          </span>
+        ) : (
+          <span className="border-2 border-asphalt px-2 py-1 bg-paper">情緒判讀中</span>
+        )}
+        {post.topic && <span className="border-2 border-asphalt px-2 py-1 bg-paper">主題：{post.topic}</span>}
+        {sponsoredBadge && (
+          <button type="button" onClick={() => setExpandedReasons((v) => !v)} className={`border-2 px-2 py-1 ${sponsoredClass}`}>
+            {SPONSORED_LABELS[sponsoredBadge]} {post.sponsoredReasons.length > 0 ? (expandedReasons ? '▲' : '▼') : ''}
+          </button>
+        )}
+        {post.pipelineStatus === 'pipeline_blocked' && <span className="border-2 border-red-600 bg-red-100 px-2 py-1 text-red-700">AI 判讀失敗</span>}
+      </div>
+      {expandedReasons && post.sponsoredReasons.length > 0 && (
+        <ul className="mt-2 list-disc border-2 border-asphalt bg-paper p-3 pl-6 text-sm">
+          {post.sponsoredReasons.map((reason, idx) => <li key={idx}>{reason}</li>)}
+        </ul>
       )}
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        <a href={candidate.url} target="_blank" rel="noreferrer" className="min-h-10 bg-asphalt px-3 py-2 text-sm font-bold text-paper">開啟 Threads</a>
-        {(['useful', 'ignored', 'replied', 'needs_follow_up'] as CandidateStatus[]).map((status) => (
-          <button key={status} onClick={() => setStatus(status)} className="min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold hover:bg-signal hover:text-white">
-            {statusLabels[status]}
-          </button>
-        ))}
-      </div>
+      <section className="mt-4 border-2 border-asphalt bg-paper p-3">
+        <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">AI 建議留言</p>
+        {post.draft ? (
+          <>
+            <p className="mt-1 whitespace-pre-line text-sm">{post.draft.text}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button onClick={() => copyText(post.draft!.text)} className="min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold hover:bg-asphalt hover:text-paper">複製</button>
+              <button onClick={() => { setLastDecision('like'); void onFeedback(post, 'like') }} className={`min-h-10 border-2 px-3 py-1 text-sm font-bold ${lastDecision === 'like' ? 'border-green-700 bg-green-100' : 'border-asphalt'}`}>👍 像我</button>
+              <button onClick={() => { setLastDecision('dislike'); void onFeedback(post, 'dislike') }} className={`min-h-10 border-2 px-3 py-1 text-sm font-bold ${lastDecision === 'dislike' ? 'border-red-700 bg-red-100' : 'border-asphalt'}`}>👎 不像</button>
+              <button onClick={() => setRewriting((v) => !v)} className={`min-h-10 border-2 px-3 py-1 text-sm font-bold ${rewriting ? 'border-signal bg-signal text-white' : 'border-asphalt'}`}>✏️ 改寫</button>
+            </div>
+            {rewriting && (
+              <form
+                className="mt-3 space-y-2"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  if (!rewriteText.trim()) return
+                  setLastDecision('rewrite')
+                  void onFeedback(post, 'rewrite', rewriteText.trim())
+                  setRewriteText('')
+                  setRewriting(false)
+                }}
+              >
+                <textarea
+                  className="min-h-20 w-full border-2 border-asphalt bg-[#fffaf2] p-2 text-sm"
+                  placeholder="這版怎樣改才更像我？"
+                  value={rewriteText}
+                  onChange={(event) => setRewriteText(event.target.value)}
+                />
+                <button type="submit" className="min-h-10 bg-asphalt px-3 py-1 text-sm font-bold text-paper">送出改寫建議</button>
+              </form>
+            )}
+          </>
+        ) : (
+          <p className="mt-1 text-sm text-asphalt/60">{post.scoreReason ? `沒有產 AI 草稿：${post.scoreReason}` : '草稿暫不可用'}</p>
+        )}
+      </section>
     </article>
   )
+}
+
+function ManualLinkImport({ onSubmit }: { onSubmit: (url: string, title: string, excerpt: string) => Promise<void> }) {
+  const [url, setUrl] = useState('')
+  const [title, setTitle] = useState('')
+  const [excerpt, setExcerpt] = useState('')
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    if (!url.trim()) return
+    await onSubmit(url.trim(), title.trim(), excerpt.trim())
+    setUrl('')
+    setTitle('')
+    setExcerpt('')
+  }
+
+  return (
+    <form onSubmit={submit} className="border-2 border-dashed border-asphalt p-4">
+      <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Manual Backup</p>
+      <h3 className="mt-1 text-lg font-black">手動加 Threads 連結（備援）</h3>
+      <p className="mt-1 text-sm">出勤海巡沒抓到、又想觀察特定貼文時用；AI 風向以排程結果為主。</p>
+      <div className="mt-3 grid gap-2 md:grid-cols-[1.5fr_1fr_1fr_auto]">
+        <input className="min-h-11 border-2 border-asphalt bg-paper px-3 text-base" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://www.threads.net/..." />
+        <input className="min-h-11 border-2 border-asphalt bg-paper px-3 text-base" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="標題（可空）" />
+        <input className="min-h-11 border-2 border-asphalt bg-paper px-3 text-base" value={excerpt} onChange={(event) => setExcerpt(event.target.value)} placeholder="摘錄（可空）" />
+        <button className="min-h-11 bg-signal px-4 py-2 font-bold text-white" type="submit">加入</button>
+      </div>
+    </form>
+  )
+}
+
+function dominantSentiment(distribution: Record<Sentiment, { count: number; pct: number }>): Sentiment | null {
+  let best: Sentiment | null = null
+  let bestCount = 0
+  for (const key of SENTIMENT_BAR_ORDER) {
+    if (distribution[key].count > bestCount) {
+      best = key
+      bestCount = distribution[key].count
+    }
+  }
+  return best
+}
+
+function formatPct(value: number) {
+  return `${Math.round(value * 100)}%`
 }
 
 function Info({ label, value }: { label: string; value: string }) {

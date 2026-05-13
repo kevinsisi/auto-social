@@ -34,6 +34,19 @@ The new product name is **社群海巡工作站** (Social Patrol Station).
 - **Draft Inbox (Phase 0 = manual copy-paste publish)**: a new UI surface lists AI-prepared drafts sorted by score. Each row shows 3 angle variants; user picks one, edits, clicks `定稿`, then uses `複製文字` to copy and post manually to Threads, and pastes the resulting URL back. Status updates: `pending` → `approved` → `posted_manually`. Phase 1 will add automated `送出`.
 - **Settings page**: a new tabbed Settings page covers `配額`, `Key Pool` (with batch import), `Threads Session`, `Sources`, `Voice` (link out), `About` (version + non-secret env).
 
+### Phase A1 — Observation-first refocus (2026-05-13)
+
+After Phase 0 Batch 2 production landed, the product direction sharpened to **observation first, writing second**. The user wants to click a keyword and immediately see the social-listening picture for that keyword on Threads:
+
+- **Per-keyword 風向卡** at the top of the keyword detail view: a 7-class sentiment distribution (`anger` / `complaint` / `help` / `sarcasm` / `neutral` / `positive` / `support`) over recent samples, plus a 葉配 (sponsored-content) rate.
+- **Per-post sentiment tag + 葉配 badge**: every Threads candidate carries a single sentiment label and an independent sponsored-signal dimension (`none` / `suspect` / `likely`) with human-readable `sponsored_reasons[]` so the user can see *why* a post was judged as 葉配.
+- **AI suggestion draft on every post, from day one**: training starts immediately. Each candidate gets one draft variant using the default voice profile; the UI exposes `👍 像我` / `👎 不像` / `✏️ 改寫` buttons that write `voice_feedback` rows. The full Voice Studio page is deferred to Phase A2+, but the feedback loop is collecting data from A1.
+- **Comments come in A2**: per-post reply parsing via a new `threads-bot/post-detail.ts` Playwright step, with replies also classified for sentiment so they contribute to the per-keyword 風向 aggregate.
+
+The 4-step pipeline (`classify` → `score` → `draft` → `meme`) becomes a 5-step pipeline by adding `sponsored-detect` as an independent dimension between `classify` and `score`. `meme` stays Phase B.
+
+This refocus does **not** invalidate any existing Phase 0 task; it adds Section 15 to `tasks.md` covering the A1 observation slice and deprioritises Voice Studio (Section 6), Draft Inbox (Section 10), and full Dashboard tabs (Section 11.1 ff.) to A2+.
+
 ### Removed / deprecated from prior MVP
 
 - Server-side `humor.ts` rule-based humor engine is replaced by `ai-core` + voice profile.

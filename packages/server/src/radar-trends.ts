@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto'
 import { nanoid } from 'nanoid'
 import type { AppDatabase } from './db.js'
+import { runPipelineOnCandidate } from './scheduler/pipeline-runner.js'
 import { fetchThreadsSearchCandidates } from './sources/threads-search.js'
 import { searchThreadsWithPlaywright } from './threads-bot/search.js'
+import { DailyQuotaExceededError, KillSwitchActiveError } from './threads-bot/throttle.js'
 import { nowIso } from './time.js'
 
 export type RadarTerm = {
@@ -26,11 +28,15 @@ export type RadarScanResult = RadarTrendResult & {
   }
 }
 
-type RadarCandidate = {
+export type RadarCandidate = {
   url: string
   title: string
   excerpt: string
   source: 'threads_playwright' | 'threads_search'
+  author?: string | null
+  postedAt?: string | null
+  likes?: number | null
+  replyCount?: number | null
 }
 
 type TrendCandidateRow = {
@@ -90,7 +96,7 @@ export async function scanRadarTrends(db: AppDatabase): Promise<RadarScanResult>
 
   const batches = await Promise.allSettled(RADAR_SAMPLE_QUERIES.map((query) => fetchRadarCandidates(db, query)))
   const errors: string[] = []
-  let candidatesAdded = 0
+  const newCandidateIds: string[] = []
 
   for (const [index, batch] of batches.entries()) {
     const query = RADAR_SAMPLE_QUERIES[index] ?? 'unknown'
@@ -99,7 +105,9 @@ export async function scanRadarTrends(db: AppDatabase): Promise<RadarScanResult>
       continue
     }
     for (const candidate of batch.value) {
-      candidatesAdded += insertTrendCandidate(db, query, candidate)
+      const result = upsertTrendCandidate(db, candidate, { isTrending: true })
+      if (result.inserted && result.id) newCandidateIds.push(result.id)
+      void query
     }
   }
 
@@ -109,26 +117,76 @@ export async function scanRadarTrends(db: AppDatabase): Promise<RadarScanResult>
     UPDATE scan_runs
     SET ended_at = ?, status = ?, candidates_added = ?, errors_json = ?
     WHERE id = ?
-  `).run(endedAt, status, candidatesAdded, JSON.stringify(errors), scanId)
+  `).run(endedAt, status, newCandidateIds.length, JSON.stringify(errors), scanId)
 
-  return { ...getRadarTrends(db), errors, scanRun: { id: scanId, status, candidatesAdded } }
+  schedulePipelineForCandidates(db, newCandidateIds)
+
+  return { ...getRadarTrends(db), errors, scanRun: { id: scanId, status, candidatesAdded: newCandidateIds.length } }
+}
+
+export function schedulePipelineForCandidates(db: AppDatabase, candidateIds: string[]) {
+  if (candidateIds.length === 0) return
+  void (async () => {
+    for (const id of candidateIds) {
+      try {
+        await runPipelineOnCandidate(db, id)
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : 'pipeline_blocked'
+        console.warn(`[pipeline] candidate ${id} failed: ${reason}`)
+      }
+    }
+  })()
 }
 
 async function fetchRadarCandidates(db: AppDatabase, query: string): Promise<RadarCandidate[]> {
   try {
     return await searchThreadsWithPlaywright(db, query, CANDIDATES_PER_QUERY)
-  } catch {
+  } catch (error) {
+    if (error instanceof KillSwitchActiveError || error instanceof DailyQuotaExceededError) throw error
     return await fetchThreadsSearchCandidates(query, CANDIDATES_PER_QUERY)
   }
 }
 
 function insertTrendCandidate(db: AppDatabase, _query: string, candidate: RadarCandidate) {
+  return upsertTrendCandidate(db, candidate, { isTrending: true }).inserted ? 1 : 0
+}
+
+export type UpsertTrendCandidateOptions = {
+  cardId?: string | null
+  isTrending?: boolean
+}
+
+export type UpsertTrendCandidateResult = {
+  id: string | null
+  inserted: boolean
+}
+
+export function upsertTrendCandidate(db: AppDatabase, candidate: RadarCandidate, options: UpsertTrendCandidateOptions = {}): UpsertTrendCandidateResult {
   const fingerprint = createHash('sha256').update(`${candidate.source}:${candidate.url}`).digest('hex')
+  const hasEngagement = (candidate.likes ?? null) !== null || (candidate.replyCount ?? null) !== null
+  const engagementJson = hasEngagement ? JSON.stringify({ likes: candidate.likes ?? null, replies: candidate.replyCount ?? null }) : null
+  const id = nanoid()
   const result = db.prepare(`
-    INSERT OR IGNORE INTO trend_candidates (id, source, external_id, fingerprint, is_trending, url, title, text, fetched_at, pipeline_status)
-    VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, 'pending')
-  `).run(nanoid(), candidate.source, candidate.url, fingerprint, candidate.url, candidate.title, candidate.excerpt, nowIso())
-  return result.changes
+    INSERT OR IGNORE INTO trend_candidates (id, source, external_id, fingerprint, card_id, is_trending, url, author, title, text, published_at, engagement_json, fetched_at, pipeline_status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+  `).run(
+    id,
+    candidate.source,
+    candidate.url,
+    fingerprint,
+    options.cardId ?? null,
+    options.isTrending ? 1 : 0,
+    candidate.url,
+    candidate.author ?? null,
+    candidate.title,
+    candidate.excerpt,
+    candidate.postedAt ?? null,
+    engagementJson,
+    nowIso()
+  )
+  if (result.changes > 0) return { id, inserted: true }
+  const existing = db.prepare('SELECT id FROM trend_candidates WHERE fingerprint = ?').get(fingerprint) as { id: string } | undefined
+  return { id: existing?.id ?? null, inserted: false }
 }
 
 function sanitizeTrendText(text: string) {

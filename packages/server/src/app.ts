@@ -7,11 +7,12 @@ import { getAdminSessionStatus, loginAdmin, logoutAdmin, requireAdmin } from './
 import { browserProxy } from './browser-proxy.js'
 import type { AppDatabase } from './db.js'
 import { registerKeyPoolRoutes } from './key-pool/routes.js'
-import { getRadarTrends, scanRadarTrends } from './radar-trends.js'
+import { getKeywordObservation, saveVoiceFeedback } from './observe.js'
+import { getRadarTrends, scanRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
 import { PatrolRepository } from './repository.js'
 import { fetchThreadsSearchCandidates } from './sources/threads-search.js'
 import { searchThreadsWithPlaywright } from './threads-bot/search.js'
-import { assertThreadsSearchAllowed } from './threads-bot/throttle.js'
+import { DailyQuotaExceededError, getKillSwitch, getThrottleSnapshot, KillSwitchActiveError, setKillSwitch } from './threads-bot/throttle.js'
 import { clearThreadsSession, getThreadsSessionStatus, importThreadsStorageState } from './threads-bot/session.js'
 import { cancelThreadsLoginJob, clickThreadsLoginJob, finishThreadsLoginJob, getThreadsLoginJobStatus, pressThreadsLoginJob, screenshotThreadsLoginJob, startThreadsLoginJob, typeThreadsLoginJob } from './threads-bot/login.js'
 import { APP_VERSION } from './version.js'
@@ -24,6 +25,13 @@ const addCandidateSchema = z.object({
 })
 const updateStatusSchema = z.object({ status: z.enum(['useful', 'ignored', 'replied', 'needs_follow_up']) })
 const importThreadsSessionSchema = z.object({ storageStateJson: z.string().min(2) })
+const killSwitchSchema = z.object({ enabled: z.boolean() })
+const voiceFeedbackSchema = z.object({
+  draftId: z.string().min(1),
+  variantIdx: z.number().int().min(0).max(10).default(0),
+  decision: z.enum(['like', 'dislike', 'rewrite']),
+  comment: z.string().max(2000).optional()
+})
 const adminLoginSchema = z.object({ token: z.string().min(1) })
 const clickThreadsLoginSchema = z.object({ x: z.number().min(0), y: z.number().min(0) })
 const typeThreadsLoginSchema = z.object({ text: z.string().min(1).max(512) })
@@ -91,6 +99,22 @@ export function createApp(db: AppDatabase) {
     res.json({ card })
   })
 
+  app.get('/api/keywords/:cardId/observe', (req, res) => {
+    const observation = getKeywordObservation(db, String(req.params.cardId))
+    if (!observation) return res.status(404).json({ error: '找不到這張海巡卡。' })
+    res.json({ observation })
+  })
+
+  app.post('/api/voice/feedback', (req, res) => {
+    try {
+      const body = voiceFeedbackSchema.parse(req.body)
+      const result = saveVoiceFeedback(db, body)
+      res.status(201).json({ feedback: result })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
   app.post('/api/cards/:cardId/candidates', (req, res) => {
     try {
       const body = addCandidateSchema.parse(req.body)
@@ -114,12 +138,16 @@ export function createApp(db: AppDatabase) {
       const cardId = String(req.params.cardId)
       const card = repo.getCardDetail(cardId)
       if (!card) return res.status(404).json({ error: '找不到這張海巡卡。' })
-      assertThreadsSearchAllowed(db)
       try {
         const items = await searchThreadsWithPlaywright(db, card.keyword)
+        persistAndSchedule(db, cardId, items)
         res.status(202).json({ run: repo.createThreadsSearchRun(cardId, items) })
       } catch (playwrightError) {
+        if (playwrightError instanceof KillSwitchActiveError || playwrightError instanceof DailyQuotaExceededError) {
+          throw playwrightError
+        }
         const items = await fetchThreadsSearchCandidates(card.keyword)
+        persistAndSchedule(db, cardId, items)
         const run = repo.createThreadsSearchRun(cardId, items)
         const reason = playwrightError instanceof Error ? playwrightError.message : 'Threads Playwright 搜尋失敗'
         res.status(202).json({ run: { ...run, message: `${run.message}（Playwright 失敗，已改用 site:threads.net 備援：${reason}）` } })
@@ -144,8 +172,26 @@ export function createApp(db: AppDatabase) {
 
   app.post('/api/admin/scan/run-now', requireAdmin, async (_req, res) => {
     try {
-      assertThreadsSearchAllowed(db)
+      if (getKillSwitch(db)) throw new KillSwitchActiveError()
       res.status(202).json({ radar: await scanRadarTrends(db) })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.get('/api/threads/throttle', (_req, res) => {
+    res.json({ throttle: getThrottleSnapshot(db) })
+  })
+
+  app.get('/api/threads/kill-switch', (_req, res) => {
+    res.json({ enabled: getKillSwitch(db) })
+  })
+
+  app.put('/api/threads/kill-switch', requireAdmin, (req, res) => {
+    try {
+      const body = killSwitchSchema.parse(req.body)
+      setKillSwitch(db, body.enabled)
+      res.json({ enabled: body.enabled })
     } catch (error) {
       sendError(res, error)
     }
@@ -260,4 +306,24 @@ function sendError(res: express.Response, error: unknown) {
     return res.status(400).json({ error: error.message })
   }
   return res.status(400).json({ error: '操作失敗，這很難評，但我們有記下來。' })
+}
+
+type ScanCandidate = {
+  url: string
+  title: string
+  excerpt: string
+  source: 'threads_playwright' | 'threads_search'
+  author?: string | null
+  postedAt?: string | null
+  likes?: number | null
+  replyCount?: number | null
+}
+
+function persistAndSchedule(db: AppDatabase, cardId: string, items: ScanCandidate[]) {
+  const newIds: string[] = []
+  for (const item of items) {
+    const result = upsertTrendCandidate(db, item, { cardId, isTrending: false })
+    if (result.inserted && result.id) newIds.push(result.id)
+  }
+  schedulePipelineForCandidates(db, newIds)
 }

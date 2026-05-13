@@ -1,4 +1,4 @@
-import type { AdminSession, CandidateStatus, KeyStatus, PatrolCard, PatrolCardDetail, RadarTrend, ThreadsLoginJob, ThreadsSessionStatus } from './types'
+import type { AdminSession, CandidateStatus, FeedbackDecision, KeyStatus, KeywordObservation, PatrolCard, PatrolCardDetail, RadarTrend, ThreadsLoginJob, ThreadsSessionStatus } from './types'
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers)
@@ -158,6 +158,15 @@ export const api = {
     return request<{ session: ThreadsSessionStatus }>('/api/threads/session/import', {
       method: 'POST',
       body: JSON.stringify({ storageStateJson })
+    })
+  },
+  async getKeywordObservation(cardId: string) {
+    return request<{ observation: KeywordObservation }>(`/api/keywords/${cardId}/observe`)
+  },
+  async submitVoiceFeedback(input: { draftId: string; variantIdx: number; decision: FeedbackDecision; comment?: string }) {
+    return request<{ feedback: { id: string; createdAt: string } }>('/api/voice/feedback', {
+      method: 'POST',
+      body: JSON.stringify(input)
     })
   }
 }

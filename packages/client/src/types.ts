@@ -100,3 +100,51 @@ export type RadarTrend = {
     candidatesAdded: number
   }
 }
+
+export type Sentiment = 'anger' | 'complaint' | 'help' | 'sarcasm' | 'neutral' | 'positive' | 'support'
+export type SponsoredSignal = 'none' | 'suspect' | 'likely'
+export type FeedbackDecision = 'like' | 'dislike' | 'rewrite'
+
+export type SentimentBucket = { count: number; pct: number }
+
+export type ObservedDraft = {
+  variantIdx: number
+  angle: string
+  text: string
+  length: number
+}
+
+export type ObservedPost = {
+  id: string
+  source: string
+  url: string
+  author: string | null
+  postedAt: string | null
+  likes: number | null
+  replyCount: number | null
+  excerpt: string
+  fetchedAt: string
+  pipelineStatus: string
+  pipelineError: string | null
+  topic: string | null
+  sentiment: Sentiment | null
+  voiceFit: number | null
+  sponsoredSignal: SponsoredSignal | null
+  sponsoredReasons: string[]
+  shouldDraft: boolean | null
+  scoreReason: string | null
+  draft: ObservedDraft | null
+}
+
+export type KeywordObservation = {
+  card: { id: string; keyword: string }
+  aggregate: {
+    totalSamples: number
+    classifiedSamples: number
+    since: string
+    sentimentDistribution: Record<Sentiment, SentimentBucket>
+    sponsoredRate: number
+    pipelineBlockedCount: number
+  }
+  posts: ObservedPost[]
+}
