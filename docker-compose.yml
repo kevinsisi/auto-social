@@ -19,6 +19,10 @@ services:
       # logging in to Threads from the company network. The deploy compose
       # file does not set this, so production keeps strict TLS verification.
       AUTO_SOCIAL_INSECURE_TLS: ${AUTO_SOCIAL_INSECURE_TLS:-1}
+      # gemini-2.5-flash free tier is only 20 RPD per project; gemini-2.0-flash
+      # gets 1500 RPD per project. For local observation pipelines that fire
+      # 4 calls per candidate, 2.0-flash is the only viable free-tier model.
+      GEMINI_DEFAULT_MODEL: ${GEMINI_DEFAULT_MODEL:-gemini-2.0-flash}
     ports:
       - "4323:4323"
     volumes:
