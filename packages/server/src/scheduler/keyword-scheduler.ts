@@ -9,6 +9,7 @@ export type KeywordSchedulerStatus = {
   enabled: boolean
   cadence: string
   running: boolean
+  nextRunAt: string | null
   lastStatus: 'idle' | 'running' | 'completed' | 'failed' | 'skipped_overlap'
   lastStartedAt: string | null
   lastCompletedAt: string | null
@@ -26,6 +27,7 @@ class KeywordScheduler {
     enabled: false,
     cadence: DEFAULT_CADENCE,
     running: false,
+    nextRunAt: null,
     lastStatus: 'idle',
     lastStartedAt: null,
     lastCompletedAt: null,
@@ -40,6 +42,7 @@ class KeywordScheduler {
   start() {
     if (this.task) return
     this.status.enabled = true
+    this.status.nextRunAt = computeNextRunAt(this.status.cadence)
     this.task = cron.schedule(this.status.cadence, () => {
       void this.runTick()
     }, { timezone: 'Asia/Taipei' })
@@ -53,6 +56,7 @@ class KeywordScheduler {
     if (this.status.running) {
       this.status.lastStatus = 'skipped_overlap'
       this.status.lastSkippedAt = nowIso()
+      this.status.nextRunAt = computeNextRunAt(this.status.cadence)
       return
     }
 
@@ -94,6 +98,7 @@ class KeywordScheduler {
       `).run(this.status.lastCompletedAt, errors.length > 0 ? 'failed' : 'completed', insertedCount, JSON.stringify(errors), scanId)
     } finally {
       this.status.running = false
+      this.status.nextRunAt = computeNextRunAt(this.status.cadence)
     }
   }
 }
@@ -111,6 +116,7 @@ export function getKeywordSchedulerStatus(): KeywordSchedulerStatus {
     enabled: false,
     cadence: DEFAULT_CADENCE,
     running: false,
+    nextRunAt: null,
     lastStatus: 'idle',
     lastStartedAt: null,
     lastCompletedAt: null,
@@ -119,4 +125,21 @@ export function getKeywordSchedulerStatus(): KeywordSchedulerStatus {
     lastCardCount: 0,
     lastInsertedCount: 0
   }
+}
+
+export function computeNextRunAt(cadence: string, now = new Date()): string | null {
+  const match = cadence.match(/^\*\/(\d+)\s+\*\s+\*\s+\*\s+\*$/)
+  if (!match || !match[1]) return null
+  const intervalMinutes = Number(match[1])
+  if (!Number.isFinite(intervalMinutes) || intervalMinutes <= 0 || intervalMinutes > 60) return null
+  const next = new Date(now)
+  next.setSeconds(0, 0)
+  const currentMinute = next.getMinutes()
+  const nextMinute = Math.floor(currentMinute / intervalMinutes) * intervalMinutes + intervalMinutes
+  if (nextMinute >= 60) {
+    next.setHours(next.getHours() + 1, 0, 0, 0)
+  } else {
+    next.setMinutes(nextMinute, 0, 0)
+  }
+  return next.toISOString()
 }

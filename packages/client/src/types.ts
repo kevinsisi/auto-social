@@ -133,6 +133,7 @@ export type SchedulerStatus = {
   enabled: boolean
   cadence: string
   running: boolean
+  nextRunAt: string | null
   lastStatus: 'idle' | 'running' | 'completed' | 'failed' | 'skipped_overlap'
   lastStartedAt: string | null
   lastCompletedAt: string | null

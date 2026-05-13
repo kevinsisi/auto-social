@@ -662,7 +662,7 @@ function SettingsPage() {
           <Info label="draft" value="已限制 exactly 3 variants + no-go 過濾" />
           <Info label="meme" value="已建立文字型 meme prompt step" />
           <Info label="Threads" value="Playwright 搜尋優先；失敗時自動退回 site:threads.net 備援。" />
-          <Info label="尚未完成" value="Voice Studio、scheduler、Draft Inbox 還沒做。" />
+          <Info label="尚未完成" value="Voice Studio、Draft Inbox、留言抓取還沒做。" />
         </div>
       </div>}
     </section>
@@ -1031,8 +1031,9 @@ function SchedulerPanel({ scheduler }: { scheduler: SchedulerStatus | null }) {
         </div>
         <p className="font-mono text-xs text-asphalt/60">cadence {scheduler.cadence}</p>
       </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4 text-sm">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5 text-sm">
         <div className="border-2 border-asphalt bg-[#fffaf2] p-2"><p className="font-mono text-[0.65rem] uppercase tracking-[0.15em] text-signal">狀態</p><p className="mt-1 font-bold">{formatSchedulerStatus(scheduler.lastStatus)}</p></div>
+        <div className="border-2 border-asphalt bg-[#fffaf2] p-2"><p className="font-mono text-[0.65rem] uppercase tracking-[0.15em] text-signal">下次海巡</p><p className="mt-1 font-bold">{scheduler.nextRunAt ? formatDate(scheduler.nextRunAt) : '待計算'}</p></div>
         <div className="border-2 border-asphalt bg-[#fffaf2] p-2"><p className="font-mono text-[0.65rem] uppercase tracking-[0.15em] text-signal">上次開始</p><p className="mt-1 font-bold">{scheduler.lastStartedAt ? formatDate(scheduler.lastStartedAt) : '尚未執行'}</p></div>
         <div className="border-2 border-asphalt bg-[#fffaf2] p-2"><p className="font-mono text-[0.65rem] uppercase tracking-[0.15em] text-signal">上次完成</p><p className="mt-1 font-bold">{scheduler.lastCompletedAt ? formatDate(scheduler.lastCompletedAt) : '尚未完成'}</p></div>
         <div className="border-2 border-asphalt bg-[#fffaf2] p-2"><p className="font-mono text-[0.65rem] uppercase tracking-[0.15em] text-signal">上次成果</p><p className="mt-1 font-bold">掃 {scheduler.lastCardCount} 張卡 / 新增 {scheduler.lastInsertedCount} 筆</p></div>
