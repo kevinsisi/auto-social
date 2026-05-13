@@ -186,7 +186,7 @@ The A1 slice flips the product to observation-first. Drafts ride alongside obser
 
 ### 15.F Verification + ship
 
-- [ ] 15.F.1 `npm run typecheck` + `npm run build` + `npm run test` pass in both packages.
-- [ ] 15.F.2 Local Docker rebuild on company net: `docker pull node:22-bookworm-slim` → `DOCKER_BUILDKIT=0 docker compose build` → `docker compose up -d`; verify `/api/health` returns ok + new version.
-- [ ] 15.F.3 Bump version (`1.0.6` → `1.1.0` — minor for the observation pivot), update README's status block.
-- [ ] 15.F.4 Commit + push; CI/CD deploys to `https://social.sisihome.org`; user runs a real observation pass on a keyword and reports back.
+- [x] 15.F.1 `npm run typecheck` + `npm run build` + `npm run test` pass in both packages (55/55 server tests, client tsc + vite build clean).
+- [~] 15.F.2 Local server smoke verified instead of full Docker rebuild: `node packages/server/dist/index.js` boots; `/api/health` returns `{"ok":true,"version":"1.1.0"}`; `/api/threads/throttle` returns expected snapshot; `/api/keywords/no-such-card/observe` 404s. Company-net Docker rebuild deferred — production deploys via GitHub Actions amd64 image, not local Docker.
+- [x] 15.F.3 Version bumped `1.0.6` → `1.1.0` across root + server + client `package.json`; README status block rewritten for Phase A1 deliverables.
+- [x] 15.F.4 Commit `e7ffee2` pushed to `main`; GitHub Actions `Deploy to amd64 Server via Tailscale` workflow ran 25777368557, status `success`. Production health verification from this workstation blocked because `social.sisihome.org` resolves to Tailscale CGNAT (100.126.x.x) and this company workstation has no Tailscale; user verifies on their own machine.
