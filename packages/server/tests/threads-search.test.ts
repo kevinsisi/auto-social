@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { extractThreadsLinks } from '../src/sources/threads-search.js'
-import { cleanThreadsExcerptForDisplay, isTaiwanRelevant } from '../src/threads-bot/search.js'
+import { cleanThreadsExcerptForDisplay, isKeywordRelevant, isTaiwanRelevant } from '../src/threads-bot/search.js'
 
 describe('extractThreadsLinks', () => {
   it('extracts Threads URLs from Google result hrefs', () => {
@@ -58,5 +58,23 @@ describe('isTaiwanRelevant', () => {
   it('keeps mixed Chinese + English when Chinese is substantial', () => {
     const text = '推薦這個 AI 工具，整理筆記超快，台灣朋友可以試試'
     expect(isTaiwanRelevant(text, 'AI 工具')).toBe(true)
+  })
+})
+
+describe('isKeywordRelevant', () => {
+  it('keeps CJK posts containing the exact keyword', () => {
+    expect(isKeywordRelevant('今天來聊 Urus 改裝跟養車成本', 'Urus')).toBe(true)
+  })
+
+  it('drops posts that do not mention the requested keyword', () => {
+    expect(isKeywordRelevant('Mastaruu.. 🤍🙂', 'Urus')).toBe(false)
+  })
+
+  it('matches latin keyword case-insensitively on word boundaries', () => {
+    expect(isKeywordRelevant('最近很多人在討論 urus 的外觀', 'Urus')).toBe(true)
+  })
+
+  it('keeps CJK phrase matches directly', () => {
+    expect(isKeywordRelevant('我的日常生活真的離不開咖啡', '日常生活')).toBe(true)
   })
 })
