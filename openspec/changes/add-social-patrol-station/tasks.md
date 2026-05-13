@@ -242,11 +242,12 @@ User feedback after A1 deploy drove a tight iteration cycle. Every item below is
 - [x] 16.F.3 Delete keyword button (`✕`) on each watchlist card with confirm dialog; DELETE `/api/cards/:id` cascades into `trend_candidates`.
 - [x] 16.F.4 Image + video media grid below excerpt; up to 6 images and 4 videos per post; videos overlay `▶ 影片` label.
 - [x] 16.F.5 UI exclusivity: `pipeline_blocked` posts no longer show conflicting "情緒判讀中" + "AI 判讀失敗" badges simultaneously.
+- [x] 16.F.6 Mobile overflow hardening: root/main clamp horizontal overflow, grid children set `min-w-0`, and hot-keyword cloud terms can break long words on small screens so iPhone Safari no longer gets horizontal run-off.
 
 ### 16.G Verification + ship
 
 - [x] 16.G.1 74/74 server tests pass across 12 files including new scam-detect, taiwan-relevant filter, dedup, queue-related units.
-- [x] 16.G.2 Versions bumped through 1.1.0 → 1.1.2 → 1.2.0 → 1.2.1 → 1.2.2 → 1.2.3 in lockstep across root + server + client `package.json`.
+- [x] 16.G.2 Versions bumped through 1.1.0 → 1.1.2 → 1.2.0 → 1.2.1 → 1.2.2 → 1.2.3 → 1.2.4 in lockstep across root + server + client `package.json`.
 - [x] 16.G.3 Commits pushed to `main` (8 commits since A1 ship): scam + queue, scam UI badge, taiwan filter, video media, no-emoji drafts, canonical URL dedup, etc. Production auto-deploys via existing Tailscale workflow.
 - [ ] 16.G.4 Live production observation pass with a billing-enabled Gemini key — pending user-side validation (free-tier keys exhausted; user has confirmed a billing key is on hand).
 
