@@ -732,6 +732,16 @@ function ObservedPostCard({ post, onFeedback, highlight = false }: { post: Obser
 
       <p className="mt-3 whitespace-pre-line border-l-4 border-signal pl-3 text-sm">{post.excerpt}</p>
 
+      {post.images.length > 0 && (
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {post.images.slice(0, 6).map((src) => (
+            <a key={src} href={post.url} target="_blank" rel="noreferrer" className="block overflow-hidden border-2 border-asphalt bg-paper">
+              <img src={src} alt="Threads 貼文圖" loading="lazy" referrerPolicy="no-referrer" className="h-32 w-full object-cover" />
+            </a>
+          ))}
+        </div>
+      )}
+
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold">
         {post.sentiment ? (
           <span className="border-2 border-asphalt px-2 py-1 text-white" style={{ background: SENTIMENT_COLORS[post.sentiment] }}>

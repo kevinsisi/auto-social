@@ -37,6 +37,7 @@ export type RadarCandidate = {
   postedAt?: string | null
   likes?: number | null
   replyCount?: number | null
+  images?: string[] | null
 }
 
 type TrendCandidateRow = {
@@ -165,10 +166,12 @@ export function upsertTrendCandidate(db: AppDatabase, candidate: RadarCandidate,
   const fingerprint = createHash('sha256').update(`${candidate.source}:${candidate.url}`).digest('hex')
   const hasEngagement = (candidate.likes ?? null) !== null || (candidate.replyCount ?? null) !== null
   const engagementJson = hasEngagement ? JSON.stringify({ likes: candidate.likes ?? null, replies: candidate.replyCount ?? null }) : null
+  const images = candidate.images?.filter((src) => typeof src === 'string' && src.length > 0) ?? []
+  const imagesJson = images.length > 0 ? JSON.stringify(images) : null
   const id = nanoid()
   const result = db.prepare(`
-    INSERT OR IGNORE INTO trend_candidates (id, source, external_id, fingerprint, card_id, is_trending, url, author, title, text, published_at, engagement_json, fetched_at, pipeline_status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+    INSERT OR IGNORE INTO trend_candidates (id, source, external_id, fingerprint, card_id, is_trending, url, author, title, text, published_at, engagement_json, images_json, fetched_at, pipeline_status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
   `).run(
     id,
     candidate.source,
@@ -182,6 +185,7 @@ export function upsertTrendCandidate(db: AppDatabase, candidate: RadarCandidate,
     candidate.excerpt,
     candidate.postedAt ?? null,
     engagementJson,
+    imagesJson,
     nowIso()
   )
   if (result.changes > 0) return { id, inserted: true }
