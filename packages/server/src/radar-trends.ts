@@ -48,7 +48,7 @@ const RADAR_WINDOW_MS = 24 * 60 * 60 * 1000
 const stopWords = new Set([
   'Threads', 'threads', 'Thread', 'thread', 'Meta', 'meta', 'Instagram', 'instagram',
   'Playwright', 'playwright', 'query',
-  '搜尋', '結果', '連結', '找到', '開頁', '確認', '原文', '互動', 'Google', 'google',
+  '搜尋', '結果', '連結', '找到', '開頁', '確認', '原文', '互動', '觀察', 'Google', 'google',
   'https', 'http', 'www', 'com', 'net', 'post', 'search', 'login', 'privacy',
   '這個', '那個', '一個', '我們', '你們', '他們', '她們', '自己', '大家', '什麼', '怎麼',
   '可以', '不是', '沒有', '就是', '因為', '所以', '如果', '今天', '現在', '真的', '覺得',
@@ -67,7 +67,7 @@ export function getRadarTrends(db: AppDatabase): RadarTrendResult {
   const sourceCounts = new Map<'threads_playwright' | 'threads_search', number>()
   const text = rows.map((row) => {
     sourceCounts.set(row.source, (sourceCounts.get(row.source) ?? 0) + 1)
-    return `${row.title ?? ''} ${row.text}`
+    return `${row.title ?? ''} ${sanitizeTrendText(row.text)}`
   }).join(' ')
   const sources = [...sourceCounts.keys()]
   return {
@@ -128,6 +128,10 @@ function insertTrendCandidate(db: AppDatabase, _query: string, candidate: RadarC
     VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, 'pending')
   `).run(nanoid(), candidate.source, candidate.url, fingerprint, candidate.url, candidate.title, candidate.excerpt, nowIso())
   return result.changes
+}
+
+function sanitizeTrendText(text: string) {
+  return text.replace(/\n\s*\n觀察 query：[^\n]*/g, ' ')
 }
 
 function getLatestScanErrors(db: AppDatabase) {
