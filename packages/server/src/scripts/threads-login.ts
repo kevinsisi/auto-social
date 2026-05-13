@@ -26,7 +26,8 @@ async function main() {
     args: ['--start-maximized'],
     locale: 'zh-TW',
     timezoneId: 'Asia/Taipei',
-    viewport: null
+    viewport: null,
+    ignoreHTTPSErrors: process.env.AUTO_SOCIAL_INSECURE_TLS === '1'
   })
   const page = await context.newPage()
   await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' })

@@ -1,6 +1,6 @@
 import cors from 'cors'
 import express from 'express'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { z } from 'zod'
 import { getAdminSessionStatus, loginAdmin, logoutAdmin, requireAdmin } from './admin-auth.js'
@@ -278,6 +278,20 @@ export function createApp(db: AppDatabase) {
     try {
       const body = importThreadsSessionSchema.parse(req.body)
       res.status(201).json({ session: importThreadsStorageState(db, body.storageStateJson) })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.post('/api/threads/session/import-from-file', requireAdmin, (req, res) => {
+    try {
+      const filePath = resolve(process.env.AUTO_SOCIAL_DB ? resolve(process.env.AUTO_SOCIAL_DB, '..') : 'data', 'threads-storage-state.json')
+      if (!existsSync(filePath)) {
+        return res.status(404).json({ error: `找不到 ${filePath}；請先在電腦執行 npm run threads:login 完成登入。` })
+      }
+      const storageStateJson = readFileSync(filePath, 'utf8')
+      const session = importThreadsStorageState(db, storageStateJson)
+      res.status(201).json({ session, importedFrom: filePath })
     } catch (error) {
       sendError(res, error)
     }

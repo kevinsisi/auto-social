@@ -160,6 +160,12 @@ export const api = {
       body: JSON.stringify({ storageStateJson })
     })
   },
+  async importThreadsSessionFromFile() {
+    return request<{ session: ThreadsSessionStatus; importedFrom: string }>('/api/threads/session/import-from-file', {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
+  },
   async getKeywordObservation(cardId: string) {
     return request<{ observation: KeywordObservation }>(`/api/keywords/${cardId}/observe`)
   },
