@@ -198,6 +198,32 @@ export function upsertTrendCandidate(db: AppDatabase, candidate: RadarCandidate,
   )
   if (result.changes > 0) return { id, inserted: true }
   const existing = db.prepare('SELECT id FROM trend_candidates WHERE fingerprint = ?').get(fingerprint) as { id: string } | undefined
+  if (existing) {
+    db.prepare(`
+      UPDATE trend_candidates
+      SET card_id = COALESCE(card_id, ?),
+          is_trending = CASE WHEN ? = 1 THEN 1 ELSE is_trending END,
+          author = COALESCE(?, author),
+          title = ?,
+          text = ?,
+          published_at = COALESCE(?, published_at),
+          engagement_json = COALESCE(?, engagement_json),
+          images_json = COALESCE(?, images_json),
+          fetched_at = ?
+      WHERE id = ?
+    `).run(
+      options.cardId ?? null,
+      options.isTrending ? 1 : 0,
+      candidate.author ?? null,
+      candidate.title,
+      candidate.excerpt,
+      candidate.postedAt ?? null,
+      engagementJson,
+      imagesJson,
+      nowIso(),
+      existing.id
+    )
+  }
   return { id: existing?.id ?? null, inserted: false }
 }
 
