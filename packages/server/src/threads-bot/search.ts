@@ -12,6 +12,7 @@ export type ThreadsPlaywrightCandidate = {
   postedAt: string | null
   likes: number | null
   replyCount: number | null
+  images: string[]
 }
 
 const DEFAULT_LIMIT = 10
@@ -85,9 +86,31 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
         return null
       }
 
+      function findImages(container: Element): string[] {
+        const out = new Set<string>()
+        for (const img of Array.from(container.querySelectorAll<HTMLImageElement>('img'))) {
+          const src = img.currentSrc || img.src
+          if (!src || !src.startsWith('https://')) continue
+          if (!/cdninstagram\.com|fbcdn\.net/i.test(src)) continue
+          const rect = img.getBoundingClientRect()
+          const width = rect.width || img.naturalWidth || 0
+          const height = rect.height || img.naturalHeight || 0
+          if (width < 120 || height < 120) continue
+          const alt = (img.getAttribute('alt') ?? '').toLowerCase()
+          if (alt.includes('大頭貼') || alt.includes('profile picture') || alt.includes('verified')) continue
+          if (img.closest('a[href^="/@"]') || img.closest('a[href^="https://www.threads."][href*="/@"]')) {
+            const ancestor = img.closest('a[href*="/@"]') as HTMLAnchorElement | null
+            if (ancestor && !ancestor.href.includes('/post/')) continue
+          }
+          out.add(src)
+          if (out.size >= 6) break
+        }
+        return [...out]
+      }
+
       const threadsHostPattern = /^https:\/\/(www\.)?threads\.(net|com)\//i
       const seen = new Set<string>()
-      const results: Array<{ url: string; title: string; excerpt: string; author: string | null; postedAt: string | null; likes: number | null; replyCount: number | null }> = []
+      const results: Array<{ url: string; title: string; excerpt: string; author: string | null; postedAt: string | null; likes: number | null; replyCount: number | null; images: string[] }> = []
       for (const anchor of Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]'))) {
         const href = anchor.href
         if (!threadsHostPattern.test(href)) continue
@@ -116,7 +139,8 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
           author: ctx ? findAuthor(ctx) : null,
           postedAt: ctx ? findPostedAt(ctx) : null,
           likes: ctx ? findCountByHint(ctx, /like|讚/i) : null,
-          replyCount: ctx ? findCountByHint(ctx, /repl|留言|comment/i) : null
+          replyCount: ctx ? findCountByHint(ctx, /repl|留言|comment/i) : null,
+          images: ctx ? findImages(ctx) : []
         })
         if (results.length >= maxResults) break
       }

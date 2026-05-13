@@ -22,6 +22,7 @@ export type ObservedPost = {
   likes: number | null
   replyCount: number | null
   excerpt: string
+  images: string[]
   fetchedAt: string
   pipelineStatus: string
   pipelineError: string | null
@@ -60,6 +61,7 @@ type CandidateRow = {
   text: string
   published_at: string | null
   engagement_json: string | null
+  images_json: string | null
   fetched_at: string
   pipeline_status: string
   pipeline_error: string | null
@@ -78,7 +80,7 @@ export function getKeywordObservation(db: AppDatabase, cardId: string, now: Date
 
   const since = new Date(now.getTime() - WINDOW_HOURS * 60 * 60 * 1000).toISOString()
   const rows = db.prepare(`
-    SELECT id, source, url, author, title, text, published_at, engagement_json, fetched_at,
+    SELECT id, source, url, author, title, text, published_at, engagement_json, images_json, fetched_at,
            pipeline_status, pipeline_error, classify_json, sponsored_json, score_json, draft_variants_json
     FROM trend_candidates
     WHERE card_id = ? AND fetched_at >= ?
@@ -119,6 +121,8 @@ function toObservedPost(row: CandidateRow): ObservedPost {
   const score = parseJson(row.score_json) as { shouldDraft?: boolean; reason?: string } | null
   const variants = parseJson(row.draft_variants_json) as Array<{ angle: string; text: string; length: number }> | null
   const engagement = parseJson(row.engagement_json) as { likes?: number | null; replies?: number | null } | null
+  const imagesRaw = parseJson(row.images_json)
+  const images = Array.isArray(imagesRaw) ? imagesRaw.filter((src): src is string => typeof src === 'string') : []
 
   const firstVariant = variants && variants.length > 0 ? variants[0]! : null
   return {
@@ -130,6 +134,7 @@ function toObservedPost(row: CandidateRow): ObservedPost {
     likes: engagement?.likes ?? null,
     replyCount: engagement?.replies ?? null,
     excerpt: row.text,
+    images,
     fetchedAt: row.fetched_at,
     pipelineStatus: row.pipeline_status,
     pipelineError: row.pipeline_error,

@@ -190,7 +190,8 @@ export function migrate(db: AppDatabase) {
     { name: 'score_json', type: 'TEXT' },
     { name: 'draft_variants_json', type: 'TEXT' },
     { name: 'pipeline_error', type: 'TEXT' },
-    { name: 'pipeline_completed_at', type: 'TEXT' }
+    { name: 'pipeline_completed_at', type: 'TEXT' },
+    { name: 'images_json', type: 'TEXT' }
   ])
 }
 

@@ -123,6 +123,7 @@ export type ObservedPost = {
   likes: number | null
   replyCount: number | null
   excerpt: string
+  images: string[]
   fetchedAt: string
   pipelineStatus: string
   pipelineError: string | null
