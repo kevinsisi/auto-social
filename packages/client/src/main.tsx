@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import './styles.css'
-import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, QueueSnapshot, RadarTerm, ScamSignal, Sentiment, SponsoredSignal, TaskStatus, TaskType, ThreadsSessionStatus } from './types'
+import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, PostDraft, QueueSnapshot, RadarTerm, ScamSignal, Sentiment, SponsoredSignal, TaskStatus, TaskType, ThreadsSessionStatus } from './types'
 import { APP_VERSION } from './version'
 
 const SENTIMENT_LABELS: Record<Sentiment, string> = {
@@ -85,6 +85,7 @@ function App() {
   const [radarLoading, setRadarLoading] = useState(false)
   const [radarMeta, setRadarMeta] = useState<string | null>(null)
   const [aiQueue, setAiQueue] = useState<QueueSnapshot | null>(null)
+  const [postDrafts, setPostDrafts] = useState<PostDraft[]>([])
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -92,12 +93,15 @@ function App() {
     void loadCards()
     void loadRadarTrends()
     void loadAiStatus()
+    void loadPostDrafts()
     const aiTimer = window.setInterval(() => void loadAiStatus(), 3000)
+    const postDraftTimer = window.setInterval(() => void loadPostDrafts(), 5000)
     const onHashChange = () => setPage(getPageFromHash())
     window.addEventListener('hashchange', onHashChange)
     return () => {
       window.removeEventListener('hashchange', onHashChange)
       window.clearInterval(aiTimer)
+      window.clearInterval(postDraftTimer)
     }
   }, [])
 
@@ -107,6 +111,15 @@ function App() {
       setAiQueue(data.queue)
     } catch {
       setAiQueue(null)
+    }
+  }
+
+  async function loadPostDrafts() {
+    try {
+      const data = await api.listPostDrafts()
+      setPostDrafts(data.drafts)
+    } catch {
+      setPostDrafts([])
     }
   }
 
@@ -162,6 +175,18 @@ function App() {
       setRadarMeta(getMessage(err))
     } finally {
       setRadarLoading(false)
+    }
+  }
+
+  async function runComposePost() {
+    setError(null)
+    try {
+      const data = await api.runComposePost()
+      setNotice(`已排入發文發想工作：${data.queued.payload.seedKeyword}`)
+      await loadAiStatus()
+      await loadPostDrafts()
+    } catch (err) {
+      setError(getMessage(err))
     }
   }
 
@@ -315,6 +340,7 @@ function App() {
           {notice && <Message tone="notice" text={notice} onClose={() => setNotice(null)} />}
           {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
           <HotKeywordCloud terms={radarTerms} loading={radarLoading} meta={radarMeta} onRefresh={runRadarScan} onSelect={(keyword) => void monitorRadarTerm(keyword)} />
+          <PostDraftPanel drafts={postDrafts} onRunCompose={runComposePost} />
           <AiQueuePanel queue={aiQueue} />
           {selectedId
             ? <KeywordObservationPanel observation={observation} loading={observationLoading} onScanThreads={scanThreads} onAddManualLink={addManualLink} onFeedback={submitFeedback} />
@@ -973,6 +999,47 @@ function AiQueuePanel({ queue }: { queue: QueueSnapshot | null }) {
             ))}
           </ul>
         </details>
+      )}
+    </section>
+  )
+}
+
+function PostDraftPanel({ drafts, onRunCompose }: { drafts: PostDraft[]; onRunCompose: () => Promise<void> }) {
+  return (
+    <section className="border-4 border-asphalt bg-white p-4 shadow-[5px_5px_0_#171717]">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Post Composer</p>
+          <h3 className="text-xl font-black">發文發想</h3>
+          <p className="mt-1 text-sm text-asphalt/70">用最近 24 小時的 Threads 雷達樣本，生一則你自己可以發的原創貼文草稿。</p>
+        </div>
+        <button onClick={() => void onRunCompose()} className="min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold hover:bg-signal hover:text-white">生一篇發文靈感</button>
+      </div>
+      {drafts.length === 0 ? (
+        <div className="mt-3 border-2 border-dashed border-asphalt p-4 text-sm text-asphalt/60">還沒有發文草稿。先掃一輪雷達，再按上方按鈕。</div>
+      ) : (
+        <div className="mt-3 grid gap-3 xl:grid-cols-2">
+          {drafts.slice(0, 4).map((draft) => (
+            <article key={draft.id} className="border-2 border-asphalt bg-[#fffaf2] p-3">
+              <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+                <span className="border-2 border-asphalt bg-paper px-2 py-1">{draft.seedKeyword ?? '未分類'}</span>
+                {draft.angle && <span className="border-2 border-asphalt bg-paper px-2 py-1">角度：{draft.angle}</span>}
+                <span className="font-mono text-asphalt/60">{formatDate(draft.createdAt)}</span>
+              </div>
+              {draft.seedTopic && <p className="mt-2 text-sm font-bold">主題：{draft.seedTopic}</p>}
+              <p className="mt-2 whitespace-pre-line text-sm">{draft.text}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button onClick={() => copyText(draft.text)} className="min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold hover:bg-asphalt hover:text-paper">複製貼文</button>
+              </div>
+              {draft.imagePrompt && (
+                <details className="mt-3 text-sm">
+                  <summary className="cursor-pointer font-mono text-xs uppercase tracking-[0.2em] text-signal">圖片提示詞</summary>
+                  <p className="mt-2 border-2 border-asphalt bg-paper p-2">{draft.imagePrompt}</p>
+                </details>
+              )}
+            </article>
+          ))}
+        </div>
       )}
     </section>
   )

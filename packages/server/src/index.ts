@@ -2,6 +2,7 @@ import { createServer } from 'node:http'
 import { createApp } from './app.js'
 import { browserProxy } from './browser-proxy.js'
 import { openDatabase } from './db.js'
+import { composePostTaskHandler } from './post-drafts.js'
 import { pipelineTaskHandler } from './scheduler/pipeline-runner.js'
 import { getWorker } from './scheduler/worker.js'
 
@@ -15,6 +16,7 @@ server.on('upgrade', browserProxy.upgrade)
 
 const worker = getWorker(db, { pollIntervalMs: 1500 })
 worker.register('pipeline', async (workerDb, task) => pipelineTaskHandler(workerDb, task.payload as { candidateId: string }))
+worker.register('compose_post', async (workerDb, task) => composePostTaskHandler(workerDb, task.payload as { seedKeyword: string; radarTerms: string[]; posts: Array<{ author: string | null; topic: string | null; excerpt: string }> }))
 worker.start()
 
 server.listen(port, host, () => {

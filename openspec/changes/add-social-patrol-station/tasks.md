@@ -246,6 +246,15 @@ User feedback after A1 deploy drove a tight iteration cycle. Every item below is
 ### 16.G Verification + ship
 
 - [x] 16.G.1 74/74 server tests pass across 12 files including new scam-detect, taiwan-relevant filter, dedup, queue-related units.
-- [x] 16.G.2 Versions bumped through 1.1.0 → 1.1.2 → 1.2.0 → 1.2.1 → 1.2.2 in lockstep across root + server + client `package.json`.
+- [x] 16.G.2 Versions bumped through 1.1.0 → 1.1.2 → 1.2.0 → 1.2.1 → 1.2.2 → 1.2.3 in lockstep across root + server + client `package.json`.
 - [x] 16.G.3 Commits pushed to `main` (8 commits since A1 ship): scam + queue, scam UI badge, taiwan filter, video media, no-emoji drafts, canonical URL dedup, etc. Production auto-deploys via existing Tailscale workflow.
 - [ ] 16.G.4 Live production observation pass with a billing-enabled Gemini key — pending user-side validation (free-tier keys exhausted; user has confirmed a billing key is on hand).
+
+## 17. Phase A2a — Post Composer MVP (active)
+
+### 17.A Queue-backed compose_post
+
+- [x] 17.A.1 Add a queue-backed `compose_post` handler that reads recent real radar terms and trending candidate excerpts, asks Gemini for one original post draft + image prompt, and persists the result into `post_drafts`.
+- [x] 17.A.2 Add `GET /api/post-drafts` and `POST /api/admin/post-drafts/run-now`; Dashboard can trigger one compose task and list recent generated drafts.
+- [x] 17.A.3 Dashboard adds a `發文發想` panel with queue-aware status, copy button, and image prompt details. This slice remains human-gated and does not publish automatically.
+- [x] 17.A.4 Add tests for compose prompt parsing and persistence path; ship through `typecheck → test → build → push → deploy`.
