@@ -27,6 +27,19 @@ export class ThreadsSearchError extends Error {
   }
 }
 
+export function cleanThreadsExcerptForDisplay(text: string): string {
+  let cleaned = text
+  cleaned = cleaned.replace(/^追蹤\S+\s*/u, '')
+  cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?\s*更多/gu, '')
+  cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?/gu, ' ')
+  cleaned = cleaned.replace(/更多|翻譯|靜音|編輯/gu, ' ')
+  cleaned = cleaned.replace(/\d+\s*\/\s*\d+\s*讚\s*[\d.,KMkm萬千]+(?:\s*(?:留言|回覆|轉發|分\s*享|分享|享)\s*[\d.,KMkm萬千]+)*/gu, '')
+  cleaned = cleaned.replace(/(?:讚|留言|回覆|轉發|分\s*享|分享|享)\s*[\d.,KMkm萬千]+/gu, '')
+  cleaned = cleaned.replace(/[\d.,KMkm萬千]+\s*(?:則|個)?\s*(?:讚|留言|回覆|轉發|分\s*享|分享|享)/gu, '')
+  cleaned = cleaned.replace(/(^|\s)(?:讚|留言|回覆|轉發|分\s*享|分享)(?=\s|$)/gu, ' ')
+  return cleaned.replace(/\s+/g, ' ').trim()
+}
+
 export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: string, limit = DEFAULT_LIMIT, throttleOptions: GateOptions = {}): Promise<ThreadsPlaywrightCandidate[]> {
   const trimmed = keyword.trim()
   if (!trimmed) throw new ThreadsSearchError('Threads 搜尋關鍵字不可為空。')
@@ -88,17 +101,28 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
         return null
       }
 
-      function cleanExcerpt(text: string, counts: { likes: number | null; replyCount: number | null; reposts: number | null; shares: number | null }): string {
+      function findCountByText(text: string, labelRegex: RegExp): number | null {
+        const compact = text.replace(/\s+/g, '')
+        const units = '[\\d,]+(?:\\.\\d+)?(?:K|M|k|m|萬|千)?'
+        const labelThenCount = new RegExp(`(?:${labelRegex.source})(${units})`, 'iu')
+        const countThenLabel = new RegExp(`(${units})(?:則|個)?(?:${labelRegex.source})`, 'iu')
+        return parseCount(compact.match(labelThenCount)?.[1]) ?? parseCount(compact.match(countThenLabel)?.[1])
+      }
+
+      function findCount(container: Element, text: string, hintRegex: RegExp, labelRegex: RegExp): number | null {
+        return findCountByHint(container, hintRegex) ?? findCountByText(text, labelRegex)
+      }
+
+      function cleanExcerpt(text: string): string {
         let cleaned = text
         cleaned = cleaned.replace(/^追蹤\S+\s*/u, '')
         cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?\s*更多/gu, '')
         cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?/gu, ' ')
         cleaned = cleaned.replace(/更多|翻譯|靜音|編輯/gu, ' ')
-        cleaned = cleaned.replace(/\d+\s*\/\s*\d+\s*讚\s*[\d.,KMkm萬千]+(?:\s*(?:回覆|轉發|分享)\s*[\d.,KMkm萬千]+)*/gu, '')
-        cleaned = cleaned.replace(/讚\s*[\d.,KMkm萬千]+/gu, '')
-        cleaned = cleaned.replace(/回覆\s*[\d.,KMkm萬千]+/gu, '')
-        cleaned = cleaned.replace(/轉發\s*[\d.,KMkm萬千]+/gu, '')
-        cleaned = cleaned.replace(/分享\s*[\d.,KMkm萬千]+/gu, '')
+        cleaned = cleaned.replace(/\d+\s*\/\s*\d+\s*讚\s*[\d.,KMkm萬千]+(?:\s*(?:留言|回覆|轉發|分\s*享|分享|享)\s*[\d.,KMkm萬千]+)*/gu, '')
+        cleaned = cleaned.replace(/(?:讚|留言|回覆|轉發|分\s*享|分享|享)\s*[\d.,KMkm萬千]+/gu, '')
+        cleaned = cleaned.replace(/[\d.,KMkm萬千]+\s*(?:則|個)?\s*(?:讚|留言|回覆|轉發|分\s*享|分享|享)/gu, '')
+        cleaned = cleaned.replace(/(^|\s)(?:讚|留言|回覆|轉發|分\s*享|分享)(?=\s|$)/gu, ' ')
         return cleaned.replace(/\s+/g, ' ').trim()
       }
 
@@ -148,11 +172,11 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
         if (text.length < 8) continue
         seen.add(normalized)
         const ctx = bestContainer ?? anchor.parentElement
-        const likes = ctx ? findCountByHint(ctx, /like|讚/i) : null
-        const replyCount = ctx ? findCountByHint(ctx, /repl|留言|comment/i) : null
-        const reposts = ctx ? findCountByHint(ctx, /repost|轉發/i) : null
-        const shares = ctx ? findCountByHint(ctx, /share|分享/i) : null
-        const cleanedExcerpt = cleanExcerpt(text, { likes, replyCount, reposts, shares })
+        const likes = ctx ? findCount(ctx, text, /like|讚/i, /讚/) : null
+        const replyCount = ctx ? findCount(ctx, text, /repl|留言|comment/i, /留言|回覆/) : null
+        const reposts = ctx ? findCount(ctx, text, /repost|轉發/i, /轉發/) : null
+        const shares = ctx ? findCount(ctx, text, /share|分享/i, /分享|享/) : null
+        const cleanedExcerpt = cleanExcerpt(text)
         results.push({
           url: normalized,
           title: cleanedExcerpt.slice(0, 80) || 'Threads 搜尋結果',

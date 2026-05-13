@@ -1,5 +1,6 @@
 import type { AppDatabase } from './db.js'
 import { SENTIMENT_CLASSES, type Sentiment, type SponsoredSignal } from './ai/types.js'
+import { cleanThreadsExcerptForDisplay } from './threads-bot/search.js'
 
 const WINDOW_HOURS = 24
 const MAX_POSTS = 50
@@ -202,17 +203,7 @@ function emptyDistribution(): Record<Sentiment, SentimentBucket> {
 }
 
 function cleanExcerptForDisplay(text: string): string {
-  let cleaned = text
-  cleaned = cleaned.replace(/^追蹤\S+\s*/u, '')
-  cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?\s*更多/gu, '')
-  cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?/gu, ' ')
-  cleaned = cleaned.replace(/更多|翻譯|靜音|編輯/gu, ' ')
-  cleaned = cleaned.replace(/\d+\s*\/\s*\d+\s*讚\s*[\d.,KMkm萬千]+(?:\s*(?:回覆|轉發|分享)\s*[\d.,KMkm萬千]+)*/gu, '')
-  cleaned = cleaned.replace(/讚\s*[\d.,KMkm萬千]+/gu, '')
-  cleaned = cleaned.replace(/回覆\s*[\d.,KMkm萬千]+/gu, '')
-  cleaned = cleaned.replace(/轉發\s*[\d.,KMkm萬千]+/gu, '')
-  cleaned = cleaned.replace(/分享\s*[\d.,KMkm萬千]+/gu, '')
-  return cleaned.replace(/\s+/g, ' ').trim()
+  return cleanThreadsExcerptForDisplay(text)
 }
 
 function parseJson(text: string | null): unknown {
