@@ -122,6 +122,8 @@ export type ObservedPost = {
   postedAt: string | null
   likes: number | null
   replyCount: number | null
+  reposts: number | null
+  shares: number | null
   excerpt: string
   images: string[]
   fetchedAt: string
