@@ -26,7 +26,7 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
   const context = await createThreadsContext(db)
   const page = await context.newPage()
   try {
-    const url = `https://www.threads.net/search?q=${encodeURIComponent(trimmed)}`
+    const url = `https://www.threads.com/search?q=${encodeURIComponent(trimmed)}`
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: SEARCH_TIMEOUT_MS })
     await page.waitForTimeout(2_000)
     await page.mouse.wheel(0, 900)
@@ -39,11 +39,12 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
     }
 
     const items = await page.evaluate((maxResults) => {
+      const threadsHostPattern = /^https:\/\/(www\.)?threads\.(net|com)\//i
       const seen = new Set<string>()
       const results: Array<{ url: string; title: string; excerpt: string }> = []
       for (const anchor of Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]'))) {
         const href = anchor.href
-        if (!href.includes('threads.net/')) continue
+        if (!threadsHostPattern.test(href)) continue
         if (href.includes('/search?') || href.includes('/privacy') || href.includes('/login')) continue
         if (!href.includes('/@') && !href.includes('/post/')) continue
         const normalized = href.split('?')[0]

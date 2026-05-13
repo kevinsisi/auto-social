@@ -79,7 +79,7 @@ export class PatrolRepository {
     if (!card) throw new Error('找不到這張海巡卡。')
     const id = nanoid()
     const timestamp = nowIso()
-    const searchUrl = `https://www.threads.net/search?q=${encodeURIComponent(card.keyword)}`
+    const searchUrl = `https://www.threads.com/search?q=${encodeURIComponent(card.keyword)}`
 
     this.db.prepare(`
       INSERT INTO patrol_runs (id, card_id, status, message, created_at, completed_at)
@@ -174,7 +174,7 @@ export class PatrolRepository {
 export function isThreadsUrl(url: string) {
   try {
     const parsed = new URL(url)
-    return parsed.hostname === 'www.threads.net' || parsed.hostname === 'threads.net'
+    return ['www.threads.net', 'threads.net', 'www.threads.com', 'threads.com'].includes(parsed.hostname)
   } catch {
     return false
   }

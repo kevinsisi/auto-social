@@ -107,7 +107,7 @@ function validateStorageState(storageStateJson: string) {
 function extractBoundHandle(storageStateJson: string) {
   const parsed = JSON.parse(storageStateJson) as { cookies?: Array<{ domain?: string; name?: string; value?: string }> }
   const cookies = parsed.cookies ?? []
-  const hasThreadsCookie = cookies.some((cookie) => cookie.domain?.includes('threads.net'))
+  const hasThreadsCookie = cookies.some((cookie) => /threads\.(net|com)$/i.test(cookie.domain ?? ''))
   if (!hasThreadsCookie) return null
   const usernameCookie = cookies.find((cookie) => /user|handle|username/i.test(cookie.name ?? '') && cookie.value)
   return usernameCookie?.value ? `@${usernameCookie.value.replace(/^@/, '')}` : null
