@@ -13,7 +13,7 @@
 
 ## Frontend — 各 Tab
 
-- [x] F4: OverviewTab — KeywordStatusCard grid + NEW badge (localStorage) + AddKeywordInput
+- [x] F4: OverviewTab — KeywordStatusCard grid（mobile 用）+ NEW badge (localStorage) + AddKeywordInput
 - [x] F5: RadarTab — 搬 HotKeywordCloud，無其他變動
 - [x] F6: WorkstationTab — 搬 PostDraftPanel + AiQueuePanel + SchedulerPanel
 
@@ -25,8 +25,11 @@
 
 - [x] F8: 移除舊 sidebar layout（`<aside>` 左欄）與舊主區塊 grid
 - [x] F9: `padding-bottom` 防止 mobile bottom tab bar 遮內容
-- [x] V1: 版本 bump + commit + push (1.2.18 → 1.2.19)
+- [x] V1: 版本 bump + commit + push (1.2.18)
 
-## Bug Fix
+## Bug Fixes & Iterations
 
-- [x] BF1: `onHashChange` 只在 cardId 非 null 時更新 selectedId → hash 改變後 detail 頁不清除（1.2.19 修正）
+- [x] BF1: `onHashChange` 只在 cardId 非 null 時更新 selectedId → hash 改變後 detail 頁不清除（1.2.19）
+- [x] BF2: 桌面版 split layout — 左欄 `DesktopKeywordItem` 列表 + 右欄 `KeywordObservationPanel` inline（1.2.20）
+- [x] BF3: 移除 `max-w-7xl` — 內容填滿全螢幕寬度，iMac / 1080P+ 不再留白（1.2.21）
+- [x] BF4: 桌面版初次載入自動選第一張關鍵字卡；placeholder 高度改 `min-h-[calc(100vh-120px)]`（1.2.22）
