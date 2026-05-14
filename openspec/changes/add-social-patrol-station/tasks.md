@@ -274,3 +274,9 @@ User feedback after A1 deploy drove a tight iteration cycle. Every item below is
 - [x] 17.C.2 Add `suggestedKeywords` to the keyword observation response, extracted from current on-topic samples and excluding the active keyword / UI stop words.
 - [x] 17.C.3 Dashboard renders suggested keyword chips as an operator-gated action: clicking a chip adds/selects that keyword card and triggers a scan; the system never auto-expands watchlist terms without a user click.
 - [x] 17.C.4 Tighten mixed-language suggestion extraction so long CJK+Latin strings are not truncated into bad chips like half of a car model name.
+
+### 17.D Scan feedback + quota fallback
+
+- [x] 17.D.1 Treat direct Threads search quota exhaustion as recoverable for keyword-card scans and radar scans: fall back to Google `site:threads.net OR site:threads.com` discovery instead of returning only the quota error.
+- [x] 17.D.2 Preserve kill-switch semantics: kill switch errors still stop all Threads-targeted discovery and must not fall back to Google.
+- [x] 17.D.3 Add immediate Dashboard feedback for manual keyword scans: show an in-flight message, change the button to `海巡中...`, disable scan/suggestion/radar-term actions, and use a synchronous click lock to prevent mobile double-taps before React re-renders.

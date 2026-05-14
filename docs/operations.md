@@ -4,7 +4,7 @@
 
 - Domain: `https://social.sisihome.org`
 - Health check: `https://social.sisihome.org/api/health`
-- Current expected API version after the latest deployment: `1.2.9`
+- Current expected API version after the latest deployment: `1.2.10`
 
 ## Threads Login
 
@@ -69,6 +69,10 @@ Key fields:
 ## Keyword Observation Freshness
 
 Observation cards hide known Threads posts older than one year from `published_at`. The same filter is applied during Playwright search before new candidates are accepted. Suggested keywords are operator-gated: the UI only adds a suggested term to monitoring after the user clicks its chip.
+
+## Search Fallback
+
+When direct Threads Playwright search exhausts the daily `search` quota, keyword scans fall back to Google `site:threads.net OR site:threads.com` discovery and clearly label the run message as fallback. The kill switch still stops all Threads-targeted discovery; it is not bypassed by Google fallback.
 
 ## Version Rule
 
