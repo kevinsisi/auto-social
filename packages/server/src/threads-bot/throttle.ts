@@ -96,6 +96,11 @@ export function getTodayCount(db: AppDatabase, op: ThrottleOp, now = new Date())
   return row?.count ?? 0
 }
 
+export function resetTodayCount(db: AppDatabase, op: ThrottleOp, now = new Date()): number {
+  const result = db.prepare('DELETE FROM daily_quotas WHERE op = ? AND date = ?').run(op, todayInTaipei(now))
+  return result.changes
+}
+
 function claimQuota(db: AppDatabase, op: ThrottleOp, limit: number, now: Date): boolean {
   if (limit <= 0) return false
   const result = db.prepare(`

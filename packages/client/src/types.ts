@@ -80,6 +80,16 @@ export type ThreadsLoginJob = {
   lastActivityAt: string
 }
 
+export type ThreadsThrottleOp = 'search' | 'publish' | 'reply'
+
+export type ThreadsThrottleSnapshot = {
+  killSwitch: boolean
+  dailyLimits: Record<ThreadsThrottleOp, number>
+  jitterMs: { min: number; max: number }
+  todayCounts: Record<ThreadsThrottleOp, number>
+  date: string
+}
+
 export type AdminSession = {
   configured: boolean
   authenticated: boolean

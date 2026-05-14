@@ -7,6 +7,7 @@ import {
   getKillSwitch,
   getThrottleSnapshot,
   getTodayCount,
+  resetTodayCount,
   setDailyLimits,
   setJitterMs,
   setKillSwitch
@@ -111,5 +112,18 @@ describe('getThrottleSnapshot', () => {
     expect(snapshot.todayCounts.publish).toBe(0)
     expect(snapshot.todayCounts.reply).toBe(0)
     expect(snapshot.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+})
+
+describe('resetTodayCount', () => {
+  it('clears only the requested op for today', async () => {
+    const db = freshDb()
+    await gate(db, 'search', noJitter)
+    await gate(db, 'publish', noJitter)
+
+    expect(resetTodayCount(db, 'search')).toBe(1)
+
+    expect(getTodayCount(db, 'search')).toBe(0)
+    expect(getTodayCount(db, 'publish')).toBe(1)
   })
 })

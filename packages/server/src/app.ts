@@ -14,7 +14,7 @@ import { getRadarTrends, scanRadarTrends, schedulePipelineForCandidates, upsertT
 import { getQueueSnapshot } from './scheduler/task-queue.js'
 import { getKeywordSchedulerStatus } from './scheduler/keyword-scheduler.js'
 import { PatrolRepository } from './repository.js'
-import { getKillSwitch, getThrottleSnapshot, KillSwitchActiveError, setKillSwitch } from './threads-bot/throttle.js'
+import { getKillSwitch, getThrottleSnapshot, KillSwitchActiveError, resetTodayCount, setDailyLimits, setKillSwitch } from './threads-bot/throttle.js'
 import { clearThreadsSession, getThreadsSessionStatus, importThreadsStorageState } from './threads-bot/session.js'
 import { cancelThreadsLoginJob, clickThreadsLoginJob, finishThreadsLoginJob, getThreadsLoginJobStatus, pressThreadsLoginJob, screenshotThreadsLoginJob, startThreadsLoginJob, typeThreadsLoginJob } from './threads-bot/login.js'
 import { APP_VERSION } from './version.js'
@@ -28,6 +28,11 @@ const addCandidateSchema = z.object({
 const updateStatusSchema = z.object({ status: z.enum(['useful', 'ignored', 'replied', 'needs_follow_up']) })
 const importThreadsSessionSchema = z.object({ storageStateJson: z.string().min(2) })
 const killSwitchSchema = z.object({ enabled: z.boolean() })
+const dailyLimitsSchema = z.object({
+  search: z.number().int().min(0).max(100_000).optional(),
+  publish: z.number().int().min(0).max(100_000).optional(),
+  reply: z.number().int().min(0).max(100_000).optional()
+}).refine((limits) => Object.keys(limits).length > 0, { message: '至少要提供一個 quota 欄位。' })
 const voiceFeedbackSchema = z.object({
   draftId: z.string().min(1),
   variantIdx: z.number().int().min(0).max(10).default(0),
@@ -215,6 +220,25 @@ export function createApp(db: AppDatabase) {
 
   app.get('/api/threads/throttle', (_req, res) => {
     res.json({ throttle: getThrottleSnapshot(db) })
+  })
+
+  app.put('/api/admin/threads/daily-limits', requireAdmin, (req, res) => {
+    try {
+      const body = dailyLimitsSchema.parse(req.body)
+      setDailyLimits(db, body)
+      res.json({ throttle: getThrottleSnapshot(db) })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.post('/api/admin/threads/quotas/search/reset-today', requireAdmin, (_req, res) => {
+    try {
+      const reset = resetTodayCount(db, 'search')
+      res.json({ reset, throttle: getThrottleSnapshot(db) })
+    } catch (error) {
+      sendError(res, error)
+    }
   })
 
   app.get('/api/threads/kill-switch', (_req, res) => {

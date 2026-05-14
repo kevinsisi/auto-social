@@ -1,4 +1,4 @@
-import type { AdminSession, CandidateStatus, FeedbackDecision, KeyStatus, KeywordObservation, PatrolCard, PatrolCardDetail, PostDraft, QueueSnapshot, RadarTrend, SchedulerStatus, ThreadsLoginJob, ThreadsSessionStatus } from './types'
+import type { AdminSession, CandidateStatus, FeedbackDecision, KeyStatus, KeywordObservation, PatrolCard, PatrolCardDetail, PostDraft, QueueSnapshot, RadarTrend, SchedulerStatus, ThreadsLoginJob, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers)
@@ -121,6 +121,21 @@ export const api = {
   },
   async getThreadsSessionStatus() {
     return request<{ session: ThreadsSessionStatus }>('/api/threads/session/status')
+  },
+  async getThreadsThrottle() {
+    return request<{ throttle: ThreadsThrottleSnapshot }>('/api/threads/throttle')
+  },
+  async updateThreadsDailyLimits(limits: Partial<ThreadsThrottleSnapshot['dailyLimits']>) {
+    return request<{ throttle: ThreadsThrottleSnapshot }>('/api/admin/threads/daily-limits', {
+      method: 'PUT',
+      body: JSON.stringify(limits)
+    })
+  },
+  async resetThreadsSearchQuotaToday() {
+    return request<{ reset: number; throttle: ThreadsThrottleSnapshot }>('/api/admin/threads/quotas/search/reset-today', {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
   },
   async startThreadsSession() {
     return request<{ login: ThreadsLoginJob; message: string }>('/api/threads/session/start', {

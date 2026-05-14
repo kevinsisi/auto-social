@@ -72,7 +72,7 @@
 - [~] 8.7 Add `/api/threads/session/start` (returns interactive login channel info), `/api/threads/session/status`, `/api/threads/session/clear`. Status/clear/start/import endpoints exist; Settings can upload/import encrypted Playwright `storageState` JSON; noVNC remains fallback, while desktop helper is the preferred path. Sub-account acknowledgement remains.
 - [x] 8.7a Add desktop helper `npm run threads:login` that opens local Chromium, lets the user complete Instagram/Threads login on their computer, writes `data/threads-storage-state.json`, and Settings can upload that JSON for encrypted session import.
 - [ ] 8.8 Add `/api/threads/kill-switch` GET/PUT and surface in UI with a big red button.
-- [ ] 8.9 Add `/api/threads/quotas` GET (today's counts + limits + remaining) and PUT for limits.
+- [~] 8.9 Add `/api/threads/quotas` GET (today's counts + limits + remaining) and PUT for limits. Current implementation exposes `GET /api/threads/throttle`, `PUT /api/admin/threads/daily-limits`, and `POST /api/admin/threads/quotas/search/reset-today` for the load-bearing search quota controls.
 - [x] 8.10 Decide and document where the Playwright worker actually runs (in-container vs sidecar container). Current production uses in-container Playwright on a Playwright base image; desktop login helper is local-only for creating importable `storageState`.
 - [ ] 8.11 Parse the bound Threads handle from `storageState` after login and store in `threads_session.bound_handle`; surface in Settings → Threads Session tab.
 
@@ -105,12 +105,14 @@
 - [ ] 11.4 Preserve the existing manual link import path on a keyword card as a fallback when an interesting thread is found out-of-band.
 - [ ] 11.5 Remove the old "patrol-detail" Threads-search browser-open button; replace with "run scan for this keyword now" that triggers `/api/admin/scan/run-now?keyword=...`.
 - [x] 11.6 Add an interim `Threads 出勤海巡` button that performs Threads-targeted fallback discovery using `site:threads.net OR site:threads.com` search and stores only Threads links. This is explicitly not a Dcard substitute and remains a fallback when Playwright search fails.
+- [x] 11.7 Desktop keyword empty state now keeps the add-keyword form visible and tells the user to add a brand/topic/product term before the right observation panel can show Threads wind direction.
 
 ## 11A. Settings Page
 
 - [ ] 11A.1 Add `/settings` route in client with hash-routed tabs (`#quotas`, `#key-pool`, `#threads-session`, `#sources`, `#voice`, `#about`).
 - [x] 11A.1a Interim settings routes: `#settings/admin`, `#settings/keys`, `#settings/threads`, `#settings/pipeline` split the previous stacked page into explicit sections; in single-user deployment mode, admin operations are server-side guarded by configured `ADMIN_TOKEN` and the UI does not ask the user to paste token values.
 - [ ] 11A.2 `#quotas` tab: fields for `dailyPublishLimit`, `dailyReplyLimit`, `perScanSearchLimit`, `scanCadenceCron`, `jitterMinMs`, `jitterMaxMs`; save persists to `settings` table; scheduler re-registers cron on cadence change. Phase 0 disables publish/reply fields visually with `Phase 1 啟用` label.
+- [x] 11A.2a Interim Threads quota controls live under `#settings/threads`: show today's search usage, save the daily search limit, and clear today's search counter.
 - [ ] 11A.3 `#key-pool` tab:
   - [ ] 11A.3.1 Multi-line textarea for batch import; one key per non-empty non-`#` line; accepts the exact format key-manager's `複製可用金鑰` produces.
   - [ ] 11A.3.2 `匯入` button calls a new `POST /api/admin/keys/batch-import` endpoint; reports `新增 N 把、重複略過 M 把`.
@@ -120,6 +122,7 @@
 - [ ] 11A.5 `#sources` tab: per-source toggle + trending limit input; last-success / last-failure timestamps.
 - [ ] 11A.6 `#voice` tab: short copy + button linking to Voice Studio page.
 - [ ] 11A.7 `#about` tab: version, `KEY_MANAGER_URL` host, `GEMINI_DEFAULT_MODEL`, `AUTO_SOCIAL_SESSION_KEY 已設定` boolean, link to risk-acknowledgement doc.
+- [x] 11A.8 Settings page has an explicit `回儀表板` escape hatch, and the mobile header swaps the Settings button for a Dashboard button while on Settings.
 
 ## 12. Verification
 
