@@ -177,8 +177,9 @@ function App() {
     const hashCardId = getDashboardCardId()
     if (hashCardId && data.cards.some((c) => c.id === hashCardId)) {
       setSelectedId(hashCardId)
-    } else if (!hashCardId && getDashTabFromHash() === 'overview') {
-      // don't auto-navigate on overview tab — user stays on grid
+    } else if (!hashCardId && data.cards.length > 0 && window.innerWidth >= 640) {
+      // desktop: auto-select first card so the right panel always shows content
+      selectCard(data.cards[0].id)
     }
   }
 
@@ -425,7 +426,7 @@ function App() {
                             onFeedback={submitFeedback}
                             onSelectSuggestedKeyword={(term) => void monitorRadarTerm(term)}
                           />
-                        : <div className="flex h-64 items-center justify-center border-4 border-dashed border-asphalt/30 text-xl font-black text-asphalt/40">
+                        : <div className="flex min-h-[calc(100vh-120px)] items-center justify-center border-4 border-dashed border-asphalt/30 text-xl font-black text-asphalt/40">
                             點左側關鍵字查看 Threads 風向
                           </div>
                       }
