@@ -140,8 +140,7 @@ function App() {
     const onHashChange = () => {
       setPage(getPageFromHash())
       setDashTab(getDashTabFromHash())
-      const cardId = getDashboardCardId()
-      if (cardId !== null) setSelectedId(cardId)
+      setSelectedId(getDashboardCardId())
     }
     window.addEventListener('hashchange', onHashChange)
     return () => {
