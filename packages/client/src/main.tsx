@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import './styles.css'
-import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, PostDraft, QueueSnapshot, RadarTerm, ScamSignal, SchedulerStatus, Sentiment, SponsoredSignal, TaskStatus, TaskType, ThreadsSessionStatus } from './types'
+import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, PostDraft, QueueSnapshot, RadarTerm, ScamSignal, SchedulerStatus, Sentiment, SponsoredSignal, TaskStatus, TaskType, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
 import { APP_VERSION } from './version'
 
 const SENTIMENT_LABELS: Record<Sentiment, string> = {
@@ -360,9 +360,12 @@ function App() {
             <TabBtn label="Settings" active={page === 'settings'} onClick={() => navigate('settings/admin')} />
             <div className="ml-2 flex h-9 items-center border-2 border-asphalt px-2 font-mono text-xs">v{APP_VERSION}</div>
           </nav>
-          {/* Mobile: just version + settings icon */}
+          {/* Mobile: keep the escape hatch visible on Settings. */}
           <div className="flex sm:hidden items-center gap-2">
-            <button onClick={() => navigate('settings/admin')} className={`min-h-9 border-2 border-asphalt px-2 py-1 text-xs font-bold ${page === 'settings' ? 'bg-asphalt text-paper' : 'bg-paper'}`}>⚙</button>
+            {page === 'settings'
+              ? <button onClick={() => navigate('dashboard')} className="min-h-9 border-2 border-asphalt bg-asphalt px-2 py-1 text-xs font-bold text-paper">Dashboard</button>
+              : <button onClick={() => navigate('settings/admin')} className="min-h-9 border-2 border-asphalt bg-paper px-2 py-1 text-xs font-bold">設定</button>
+            }
             <div className="flex h-9 items-center border-2 border-asphalt px-2 font-mono text-xs">v{APP_VERSION}</div>
           </div>
         </div>
@@ -389,8 +392,16 @@ function App() {
                   {/* Desktop: sidebar + detail split layout */}
                   <div className="hidden sm:flex gap-6 items-start">
                     <aside className="w-72 xl:w-80 shrink-0 space-y-2">
+                      <div className="border-2 border-asphalt bg-paper p-3">
+                        <p className="font-mono text-xs uppercase tracking-[0.2em] text-signal">Watchlist</p>
+                        <h2 className="text-xl font-black">關鍵字監控</h2>
+                        <p className="mt-1 text-xs text-asphalt/60">新增關鍵字後，左側會列出監控清單，右側顯示 Threads 風向。</p>
+                      </div>
                       {cards.length === 0
-                        ? <div className="border-4 border-dashed border-asphalt p-8 text-center font-black">還沒有監控關鍵字</div>
+                        ? <div className="border-4 border-dashed border-asphalt bg-white p-6 text-center">
+                            <p className="text-lg font-black">還沒有監控關鍵字</p>
+                            <p className="mt-1 text-sm text-asphalt/60">先在下方輸入一個品牌、主題或產品詞。</p>
+                          </div>
                         : cards.map((card) => (
                             <DesktopKeywordItem
                               key={card.id}
@@ -427,7 +438,7 @@ function App() {
                             onSelectSuggestedKeyword={(term) => void monitorRadarTerm(term)}
                           />
                         : <div className="flex min-h-[calc(100vh-120px)] items-center justify-center border-4 border-dashed border-asphalt/30 text-xl font-black text-asphalt/40">
-                            點左側關鍵字查看 Threads 風向
+                            {cards.length === 0 ? '先新增關鍵字開始 Threads 海巡' : '點左側關鍵字查看 Threads 風向'}
                           </div>
                       }
                     </div>
@@ -1081,6 +1092,8 @@ function SettingsPage() {
   const [adminSession, setAdminSession] = useState<AdminSession | null>(null)
   const [keys, setKeys] = useState<KeyStatus[]>([])
   const [threadsSession, setThreadsSession] = useState<ThreadsSessionStatus | null>(null)
+  const [threadsThrottle, setThreadsThrottle] = useState<ThreadsThrottleSnapshot | null>(null)
+  const [searchLimitText, setSearchLimitText] = useState('')
   const [keyText, setKeyText] = useState('')
   const [threadsStorageState, setThreadsStorageState] = useState('')
   const [message, setMessage] = useState<string | null>(null)
@@ -1089,6 +1102,7 @@ function SettingsPage() {
   useEffect(() => {
     void refreshAdminSession()
     void refreshThreadsSession()
+    void refreshThreadsThrottle()
     const onHashChange = () => setSection(getSettingsSection())
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
@@ -1125,6 +1139,25 @@ function SettingsPage() {
   async function refreshThreadsSession() {
     try { setThreadsSession((await api.getThreadsSessionStatus()).session) } catch (err) { setError(getMessage(err)) }
   }
+  async function refreshThreadsThrottle() {
+    try {
+      const throttle = (await api.getThreadsThrottle()).throttle
+      setThreadsThrottle(throttle)
+      setSearchLimitText(String(throttle.dailyLimits.search))
+    } catch (err) { setError(getMessage(err)) }
+  }
+  async function saveThreadsSearchLimit(e: React.FormEvent) {
+    e.preventDefault(); setError(null)
+    const search = Number(searchLimitText)
+    if (!Number.isInteger(search) || search < 0) { setError('Threads search 每日上限必須是 0 或正整數。'); return }
+    try { const data = await api.updateThreadsDailyLimits({ search }); setThreadsThrottle(data.throttle); setSearchLimitText(String(data.throttle.dailyLimits.search)); setMessage(`Threads search 每日上限已更新為 ${search} 次。`) }
+    catch (err) { setError(getMessage(err)) }
+  }
+  async function resetThreadsSearchQuotaToday() {
+    setError(null)
+    try { const data = await api.resetThreadsSearchQuotaToday(); setThreadsThrottle(data.throttle); setSearchLimitText(String(data.throttle.dailyLimits.search)); setMessage('已清除今天的 Threads search 使用量。') }
+    catch (err) { setError(getMessage(err)) }
+  }
   async function clearThreadsSession() {
     setError(null)
     try { setThreadsSession((await api.clearThreadsSession()).session); setMessage('Threads session 已清除。') }
@@ -1150,8 +1183,13 @@ function SettingsPage() {
   return (
     <section className="space-y-4">
       <div className="border-4 border-asphalt bg-[#fffaf2] p-5 shadow-[8px_8px_0_#171717]">
-        <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Settings / {section}</p>
-        <h2 className="mt-1 text-4xl font-black">設定不是裝飾品</h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Settings / {section}</p>
+            <h2 className="mt-1 text-4xl font-black">設定不是裝飾品</h2>
+          </div>
+          <button type="button" onClick={() => navigate('dashboard')} className="min-h-11 border-2 border-asphalt bg-paper px-4 py-2 text-sm font-bold hover:bg-asphalt hover:text-paper">回儀表板</button>
+        </div>
       </div>
       <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {(['admin', 'keys', 'threads', 'pipeline'] as SettingsSection[]).map((item) => (
@@ -1219,11 +1257,24 @@ function SettingsPage() {
           <Info label="Session" value={threadsSession?.hasSession ? (threadsSession.healthy ? '已保存，狀態正常' : `異常：${threadsSession.healthNote ?? '未知原因'}`) : '尚未保存'} />
           <Info label="Bound Handle" value={threadsSession?.boundHandle ?? '-'} />
           <Info label="Last Login" value={threadsSession?.lastLoginAt ? formatDate(threadsSession.lastLoginAt) : '-'} />
+          <Info label="Search Quota" value={threadsThrottle ? `${threadsThrottle.todayCounts.search} / ${threadsThrottle.dailyLimits.search}（${threadsThrottle.date}）` : '讀取中'} />
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshThreadsSession}>重新整理 Session</button>
+          <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshThreadsThrottle}>重新整理 Quota</button>
           <button className="min-h-11 bg-red-700 px-4 py-2 font-bold text-white" type="button" onClick={clearThreadsSession}>清除 Session</button>
         </div>
+        <form onSubmit={saveThreadsSearchLimit} className="mt-4 border-t-2 border-asphalt pt-4">
+          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Threads search quota</p>
+          <p className="mt-1 text-sm">這個上限只保護 Playwright Threads 搜尋，太低會讓海巡提早改走 fallback。</p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+            <label className="text-sm font-bold">每日 search 上限
+              <input className="mt-1 block min-h-11 w-full border-2 border-asphalt bg-[#fffaf2] px-3 font-mono text-base outline-none sm:w-40" inputMode="numeric" value={searchLimitText} onChange={(e) => setSearchLimitText(e.target.value)} />
+            </label>
+            <button className="min-h-11 bg-asphalt px-4 py-2 font-bold text-paper" type="submit">儲存上限</button>
+            <button className="min-h-11 border-2 border-red-600 px-4 py-2 font-bold text-red-700" type="button" onClick={resetThreadsSearchQuotaToday}>清除今天 search 用量</button>
+          </div>
+        </form>
         <div className="mt-4 border-t-2 border-asphalt pt-4 space-y-3">
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">兩步登入</p>
           <ol className="list-decimal space-y-3 pl-5 text-sm">
