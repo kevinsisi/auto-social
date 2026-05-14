@@ -61,9 +61,12 @@ export function isKeywordRelevant(text: string, keyword: string): boolean {
 
 export function cleanThreadsExcerptForDisplay(text: string): string {
   let cleaned = text
-  cleaned = cleaned.replace(/^追蹤[A-Za-z0-9_.]+\s*/u, '')
-  cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?\s*更多/gu, '')
-  cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?/gu, ' ')
+  // Remove "追蹤username" anywhere (search result cards embed it mid-text too)
+  cleaned = cleaned.replace(/追蹤[A-Za-z0-9_.]+\s*/gu, '')
+  // Remove "已追蹤" follow-state button text
+  cleaned = cleaned.replace(/已追蹤\s*/gu, '')
+  cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分(?!享)|小時|時|天|週|月|年)\s*(以前)?\s*更多/gu, '')
+  cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分(?!享)|小時|時|天|週|月|年)\s*(以前)?/gu, ' ')
   cleaned = cleaned.replace(/今天|昨天|前天|剛才|剛剛/gu, ' ')
   cleaned = cleaned.replace(/更多|翻譯|靜音|編輯/gu, ' ')
   // Remove engagement-state indicators like "已讚", "已轉發", "已分享" (leaves orphaned 已 otherwise)
@@ -165,7 +168,8 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
 
       function cleanExcerpt(text: string): string {
         let cleaned = text
-        cleaned = cleaned.replace(/^追蹤[A-Za-z0-9_.]+\s*/u, '')
+        cleaned = cleaned.replace(/追蹤[A-Za-z0-9_.]+\s*/gu, '')
+        cleaned = cleaned.replace(/已追蹤\s*/gu, '')
         cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?\s*更多/gu, '')
         cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?/gu, ' ')
         cleaned = cleaned.replace(/今天|昨天|前天|剛才|剛剛/gu, ' ')
@@ -241,6 +245,8 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
             text = candidateText
             bestContainer = container
           }
+          // Stop at article boundary — never cross into adjacent posts or page chrome
+          if (container.tagName === 'ARTICLE' || container.getAttribute('role') === 'article') break
           container = container.parentElement
         }
         if (text.length < 8) continue
