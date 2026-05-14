@@ -6,147 +6,141 @@
 #dashboard              → 概覽 tab (default)
 #dashboard/radar        → 雷達 tab
 #dashboard/workstation  → 工作站 tab
-#dashboard/card/{id}    → 關鍵字詳情頁
+#dashboard/card/{id}    → 關鍵字詳情（desktop: 右欄顯示；mobile: 全頁）
 #settings               → Settings (不變)
 #settings/{section}     → Settings section (不變)
 ```
 
-`getDashboardTab()` 從 hash 解析 tab：
-- `#dashboard/card/...` → tab = 'overview' (detail overlay)
+`getDashTabFromHash()` 從 hash 解析 tab：
+- `#dashboard/card/...` → tab = 'overview'
 - `#dashboard/radar`    → tab = 'radar'
 - `#dashboard/workstation` → tab = 'workstation'
 - else                  → tab = 'overview'
+
+`onHashChange` 每次都 `setSelectedId(getDashboardCardId())` — null 時清除 detail view。
 
 ## Component Tree
 
 ```
 App
-├── Header
+├── Header (full width, sticky)
 │   ├── Logo / Title
-│   └── DesktopTabBar (概覽 | 雷達 | 工作站 | Settings)
-├── DashboardPage  (page === 'dashboard')
-│   ├── OverviewTab      (tab === 'overview', no card selected)
-│   │   ├── KeywordGrid
-│   │   │   └── KeywordStatusCard × N
-│   │   └── AddKeywordInput
-│   ├── RadarTab         (tab === 'radar')
-│   │   └── HotKeywordCloud (現有元件)
-│   ├── WorkstationTab   (tab === 'workstation')
-│   │   ├── PostDraftPanel (現有)
-│   │   ├── AiQueuePanel   (現有)
-│   │   └── SchedulerPanel (現有)
-│   └── KeywordDetailPage  (selectedId != null)
-│       ├── BackButton (→ #dashboard)
-│       ├── KeywordObservationPanel (現有)
-│       └── DeleteCardButton
-└── SettingsPage  (page === 'settings', 不變)
-    └── MobileTabBar (底部, 僅 mobile)
+│   └── DesktopTabBar (概覽 | 雷達 | 工作站 | Settings)  [hidden on mobile]
+├── Content (px-6, no max-width — fills full viewport)
+│   ├── RadarTab         (tab === 'radar', full width)
+│   ├── WorkstationTab   (tab === 'workstation', full width)
+│   └── OverviewTab      (tab === 'overview')
+│       ├── [desktop sm:] Split layout
+│       │   ├── Sidebar aside (w-72 xl:w-80, shrink-0)
+│       │   │   ├── DesktopKeywordItem × N  (selected: signal border)
+│       │   │   └── AddKeywordForm (compact)
+│       │   └── Main panel (flex-1)
+│       │       ├── KeywordObservationPanel  (selectedId != null)
+│       │       └── Placeholder              (selectedId == null, min-h full)
+│       └── [mobile sm:hidden] Page-based
+│           ├── KeywordDetailPage  (selectedId != null)
+│           │   ├── BackButton (→ #dashboard)
+│           │   ├── KeywordObservationPanel
+│           │   └── DeleteCardButton
+│           └── OverviewTab grid  (selectedId == null)
+│               ├── KeywordStatusCard × N  (2-col grid)
+│               └── AddKeywordInput
+└── SettingsPage  (page === 'settings')
+MobileTabBar (fixed bottom, sm:hidden)
 ```
+
+## Desktop Split Layout
+
+No `max-w-*` constraint — fills the full viewport width.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  SOCIAL PATROL   社群海巡工作站        [概覽][雷達][工作站] Settings v1.x.x │
+├──────────────────────────┬──────────────────────────────────────┤
+│  台灣            +210    │  KEYWORD OBSERVATION                 │
+│  皮克敏          +139    │  台灣 風向                            │
+│  一個人          +295    │  [Threads 出勤海巡]                   │
+│  AI             +1092   │  情緒條 / 樣本統計                    │
+│  ...                     │  HIGH-ENGAGEMENT HIGHLIGHTS          │
+│                          │  ...                                 │
+│  ┌新增關鍵字─────┐        │                                      │
+│  │ input  [加入] │        │                                      │
+│  └──────────────┘        │                                      │
+└──────────────────────────┴──────────────────────────────────────┘
+```
+
+Desktop auto-select: `loadCards()` 在桌面版（`window.innerWidth >= 640`）且無 hash cardId 時，自動 `selectCard(cards[0].id)`，確保右欄開啟就有內容。
 
 ## Desktop Tab Bar
 
-位置：Header 右側，取代現有 Dashboard / Settings 兩顆按鈕。
+位置：Header 右側。
 
 ```
-[概覽]  [雷達]  [工作站]  |  [Settings]
+[概覽]  [雷達]  [工作站]  |  [Settings]  v1.x.x
 ```
 
 Active tab：`bg-asphalt text-paper`
-Inactive：`bg-paper border-asphalt`
-Settings 跟 tab 視覺上稍做區隔（pipe 分隔）。
+概覽 tab 在 desktop split layout 時保持 active（不因 selectedId 影響）。
 
 ## Mobile Tab Bar
 
-固定在底部，`position: fixed; bottom: 0`。
-Content area 加 `padding-bottom` 避免被蓋住。
+固定在底部，`position: fixed; bottom: 0; sm:hidden`。
+Content area 加 `pb-24 sm:pb-6` 避免被蓋住。
+
+```
+┌──────────────────────────┐
+│   概覽    雷達    工作站   │  ← active 用 signal 色 border-t
+└──────────────────────────┘
+```
+
+## DesktopKeywordItem
 
 ```
 ┌──────────────────────────────┐
-│  概覽   雷達   工作站   設定  │
-│   ⬜     📡     🛠      ⚙    │
+│  台灣                  +210  │  ← signal border 高亮選中
+│  1860 則 · 剛剛           ✕  │
 └──────────────────────────────┘
 ```
 
-Icon 用文字符號即可（符合現有 no-emoji 原則，改用 label-only 或簡單符號）。
-Active tab 用 `border-t-2 border-signal` 頂線 + signal 色文字。
+選中狀態：`border-signal bg-signal/5 shadow-[3px_3px_0_#ff4e00]`
+未選中：`border-asphalt bg-paper`
 
-## KeywordStatusCard
+## KeywordStatusCard（Mobile Only）
 
 ```
 ┌──────────────────────────────┐
-│  台灣                   ③   │  ← NEW badge (橘色圓角數字)
-│                              │
-│  ■■■■■░░░░░  中立           │  ← 情緒顏色長條 (mini)
-│  32 則  ·  2h ago           │
+│  台灣                   +210 │  ← NEW badge（橘色圓角數字）
+│  1860 則  ·  2 分鐘前        │
 └──────────────────────────────┘
 ```
 
-- 整張卡可點 → `navigate('dashboard/card/{id}')`
-- 刪除 ✕ 保留在卡片右上角（hover/長按顯示）
-- 無 classifiedSamples → 情緒區塊顯示「待判讀」灰色
-- 無 recentSampleCount → 顯示「尚未掃描」
+2-col grid（mobile），click → `navigate('dashboard/card/{id}')`
 
 NEW badge：
 ```typescript
-const stored = localStorage.getItem(`asc:vc:${card.id}`)
-const lastCount = stored ? Number(stored) : 0
-const newCount = card.recentSampleCount - lastCount
-// 開啟詳情頁時：
-localStorage.setItem(`asc:vc:${card.id}`, String(card.recentSampleCount))
+const VC_KEY = 'asc:vc'
+// stored: Record<cardId, lastViewedCount>
+// badge = max(0, card.recentSampleCount - stored[card.id] ?? 0)
+// mark viewed: stored[card.id] = card.recentSampleCount
 ```
 
 ## Backend: GET /api/cards 擴充
 
-新增欄位（由 observe route 或 cards route 在 SQL 計算）：
-
 ```sql
-SELECT
-  c.id, c.keyword, c.created_at, c.updated_at,
+SELECT c.*,
   COUNT(ca.id) AS recent_sample_count,
   MAX(pr.completed_at) AS last_scan_at
-FROM cards c
+FROM patrol_cards c
 LEFT JOIN candidates ca
   ON ca.card_id = c.id
   AND ca.created_at >= datetime('now', '-24 hours')
 LEFT JOIN patrol_runs pr
-  ON pr.card_id = c.id
-  AND pr.status = 'completed'
+  ON pr.card_id = c.id AND pr.status = 'completed'
 GROUP BY c.id
+ORDER BY c.updated_at DESC
 ```
-
-TypeScript type 擴充：
-```typescript
-export type PatrolCard = {
-  id: string
-  keyword: string
-  createdAt: string
-  updatedAt: string
-  recentSampleCount: number   // NEW
-  lastScanAt: string | null   // NEW
-}
-```
-
-## Detail Page Navigation
-
-詳情頁由 `selectedId !== null` 觸發（現有邏輯），但：
-- 加 `← 返回` 按鈕 → `navigate('dashboard')` + `setSelectedId(null)`
-- Mobile: 詳情頁佔全版面，tab bar 維持顯示（讓用戶切到雷達）
-- Desktop: 詳情頁取代整個內容區（tab bar 仍在 header）
 
 ## Responsive Breakpoints
 
-使用現有 Tailwind config：
-- Mobile: `< sm` (640px) → 2欄 grid，bottom tab bar
-- Tablet: `sm–lg` (640–1024px) → 2欄 grid，top tab bar
-- Desktop: `lg+` (1024px+) → 3欄 grid，top tab bar
-
-## Build Sequence
-
-1. Backend：擴充 `GET /api/cards` 加兩個欄位
-2. Client types：PatrolCard 加欄位
-3. Tab bar 元件 + URL routing 擴充
-4. OverviewTab + KeywordStatusCard（含 NEW badge）
-5. WorkstationTab（搬現有三個 panel）
-6. RadarTab（搬現有 HotKeywordCloud）
-7. Detail page 加返回按鈕 + mobile 全版面
-8. 清掉舊版 sidebar / layout 殘留
+- `< sm` (640px) — mobile: 2欄 grid, bottom tab bar, full-page detail
+- `sm+` (640px+) — desktop: split layout (sidebar + observation panel), header tab bar
