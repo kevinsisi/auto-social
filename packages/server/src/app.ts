@@ -151,6 +151,19 @@ export function createApp(db: AppDatabase) {
   }
 
   app.post('/api/cards/:cardId/scan-threads', scanThreads)
+
+  app.get('/api/cards/:cardId/scan-threads/stream', (req, res) => {
+    const cardId = String(req.params.cardId)
+    res.setHeader('Content-Type', 'text/event-stream')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Connection', 'keep-alive')
+    res.flushHeaders()
+    const send = (payload: object) => { res.write(`data: ${JSON.stringify(payload)}\n\n`) }
+    scanKeywordCard(db, cardId, (progress) => { send({ type: 'progress', ...progress }) })
+      .then((run) => { send({ type: 'done', run }); res.end() })
+      .catch((err) => { send({ type: 'error', message: err instanceof Error ? err.message : '海巡失敗' }); res.end() })
+  })
+
   app.post('/api/cards/:cardId/scan-dcard', (_req, res) => {
     res.status(410).json({ error: 'Dcard 海巡路由已停用。請重新整理頁面後使用 Threads 出勤海巡。' })
   })

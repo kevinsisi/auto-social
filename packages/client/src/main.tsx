@@ -225,46 +225,71 @@ function App() {
     }
   }
 
+  function scanWithStream(cardId: string, keyword: string, onDone: (message: string) => void) {
+    scanInFlightRef.current = true
+    setScanBusyLabel('Google 搜尋中...')
+    setError(null)
+    const es = new EventSource(`/api/cards/${cardId}/scan-threads/stream`)
+    es.onmessage = (e: MessageEvent) => {
+      try {
+        const event = JSON.parse(String(e.data)) as { type: string; stage?: string; n?: number; total?: number; run?: { message: string }; message?: string }
+        if (event.type === 'progress') {
+          if (event.stage === 'google') {
+            setScanBusyLabel(`「${keyword}」Google 搜尋中...`)
+          } else if (event.stage === 'post' && typeof event.n === 'number' && typeof event.total === 'number') {
+            setScanBusyLabel(event.n === 0 ? `找到連結，準備確認貼文...` : `確認第 ${event.n}/${event.total} 篇貼文...`)
+          }
+        } else if (event.type === 'done') {
+          es.close()
+          scanInFlightRef.current = false
+          setScanBusyLabel(null)
+          onDone(event.run?.message ?? '海巡完成。')
+          void loadObservation(cardId)
+        } else if (event.type === 'error') {
+          es.close()
+          scanInFlightRef.current = false
+          setScanBusyLabel(null)
+          setError(event.message ?? '海巡失敗。')
+        }
+      } catch {
+        // malformed SSE event — ignore
+      }
+    }
+    es.onerror = () => {
+      es.close()
+      scanInFlightRef.current = false
+      setScanBusyLabel(null)
+      setError('海巡連線中斷，請稍後再試。')
+    }
+  }
+
   async function monitorRadarTerm(term: string) {
     if (scanInFlightRef.current) return
     scanInFlightRef.current = true
-    setScanBusyLabel(term)
+    setScanBusyLabel(`加入「${term}」監控...`)
     setError(null)
-    setNotice(`已收到「${term}」海巡要求，正在出勤。請不要連點，完成或失敗會在這裡回報。`)
     try {
       const existing = cards.find((card) => card.keyword === term)
       const card = existing ?? (await api.createCard(term)).card
       setKeyword('')
       await loadCards()
       setSelectedId(card.id)
-      const data = await api.scanThreads(card.id)
-      setNotice(`已把「${term}」加入監控並出勤。${data.run.message}`)
-      await loadObservation(card.id)
+      scanWithStream(card.id, term, (message) => {
+        setNotice(`已把「${term}」加入監控並出勤。${message}`)
+      })
     } catch (err) {
-      setError(getMessage(err))
-    } finally {
       scanInFlightRef.current = false
       setScanBusyLabel(null)
+      setError(getMessage(err))
     }
   }
 
-  async function scanThreads() {
+  function scanThreads() {
     if (!selectedId || scanInFlightRef.current) return
     const target = cards.find((card) => card.id === selectedId)?.keyword ?? '目前關鍵字'
-    scanInFlightRef.current = true
-    setScanBusyLabel(target)
-    setError(null)
-    setNotice(`已收到「${target}」Threads 出勤海巡，正在抓資料。請不要連點，完成或失敗會在這裡回報。`)
-    try {
-      const data = await api.scanThreads(selectedId)
-      setNotice(`${data.run.message} AI 正在背景判讀；30 秒內會自動刷新。`)
-      await loadObservation(selectedId)
-    } catch (err) {
-      setError(getMessage(err))
-    } finally {
-      scanInFlightRef.current = false
-      setScanBusyLabel(null)
-    }
+    scanWithStream(selectedId, target, (message) => {
+      setNotice(`${message} AI 正在背景判讀；30 秒內會自動刷新。`)
+    })
   }
 
   async function addManualLink(url: string, title: string, excerpt: string) {
@@ -723,7 +748,12 @@ function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanTh
             </button>
           </div>
         </div>
-        {scanBusyLabel && <div className="mt-4 border-2 border-asphalt bg-white px-3 py-2 text-sm font-bold">已送出「{scanBusyLabel}」海巡要求，正在抓資料，請不要連點。</div>}
+        {scanBusyLabel && (
+          <div className="mt-4 flex items-center gap-3 border-2 border-asphalt bg-white px-3 py-2">
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-asphalt border-t-transparent" />
+            <span className="text-sm font-bold">{scanBusyLabel}</span>
+          </div>
+        )}
         <SentimentBar distribution={aggregate.sentimentDistribution} classifiedSamples={aggregate.classifiedSamples} />
         {suggestedKeywords.length > 0 && (
           <div className="mt-4 border-t-2 border-asphalt pt-4">
