@@ -64,15 +64,19 @@ export function cleanThreadsExcerptForDisplay(text: string): string {
   cleaned = cleaned.replace(/^追蹤[A-Za-z0-9_.]+\s*/u, '')
   cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?\s*更多/gu, '')
   cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?/gu, ' ')
+  cleaned = cleaned.replace(/今天|昨天|前天|剛才|剛剛/gu, ' ')
   cleaned = cleaned.replace(/更多|翻譯|靜音|編輯/gu, ' ')
-  // Engagement blocks: "N/M 讚 N 留言..." or individual labels+counts
-  cleaned = cleaned.replace(/\d+\s*\/\s*\d+\s*讚\s*[\d.,KMkm萬千]+(?:\s*(?:留言|回覆|轉發|分\s*享|分享|享)\s*[\d.,KMkm萬千]+)*/gu, '')
+  // Remove engagement-state indicators like "已讚", "已轉發", "已分享" (leaves orphaned 已 otherwise)
+  cleaned = cleaned.replace(/已(?:讚|轉發|分享|回覆|留言)(?:過)?/gu, ' ')
+  // Engagement blocks: optional total "39.0萬" before carousel "N/M 讚 count [label count]*"
+  cleaned = cleaned.replace(/(?:[\d.,KMkm萬千]+\s*)?\d+\s*\/\s*\d+\s*讚\s*[\d.,KMkm萬千]+(?:\s*(?:留言|回覆|轉發|分\s*享|分享|享)\s*[\d.,KMkm萬千]+)*/gu, '')
   cleaned = cleaned.replace(/(?:讚|留言|回覆|轉發|分\s*享|分享|享)\s*[\d.,KMkm萬千]+/gu, '')
-  cleaned = cleaned.replace(/[\d.,KMkm]+\s*[萬千]?\s*(?:則|個)?\s*(?:讚|留言|回覆|轉發|分\s*享|分享|享)/gu, '')
+  cleaned = cleaned.replace(/[\d.,KMkm萬千]+\s*(?:則|個)?\s*(?:讚|留言|回覆|轉發|分\s*享|分享|享)/gu, '')
   cleaned = cleaned.replace(/(^|\s)(?:讚|留言|回覆|轉發|分\s*享|分享)(?=\s|$)/gu, ' ')
-  // Carousel indicator "1/2" and standalone unit words left after number removal
+  // Carousel indicator "1/2"
   cleaned = cleaned.replace(/\b\d+\s*\/\s*\d+\b/gu, ' ')
-  cleaned = cleaned.replace(/(?<![.\d])\s+[萬千]\s+(?![.\d])/gu, ' ')
+  // Orphaned 萬/千 not adjacent to digits or other CJK (e.g., "TW❤ 萬" at end)
+  cleaned = cleaned.replace(/(?<![.\d])[萬千](?![.\d一-鿿])/gu, ' ')
   return cleaned.replace(/\s+/g, ' ').trim()
 }
 
@@ -164,11 +168,15 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
         cleaned = cleaned.replace(/^追蹤[A-Za-z0-9_.]+\s*/u, '')
         cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?\s*更多/gu, '')
         cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?/gu, ' ')
+        cleaned = cleaned.replace(/今天|昨天|前天|剛才|剛剛/gu, ' ')
         cleaned = cleaned.replace(/更多|翻譯|靜音|編輯/gu, ' ')
-        cleaned = cleaned.replace(/\d+\s*\/\s*\d+\s*讚\s*[\d.,KMkm萬千]+(?:\s*(?:留言|回覆|轉發|分\s*享|分享|享)\s*[\d.,KMkm萬千]+)*/gu, '')
+        cleaned = cleaned.replace(/已(?:讚|轉發|分享|回覆|留言)(?:過)?/gu, ' ')
+        cleaned = cleaned.replace(/(?:[\d.,KMkm萬千]+\s*)?\d+\s*\/\s*\d+\s*讚\s*[\d.,KMkm萬千]+(?:\s*(?:留言|回覆|轉發|分\s*享|分享|享)\s*[\d.,KMkm萬千]+)*/gu, '')
         cleaned = cleaned.replace(/(?:讚|留言|回覆|轉發|分\s*享|分享|享)\s*[\d.,KMkm萬千]+/gu, '')
         cleaned = cleaned.replace(/[\d.,KMkm萬千]+\s*(?:則|個)?\s*(?:讚|留言|回覆|轉發|分\s*享|分享|享)/gu, '')
         cleaned = cleaned.replace(/(^|\s)(?:讚|留言|回覆|轉發|分\s*享|分享)(?=\s|$)/gu, ' ')
+        cleaned = cleaned.replace(/\b\d+\s*\/\s*\d+\b/gu, ' ')
+        cleaned = cleaned.replace(/(?<![.\d])[萬千](?![.\d一-鿿])/gu, ' ')
         return cleaned.replace(/\s+/g, ' ').trim()
       }
 
