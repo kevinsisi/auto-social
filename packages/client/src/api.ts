@@ -113,6 +113,12 @@ export const api = {
       body: JSON.stringify({})
     })
   },
+  async resetKeyCooldowns() {
+    return request<{ reset: number }>('/api/admin/keys/reset-cooldowns', {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
+  },
   async getThreadsSessionStatus() {
     return request<{ session: ThreadsSessionStatus }>('/api/threads/session/status')
   },

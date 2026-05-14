@@ -466,7 +466,10 @@ function SettingsPage() {
   }, [])
 
   useEffect(() => {
-    if (adminSession?.authenticated) void refreshKeys()
+    if (!adminSession?.authenticated) return
+    void refreshKeys()
+    const timer = setInterval(() => { void refreshKeys() }, 10_000)
+    return () => clearInterval(timer)
   }, [adminSession?.authenticated])
 
   async function refreshAdminSession() {
@@ -505,6 +508,17 @@ function SettingsPage() {
     try {
       const result = await api.syncKeys()
       setMessage(result.synced ? `已從 key-manager 同步 ${result.imported} 把。${result.warning ?? ''}` : result.warning)
+      await refreshKeys()
+    } catch (err) {
+      setError(getMessage(err))
+    }
+  }
+
+  async function resetCooldowns() {
+    setError(null)
+    try {
+      const result = await api.resetKeyCooldowns()
+      setMessage(`已清除 ${result.reset} 把 key 的 cooldown。`)
       await refreshKeys()
     } catch (err) {
       setError(getMessage(err))
@@ -667,7 +681,14 @@ function SettingsPage() {
       </div>}
 
       {section === 'keys' && <div className="border-2 border-asphalt bg-[#fffaf2] p-4">
-        <h3 className="text-2xl font-black">目前 keys</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-2xl font-black">目前 keys</h3>
+          <div className="flex gap-2">
+            <button onClick={() => { void refreshKeys() }} className="border border-asphalt px-3 py-1 text-sm">重新整理</button>
+            <button onClick={() => { void resetCooldowns() }} className="border border-red-600 px-3 py-1 text-sm text-red-600">清除所有 Cooldown</button>
+          </div>
+        </div>
+        <p className="mt-1 text-xs text-asphalt/60">每 10 秒自動更新</p>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[640px] border-collapse text-left text-sm">
             <thead>
@@ -676,7 +697,7 @@ function SettingsPage() {
                 <th className="p-2">Suffix</th>
                 <th className="p-2">Health</th>
                 <th className="p-2">Usage</th>
-                <th className="p-2">Cooldown</th>
+                <th className="p-2">Cooldown 到期</th>
               </tr>
             </thead>
             <tbody>
@@ -684,9 +705,9 @@ function SettingsPage() {
                 <tr key={key.id} className="border-b border-asphalt/30">
                   <td className="p-2 font-mono">{key.id}</td>
                   <td className="p-2 font-mono">...{key.suffix}</td>
-                  <td className="p-2 font-bold">{key.health}</td>
+                  <td className={`p-2 font-bold ${key.health === 'available' ? 'text-green-700' : key.health === 'cooldown' ? 'text-orange-600' : key.health === 'leased' ? 'text-blue-600' : 'text-asphalt/40'}`}>{key.health}</td>
                   <td className="p-2">{key.usageCount}</td>
-                  <td className="p-2">{key.cooldownUntil ? formatDate(new Date(key.cooldownUntil).toISOString()) : '-'}</td>
+                  <td className="p-2">{key.health === 'cooldown' ? formatDate(new Date(key.cooldownUntil).toISOString()) : '-'}</td>
                 </tr>
               ))}
               {keys.length === 0 && <tr><td className="p-4 text-center" colSpan={5}>目前沒有 key。AI 小編還沒拿到筆。</td></tr>}

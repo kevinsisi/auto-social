@@ -59,7 +59,7 @@ export class KeyPoolRepository {
         this.db.prepare(`
           INSERT INTO api_keys (key, is_active, cooldown_until, lease_until, lease_token, usage_count)
           VALUES (?, 1, 0, 0, NULL, 0)
-          ON CONFLICT(key) DO UPDATE SET is_active = 1
+          ON CONFLICT(key) DO UPDATE SET is_active = 1, cooldown_until = 0, lease_until = 0, lease_token = NULL
         `).run(key)
       }
     })
