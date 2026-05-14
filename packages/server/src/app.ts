@@ -157,8 +157,16 @@ export function createApp(db: AppDatabase) {
     res.setHeader('Content-Type', 'text/event-stream')
     res.setHeader('Cache-Control', 'no-cache')
     res.setHeader('Connection', 'keep-alive')
+    res.setHeader('X-Accel-Buffering', 'no')
+    req.socket?.setNoDelay(true)
     res.flushHeaders()
-    const send = (payload: object) => { res.write(`data: ${JSON.stringify(payload)}\n\n`) }
+    const send = (payload: object) => {
+      res.write(`data: ${JSON.stringify(payload)}\n\n`)
+      // Force flush past any Node.js internal buffering
+      if (typeof (res as unknown as { flush?: () => void }).flush === 'function') {
+        (res as unknown as { flush: () => void }).flush()
+      }
+    }
     scanKeywordCard(db, cardId, (progress) => { send({ type: 'progress', ...progress }) })
       .then((run) => { send({ type: 'done', run }); res.end() })
       .catch((err) => { send({ type: 'error', message: err instanceof Error ? err.message : '海巡失敗' }); res.end() })
