@@ -72,6 +72,14 @@
 **Why**:
 - ai-core already provides `KeyPool`, `GeminiClient`, `StepRunner`, `withRetry`, and key-manager sync — re-implementing locally would duplicate well-tested infrastructure.
 - Micro-steps mean each call is small, cheap, observable, and individually retriable.
+
+**⚠️ Gemini 免費配額限制（2026-05 實測確認）**:
+- `gemini-2.5-flash` free tier = **20 RPD per Google Cloud project**（非 per-key）
+- `gemini-2.0-flash` 已被 Google 棄用（free tier limit=0，呼叫返 404/429）
+- 若 16 把 keys 來自同一 GCP project → 共享 20 RPD，掃一輪就會耗盡
+- **真正解法**：啟用 billing（移除 RPD 限制）或使用不同 GCP project 的 keys
+- 配額重置時間：UTC 00:00（台灣 08:00）
+- 診斷：inflight task error 含 `quota exceeded, limit: 20` → 當日配額耗盡；`pipeline_blocked: no available Gemini key` → 所有 key 在 cooldown 因 429
 - `planPreferredKeys` avoids hammering one key when 4 calls fire in quick succession per candidate.
 - `score` step can short-circuit: candidates that fail the worth-replying bar do not consume `draft` or `meme` calls.
 
