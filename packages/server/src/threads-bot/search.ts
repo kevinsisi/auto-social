@@ -23,7 +23,7 @@ export type ThreadsPlaywrightCandidate = {
   videos: ThreadsVideo[]
 }
 
-const DEFAULT_LIMIT = 10
+const DEFAULT_LIMIT = 20
 const SEARCH_TIMEOUT_MS = 30_000
 const RECENT_POST_MAX_AGE_DAYS = 365
 
@@ -65,10 +65,14 @@ export function cleanThreadsExcerptForDisplay(text: string): string {
   cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?\s*更多/gu, '')
   cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?/gu, ' ')
   cleaned = cleaned.replace(/更多|翻譯|靜音|編輯/gu, ' ')
+  // Engagement blocks: "N/M 讚 N 留言..." or individual labels+counts
   cleaned = cleaned.replace(/\d+\s*\/\s*\d+\s*讚\s*[\d.,KMkm萬千]+(?:\s*(?:留言|回覆|轉發|分\s*享|分享|享)\s*[\d.,KMkm萬千]+)*/gu, '')
   cleaned = cleaned.replace(/(?:讚|留言|回覆|轉發|分\s*享|分享|享)\s*[\d.,KMkm萬千]+/gu, '')
-  cleaned = cleaned.replace(/[\d.,KMkm萬千]+\s*(?:則|個)?\s*(?:讚|留言|回覆|轉發|分\s*享|分享|享)/gu, '')
+  cleaned = cleaned.replace(/[\d.,KMkm]+\s*[萬千]?\s*(?:則|個)?\s*(?:讚|留言|回覆|轉發|分\s*享|分享|享)/gu, '')
   cleaned = cleaned.replace(/(^|\s)(?:讚|留言|回覆|轉發|分\s*享|分享)(?=\s|$)/gu, ' ')
+  // Carousel indicator "1/2" and standalone unit words left after number removal
+  cleaned = cleaned.replace(/\b\d+\s*\/\s*\d+\b/gu, ' ')
+  cleaned = cleaned.replace(/(?<![.\d])\s+[萬千]\s+(?![.\d])/gu, ' ')
   return cleaned.replace(/\s+/g, ' ').trim()
 }
 
@@ -91,8 +95,11 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
     const url = `https://www.threads.com/search?q=${encodeURIComponent(trimmed)}&serp_type=default`
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: SEARCH_TIMEOUT_MS })
     await page.waitForTimeout(2_000)
-    await page.mouse.wheel(0, 900)
-    await page.waitForTimeout(1_000)
+    // Scroll multiple times to load more posts
+    for (let i = 0; i < 4; i++) {
+      await page.mouse.wheel(0, 1200)
+      await page.waitForTimeout(800)
+    }
 
     const currentUrl = page.url()
     if (currentUrl.includes('/login')) {
