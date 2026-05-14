@@ -74,10 +74,15 @@ function getSettingsSection(): SettingsSection {
   return 'admin'
 }
 
+function getDashboardCardId(): string | null {
+  const match = window.location.hash.match(/^#dashboard\/card\/(.+)/)
+  return match ? match[1] : null
+}
+
 function App() {
   const [page, setPage] = useState<'dashboard' | 'settings'>(() => getPageFromHash())
   const [cards, setCards] = useState<PatrolCard[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(() => getDashboardCardId())
   const [observation, setObservation] = useState<KeywordObservation | null>(null)
   const [observationLoading, setObservationLoading] = useState(false)
   const [keyword, setKeyword] = useState('')
@@ -101,7 +106,11 @@ function App() {
     const aiTimer = window.setInterval(() => void loadAiStatus(), 3000)
     const schedulerTimer = window.setInterval(() => void loadSchedulerStatus(), 10000)
     const postDraftTimer = window.setInterval(() => void loadPostDrafts(), 5000)
-    const onHashChange = () => setPage(getPageFromHash())
+    const onHashChange = () => {
+      setPage(getPageFromHash())
+      const cardId = getDashboardCardId()
+      if (cardId !== null) setSelectedId(cardId)
+    }
     window.addEventListener('hashchange', onHashChange)
     return () => {
       window.removeEventListener('hashchange', onHashChange)
@@ -148,10 +157,20 @@ function App() {
     return () => window.clearInterval(id)
   }, [selectedId])
 
+  function selectCard(id: string) {
+    navigate(`dashboard/card/${id}`)
+    setSelectedId(id)
+  }
+
   async function loadCards() {
     const data = await api.listCards()
     setCards(data.cards)
-    if (!selectedId && data.cards.length > 0) setSelectedId(data.cards[0].id)
+    const hashCardId = getDashboardCardId()
+    if (hashCardId && data.cards.some((c) => c.id === hashCardId)) {
+      setSelectedId(hashCardId)
+    } else if (data.cards.length > 0) {
+      selectCard(data.cards[0].id)
+    }
   }
 
   async function loadObservation(cardId: string) {
@@ -218,7 +237,7 @@ function App() {
       const data = await api.createCard(keyword)
       setKeyword('')
       await loadCards()
-      setSelectedId(data.card.id)
+      selectCard(data.card.id)
       setNotice('海巡卡建立好了。只好讓我來幫幫你了。')
     } catch (err) {
       setError(getMessage(err))
@@ -273,7 +292,7 @@ function App() {
       const card = existing ?? (await api.createCard(term)).card
       setKeyword('')
       await loadCards()
-      setSelectedId(card.id)
+      selectCard(card.id)
       scanWithStream(card.id, term, (message) => {
         setNotice(`已把「${term}」加入監控並出勤。${message}`)
       })
@@ -309,8 +328,14 @@ function App() {
     try {
       await api.deleteCard(card.id)
       if (selectedId === card.id) {
-        setSelectedId(null)
-        setObservation(null)
+        const remaining = cards.filter((c) => c.id !== card.id)
+        if (remaining.length > 0) {
+          selectCard(remaining[0].id)
+        } else {
+          navigate('dashboard')
+          setSelectedId(null)
+          setObservation(null)
+        }
       }
       await loadCards()
       setNotice(`已刪除關鍵字「${card.keyword}」。`)
@@ -370,7 +395,7 @@ function App() {
             {cards.map((card) => (
               <div key={card.id} className={`flex items-stretch border-2 transition-colors ${selectedId === card.id ? 'border-signal bg-asphalt text-paper' : 'border-asphalt bg-paper hover:bg-[#fffaf2]'}`}>
                 <button
-                  onClick={() => setSelectedId(card.id)}
+                  onClick={() => selectCard(card.id)}
                   className="flex-1 p-3 text-left"
                 >
                   <div className="text-lg font-black">{card.keyword}</div>
