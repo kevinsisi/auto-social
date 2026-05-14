@@ -34,4 +34,13 @@ export function registerKeyPoolRoutes(router: Router, db: AppDatabase) {
       next(error)
     }
   })
+
+  router.post('/admin/keys/reset-cooldowns', (_req, res, next) => {
+    try {
+      const result = db.prepare('UPDATE api_keys SET cooldown_until = 0, lease_until = 0, lease_token = NULL WHERE is_active = 1').run()
+      res.json({ reset: result.changes })
+    } catch (error) {
+      next(error)
+    }
+  })
 }
