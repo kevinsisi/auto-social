@@ -273,3 +273,4 @@ User feedback after A1 deploy drove a tight iteration cycle. Every item below is
 - [x] 17.C.1 Filter Threads search results and observation readback to hide known posts whose `published_at` is more than one year old, so stale high-engagement posts do not outrank current conversation.
 - [x] 17.C.2 Add `suggestedKeywords` to the keyword observation response, extracted from current on-topic samples and excluding the active keyword / UI stop words.
 - [x] 17.C.3 Dashboard renders suggested keyword chips as an operator-gated action: clicking a chip adds/selects that keyword card and triggers a scan; the system never auto-expands watchlist terms without a user click.
+- [x] 17.C.4 Tighten mixed-language suggestion extraction so long CJK+Latin strings are not truncated into bad chips like half of a car model name.

@@ -145,9 +145,13 @@ function extractSuggestedKeywords(posts: ObservedPost[], currentKeyword: string)
 function extractTerms(text: string): string[] {
   const terms = new Set<string>()
   for (const match of text.matchAll(/[A-Za-z][A-Za-z0-9_-]{2,24}/g)) terms.add(match[0]!)
-  for (const match of text.matchAll(/[\p{Script=Han}A-Za-z0-9]{2,10}/gu)) {
+  for (const match of text.matchAll(/[A-Za-z][A-Za-z0-9_-]{1,20}[\p{Script=Han}]{1,2}/gu)) terms.add(match[0]!)
+  for (const match of text.matchAll(/[\p{Script=Han}]{2,8}/gu)) terms.add(match[0]!)
+  for (const match of text.matchAll(/[\p{Script=Han}A-Za-z0-9]{2,24}/gu)) {
     const term = match[0]!
     if (/^\d+$/.test(term)) continue
+    if (term.length > 14) continue
+    if (/^[\p{Script=Han}]/u.test(term) && /[A-Za-z]/.test(term)) continue
     terms.add(term)
   }
   return [...terms]
