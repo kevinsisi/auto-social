@@ -25,6 +25,7 @@ export type ThreadsPlaywrightCandidate = {
 
 const DEFAULT_LIMIT = 10
 const SEARCH_TIMEOUT_MS = 30_000
+const RECENT_POST_MAX_AGE_DAYS = 365
 
 export class ThreadsSearchError extends Error {
   constructor(message: string) {
@@ -69,6 +70,13 @@ export function cleanThreadsExcerptForDisplay(text: string): string {
   cleaned = cleaned.replace(/[\d.,KMkm萬千]+\s*(?:則|個)?\s*(?:讚|留言|回覆|轉發|分\s*享|分享|享)/gu, '')
   cleaned = cleaned.replace(/(^|\s)(?:讚|留言|回覆|轉發|分\s*享|分享)(?=\s|$)/gu, ' ')
   return cleaned.replace(/\s+/g, ' ').trim()
+}
+
+export function isRecentThreadsPost(postedAt: string | null, now: Date = new Date()): boolean {
+  if (!postedAt) return true
+  const time = Date.parse(postedAt)
+  if (!Number.isFinite(time)) return true
+  return time >= now.getTime() - RECENT_POST_MAX_AGE_DAYS * 24 * 60 * 60 * 1000
 }
 
 export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: string, limit = DEFAULT_LIMIT, throttleOptions: GateOptions = {}): Promise<ThreadsPlaywrightCandidate[]> {
@@ -246,7 +254,8 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
       return results
     }, limit)
 
-    const localeFiltered = items.filter((item) => isTaiwanRelevant(item.excerpt, trimmed))
+    const recentFiltered = items.filter((item) => isRecentThreadsPost(item.postedAt))
+    const localeFiltered = recentFiltered.filter((item) => isTaiwanRelevant(item.excerpt, trimmed))
     const keywordFiltered = localeFiltered.filter((item) => isKeywordRelevant(`${item.title} ${item.excerpt}`, trimmed))
     return keywordFiltered.map((item) => ({ ...item, source: 'threads_playwright' as const }))
   } catch (error) {

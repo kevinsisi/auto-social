@@ -357,7 +357,7 @@ function App() {
           <SchedulerPanel scheduler={scheduler} />
           <AiQueuePanel queue={aiQueue} />
           {selectedId
-            ? <KeywordObservationPanel observation={observation} loading={observationLoading} onScanThreads={scanThreads} onAddManualLink={addManualLink} onFeedback={submitFeedback} />
+            ? <KeywordObservationPanel observation={observation} loading={observationLoading} onScanThreads={scanThreads} onAddManualLink={addManualLink} onFeedback={submitFeedback} onSelectSuggestedKeyword={(term) => void monitorRadarTerm(term)} />
             : <EmptyState />}
         </section>
       </section>}
@@ -669,17 +669,18 @@ function SettingsPage() {
   )
 }
 
-function KeywordObservationPanel({ observation, loading, onScanThreads, onAddManualLink, onFeedback }: {
+function KeywordObservationPanel({ observation, loading, onScanThreads, onAddManualLink, onFeedback, onSelectSuggestedKeyword }: {
   observation: KeywordObservation | null
   loading: boolean
   onScanThreads: () => void
   onAddManualLink: (url: string, title: string, excerpt: string) => Promise<void>
   onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>
+  onSelectSuggestedKeyword: (term: string) => void
 }) {
   if (!observation) {
     return <div className="border-4 border-asphalt p-8 text-center text-lg font-black sm:p-10">{loading ? '正在讀取觀察站資料...' : '請先選一個關鍵字，或點上方雷達中的詞加入監控。'}</div>
   }
-  const { card, aggregate, highlights, posts } = observation
+  const { card, aggregate, highlights, posts, suggestedKeywords } = observation
   const dominant = useMemo(() => dominantSentiment(aggregate.sentimentDistribution), [aggregate.sentimentDistribution])
   const hasAnyPost = highlights.length + posts.length > 0
 
@@ -706,6 +707,19 @@ function KeywordObservationPanel({ observation, loading, onScanThreads, onAddMan
           </div>
         </div>
         <SentimentBar distribution={aggregate.sentimentDistribution} classifiedSamples={aggregate.classifiedSamples} />
+        {suggestedKeywords.length > 0 && (
+          <div className="mt-4 border-t-2 border-asphalt pt-4">
+            <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Suggested Keywords</p>
+            <p className="mt-1 text-xs text-asphalt/70">從目前樣本抽出的延伸詞；點了才會加入監控並出勤，不會自動擴張。</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {suggestedKeywords.map((term) => (
+                <button key={term} type="button" onClick={() => onSelectSuggestedKeyword(term)} className="min-h-9 border-2 border-asphalt bg-paper px-3 py-1 text-sm font-bold hover:bg-asphalt hover:text-paper">
+                  {term}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {highlights.length > 0 && (

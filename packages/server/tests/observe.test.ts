@@ -89,6 +89,43 @@ describe('getKeywordObservation', () => {
     expect(result!.posts).toEqual([])
   })
 
+  it('hides legacy rows published more than one year ago', () => {
+    const db = openMemoryDatabase()
+    const repo = new PatrolRepository(db)
+    const card = repo.createCard('Urus')
+    const now = new Date('2026-05-14T00:00:00.000Z')
+
+    db.prepare(`
+      INSERT INTO trend_candidates (id, source, external_id, fingerprint, card_id, is_trending, url, author, title, text, published_at, engagement_json, fetched_at, pipeline_status)
+      VALUES ('old-urus', 'threads_playwright', 'old-urus', 'fp-old-urus', ?, 0, 'https://www.threads.com/@cars/post/1', '@cars', 'Urus 老文', 'Urus 改裝分享', '2024-05-13T23:59:59.999Z', ?, ?, 'short_circuited')
+    `).run(card.id, JSON.stringify({ likes: 999, replies: 99 }), now.toISOString())
+
+    const result = getKeywordObservation(db, card.id, now)
+
+    expect(result).not.toBeNull()
+    expect(result!.aggregate.totalSamples).toBe(0)
+    expect(result!.highlights).toEqual([])
+    expect(result!.posts).toEqual([])
+  })
+
+  it('suggests related keywords from current observed posts without auto-expanding', () => {
+    const db = openMemoryDatabase()
+    const repo = new PatrolRepository(db)
+    const card = repo.createCard('Urus')
+    const now = new Date('2026-05-14T00:00:00.000Z')
+
+    db.prepare(`
+      INSERT INTO trend_candidates (id, source, external_id, fingerprint, card_id, is_trending, url, author, title, text, published_at, engagement_json, fetched_at, pipeline_status, classify_json)
+      VALUES ('suggest-urus', 'threads_playwright', 'suggest-urus', 'fp-suggest-urus', ?, 0, 'https://www.threads.com/@cars/post/2', '@cars', 'Urus 與 藍寶堅尼', 'Urus 改裝分享，藍寶堅尼 SUV 保養成本', ?, ?, ?, 'drafted', ?)
+    `).run(card.id, now.toISOString(), JSON.stringify({ likes: 20, replies: 2 }), now.toISOString(), JSON.stringify({ topic: '藍寶堅尼 SUV', sentiment: 'neutral', voiceFit: 0.5 }))
+
+    const result = getKeywordObservation(db, card.id, now)
+
+    expect(result).not.toBeNull()
+    expect(result!.suggestedKeywords).toContain('藍寶堅尼')
+    expect(result!.suggestedKeywords).not.toContain('Urus')
+  })
+
   it('returns empty aggregate for a card with no recent candidates', () => {
     const db = openMemoryDatabase()
     const repo = new PatrolRepository(db)
