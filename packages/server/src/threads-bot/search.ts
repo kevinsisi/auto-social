@@ -88,7 +88,7 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
   const context = await createThreadsContext(db)
   const page = await context.newPage()
   try {
-    const url = `https://www.threads.com/search?q=${encodeURIComponent(trimmed)}`
+    const url = `https://www.threads.com/search?q=${encodeURIComponent(trimmed)}&serp_type=default`
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: SEARCH_TIMEOUT_MS })
     await page.waitForTimeout(2_000)
     await page.mouse.wheel(0, 900)
