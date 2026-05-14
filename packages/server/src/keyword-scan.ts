@@ -2,8 +2,8 @@ import type { AppDatabase } from './db.js'
 import { PatrolRepository } from './repository.js'
 import { getRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
 import { fetchThreadsSearchCandidates } from './sources/threads-search.js'
-import { searchThreadsWithPlaywright } from './threads-bot/search.js'
-import { DailyQuotaExceededError, KillSwitchActiveError } from './threads-bot/throttle.js'
+import { searchThreadsViaGoogle, type ScanProgressEvent } from './threads-bot/google-search.js'
+import { KillSwitchActiveError } from './threads-bot/throttle.js'
 
 type ScanCandidate = {
   url: string
@@ -30,23 +30,27 @@ export type KeywordScanRun = {
   inserted: unknown[]
 }
 
-export async function scanKeywordCard(db: AppDatabase, cardId: string): Promise<KeywordScanRun> {
+export async function scanKeywordCard(
+  db: AppDatabase,
+  cardId: string,
+  onProgress?: (event: ScanProgressEvent) => void
+): Promise<KeywordScanRun> {
   const repo = new PatrolRepository(db)
   const card = repo.getCardDetail(cardId)
   if (!card) throw new Error('找不到這張海巡卡。')
 
   try {
-    const items = await searchThreadsWithPlaywright(db, card.keyword)
+    const items = await searchThreadsViaGoogle(db, card.keyword, 6, onProgress)
     persistAndSchedule(db, cardId, items)
     return repo.createThreadsSearchRun(cardId, items)
-  } catch (playwrightError) {
-    if (playwrightError instanceof KillSwitchActiveError) throw playwrightError
+  } catch (googleError) {
+    if (googleError instanceof KillSwitchActiveError) throw googleError
+    // Last resort: plain fetch Google search (no Playwright, may get bot-challenged)
     const items = await fetchThreadsSearchCandidates(card.keyword)
     persistAndSchedule(db, cardId, items)
     const run = repo.createThreadsSearchRun(cardId, items)
-    const reason = playwrightError instanceof Error ? playwrightError.message : 'Threads Playwright 搜尋失敗'
-    const fallbackReason = playwrightError instanceof DailyQuotaExceededError ? 'Threads 配額已用完' : 'Playwright 失敗'
-    return { ...run, message: `${run.message}（${fallbackReason}，已改用 Google site:threads.net/site:threads.com 備援：${reason}）` }
+    const reason = googleError instanceof Error ? googleError.message : 'Google Playwright 搜尋失敗'
+    return { ...run, message: `${run.message}（Playwright 失敗，已改用 fetch 備援：${reason}）` }
   }
 }
 
