@@ -227,17 +227,20 @@ function App() {
 
   function scanWithStream(cardId: string, keyword: string, onDone: (message: string) => void) {
     scanInFlightRef.current = true
-    setScanBusyLabel('Google 搜尋中...')
+    setScanBusyLabel(`「${keyword}」出勤中`)
     setError(null)
+    setNotice(`「${keyword}」出勤海巡已送出，Google 搜尋中…`)
     const es = new EventSource(`/api/cards/${cardId}/scan-threads/stream`)
     es.onmessage = (e: MessageEvent) => {
       try {
         const event = JSON.parse(String(e.data)) as { type: string; stage?: string; n?: number; total?: number; run?: { message: string }; message?: string }
         if (event.type === 'progress') {
           if (event.stage === 'google') {
-            setScanBusyLabel(`「${keyword}」Google 搜尋中...`)
+            setScanBusyLabel(`「${keyword}」Google 搜尋中`)
           } else if (event.stage === 'post' && typeof event.n === 'number' && typeof event.total === 'number') {
-            setScanBusyLabel(event.n === 0 ? `找到連結，準備確認貼文...` : `確認第 ${event.n}/${event.total} 篇貼文...`)
+            const label = event.n === 0 ? `找到連結，確認貼文中` : `確認第 ${event.n}/${event.total} 篇`
+            setScanBusyLabel(label)
+            setNotice(`「${keyword}」${label}…`)
           }
         } else if (event.type === 'done') {
           es.close()
