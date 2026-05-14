@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { extractThreadsLinks } from '../src/sources/threads-search.js'
-import { cleanThreadsExcerptForDisplay, isKeywordRelevant, isTaiwanRelevant } from '../src/threads-bot/search.js'
+import { cleanThreadsExcerptForDisplay, isKeywordRelevant, isRecentThreadsPost, isTaiwanRelevant } from '../src/threads-bot/search.js'
 
 describe('extractThreadsLinks', () => {
   it('extracts Threads URLs from Google result hrefs', () => {
@@ -76,5 +76,22 @@ describe('isKeywordRelevant', () => {
 
   it('keeps CJK phrase matches directly', () => {
     expect(isKeywordRelevant('我的日常生活真的離不開咖啡', '日常生活')).toBe(true)
+  })
+})
+
+describe('isRecentThreadsPost', () => {
+  const now = new Date('2026-05-14T00:00:00.000Z')
+
+  it('keeps posts within one year', () => {
+    expect(isRecentThreadsPost('2025-05-14T00:00:00.000Z', now)).toBe(true)
+  })
+
+  it('drops posts older than one year', () => {
+    expect(isRecentThreadsPost('2025-05-13T23:59:59.999Z', now)).toBe(false)
+  })
+
+  it('keeps posts without a parseable timestamp', () => {
+    expect(isRecentThreadsPost(null, now)).toBe(true)
+    expect(isRecentThreadsPost('not-a-date', now)).toBe(true)
   })
 })

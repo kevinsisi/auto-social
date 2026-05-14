@@ -1,9 +1,10 @@
 import type { AppDatabase } from './db.js'
 import { SENTIMENT_CLASSES, type ScamSignal, type Sentiment, type SponsoredSignal } from './ai/types.js'
-import { cleanThreadsExcerptForDisplay, isKeywordRelevant } from './threads-bot/search.js'
+import { cleanThreadsExcerptForDisplay, isKeywordRelevant, isRecentThreadsPost } from './threads-bot/search.js'
 
 const WINDOW_HOURS = 24
 const MAX_POSTS = 50
+const SUGGESTED_KEYWORD_LIMIT = 8
 
 export type SentimentBucket = { count: number; pct: number }
 
@@ -60,6 +61,7 @@ export type KeywordObservation = {
   }
   highlights: ObservedPost[]
   posts: ObservedPost[]
+  suggestedKeywords: string[]
 }
 
 type CardRow = { id: string; keyword: string }
@@ -104,6 +106,7 @@ export function getKeywordObservation(db: AppDatabase, cardId: string, now: Date
 
   const posts = rows
     .filter((row) => isKeywordRelevant(`${row.title ?? ''} ${row.text}`, card.keyword))
+    .filter((row) => isRecentThreadsPost(row.published_at, now))
     .map(toObservedPost)
   const aggregate = aggregate24h(posts, since)
 
@@ -119,7 +122,43 @@ export function getKeywordObservation(db: AppDatabase, cardId: string, now: Date
 
   const tail = posts.filter((post) => !highlightIds.has(post.id)).sort(byRecencyDesc)
 
-  return { card, aggregate, highlights, posts: tail }
+  return { card, aggregate, highlights, posts: tail, suggestedKeywords: extractSuggestedKeywords(posts, card.keyword) }
+}
+
+function extractSuggestedKeywords(posts: ObservedPost[], currentKeyword: string): string[] {
+  const current = normalizeSuggestion(currentKeyword)
+  const scores = new Map<string, number>()
+  for (const post of posts) {
+    const text = `${post.topic ?? ''} ${post.excerpt}`
+    for (const term of extractTerms(text)) {
+      const normalized = normalizeSuggestion(term)
+      if (!normalized || normalized === current || isStopTerm(normalized)) continue
+      scores.set(term, (scores.get(term) ?? 0) + 1 + Math.min(engagementScore(post), 100) / 100)
+    }
+  }
+  return [...scores.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-Hant'))
+    .slice(0, SUGGESTED_KEYWORD_LIMIT)
+    .map(([term]) => term)
+}
+
+function extractTerms(text: string): string[] {
+  const terms = new Set<string>()
+  for (const match of text.matchAll(/[A-Za-z][A-Za-z0-9_-]{2,24}/g)) terms.add(match[0]!)
+  for (const match of text.matchAll(/[\p{Script=Han}A-Za-z0-9]{2,10}/gu)) {
+    const term = match[0]!
+    if (/^\d+$/.test(term)) continue
+    terms.add(term)
+  }
+  return [...terms]
+}
+
+function normalizeSuggestion(term: string): string {
+  return term.normalize('NFKC').replace(/\s+/g, '').toLowerCase()
+}
+
+function isStopTerm(term: string): boolean {
+  return /^(threads|thread|instagram|ig|http|https|www|com|net|更多|翻譯|追蹤|留言|回覆|轉發|分享|貼文|今天|最近|真的|這個|一個|就是|可以|看到|覺得|大家|自己|我們|你們|他們)$/.test(term)
 }
 
 function byRecencyDesc(a: ObservedPost, b: ObservedPost): number {

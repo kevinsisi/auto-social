@@ -210,4 +210,5 @@ export type KeywordObservation = {
   }
   highlights: ObservedPost[]
   posts: ObservedPost[]
+  suggestedKeywords: string[]
 }

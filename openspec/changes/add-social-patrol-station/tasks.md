@@ -267,3 +267,9 @@ User feedback after A1 deploy drove a tight iteration cycle. Every item below is
 - [x] 17.B.1 Add a real server-started keyword auto scan scheduler with default cadence `*/15 * * * *` in `Asia/Taipei`, scanning all current keyword cards via existing Threads search flow.
 - [x] 17.B.2 Add no-overlap guard and scheduler runtime status (`running`, `lastStartedAt`, `lastCompletedAt`, `lastInsertedCount`, `lastCardCount`, `lastStatus`, `lastError`) exposed via `GET /api/scheduler/status`.
 - [x] 17.B.3 Dashboard adds a `關鍵字自動海巡` panel so the operator can see cadence and latest keyword-scan result without opening logs.
+
+### 17.C Keyword observation freshness + suggestions
+
+- [x] 17.C.1 Filter Threads search results and observation readback to hide known posts whose `published_at` is more than one year old, so stale high-engagement posts do not outrank current conversation.
+- [x] 17.C.2 Add `suggestedKeywords` to the keyword observation response, extracted from current on-topic samples and excluding the active keyword / UI stop words.
+- [x] 17.C.3 Dashboard renders suggested keyword chips as an operator-gated action: clicking a chip adds/selects that keyword card and triggers a scan; the system never auto-expands watchlist terms without a user click.
