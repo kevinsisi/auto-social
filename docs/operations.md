@@ -4,7 +4,7 @@
 
 - Domain: `https://social.sisihome.org`
 - Health check: `https://social.sisihome.org/api/health`
-- Current expected API version after the latest deployment: `1.2.10`
+- Current expected API version after the latest deployment: `1.2.11`
 
 ## Threads Login
 
@@ -73,6 +73,8 @@ Observation cards hide known Threads posts older than one year from `published_a
 ## Search Fallback
 
 When direct Threads Playwright search exhausts the daily `search` quota, keyword scans fall back to Google `site:threads.net OR site:threads.com` discovery and clearly label the run message as fallback. The kill switch still stops all Threads-targeted discovery; it is not bypassed by Google fallback.
+
+Known limitation: production has shown Google sometimes returns an `httpservice/retry/enablejs` / JavaScript retry page to server-side fetches. In that case the scan route may return `202` with a fallback message but `inserted:0`, and the observation card remains empty. Treat this as a search-provider failure, not as proof that Threads has no matching posts. The next implementation step is multi-provider fallback, with Bing/other search HTML tried when Google returns no extractable Threads URLs.
 
 ## Version Rule
 

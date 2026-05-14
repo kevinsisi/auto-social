@@ -280,3 +280,9 @@ User feedback after A1 deploy drove a tight iteration cycle. Every item below is
 - [x] 17.D.1 Treat direct Threads search quota exhaustion as recoverable for keyword-card scans and radar scans: fall back to Google `site:threads.net OR site:threads.com` discovery instead of returning only the quota error.
 - [x] 17.D.2 Preserve kill-switch semantics: kill switch errors still stop all Threads-targeted discovery and must not fall back to Google.
 - [x] 17.D.3 Add immediate Dashboard feedback for manual keyword scans: show an in-flight message, change the button to `海巡中...`, disable scan/suggestion/radar-term actions, and use a synchronous click lock to prevent mobile double-taps before React re-renders.
+
+### 17.E Fallback search reliability (next)
+
+- [ ] 17.E.1 Replace the single Google-only fallback with multi-provider Threads-targeted discovery. Bing should be tried when Google returns no extractable Threads URLs or returns an `httpservice/retry/enablejs` / JavaScript retry page.
+- [ ] 17.E.2 Make scan responses distinguish `no_matching_threads_results` from `search_provider_blocked`, so the UI does not imply there are no results when the fallback provider was blocked.
+- [ ] 17.E.3 Add tests covering Google retry-page HTML, Bing result-link extraction, and fallback-provider ordering.
