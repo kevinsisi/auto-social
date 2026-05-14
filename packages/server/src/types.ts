@@ -7,6 +7,8 @@ export type PatrolCard = {
   keyword: string
   createdAt: string
   updatedAt: string
+  recentSampleCount: number
+  lastScanAt: string | null
 }
 
 export type PatrolRun = {

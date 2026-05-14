@@ -4,7 +4,7 @@ import { generateAnalysis } from './humor.js'
 import { nowIso } from './time.js'
 import type { CandidateAnalysis, CandidateStatus, CandidateWithAnalysis, PatrolCard, PatrolCardDetail } from './types.js'
 
-type CardRow = { id: string; keyword: string; created_at: string; updated_at: string }
+type CardRow = { id: string; keyword: string; created_at: string; updated_at: string; recent_sample_count: number; last_scan_at: string | null }
 type CandidateRow = { id: string; card_id: string; run_id: string | null; url: string; title: string; excerpt: string; status: CandidateStatus; source: 'manual' | 'browser' | 'threads_search' | 'threads_playwright'; created_at: string }
 type PatrolSourceCandidate = { url: string; title: string; excerpt: string; source: 'threads_search' | 'threads_playwright' }
 type AnalysisRow = { candidate_id: string; summary: string; worth_replying: 0 | 1; reply_angle: string; risk_level: CandidateAnalysis['riskLevel']; risk_note: string; image_idea: string; meme_prompt: string }
@@ -14,7 +14,20 @@ export class PatrolRepository {
   constructor(private readonly db: AppDatabase) {}
 
   listCards(): PatrolCard[] {
-    const rows = this.db.prepare('SELECT * FROM patrol_cards ORDER BY updated_at DESC').all() as CardRow[]
+    const rows = this.db.prepare(`
+      SELECT c.*,
+        COUNT(ca.id) AS recent_sample_count,
+        MAX(pr.completed_at) AS last_scan_at
+      FROM patrol_cards c
+      LEFT JOIN candidates ca
+        ON ca.card_id = c.id
+        AND ca.created_at >= datetime('now', '-24 hours')
+      LEFT JOIN patrol_runs pr
+        ON pr.card_id = c.id
+        AND pr.status = 'completed'
+      GROUP BY c.id
+      ORDER BY c.updated_at DESC
+    `).all() as CardRow[]
     return rows.map(mapCard)
   }
 
@@ -29,7 +42,9 @@ export class PatrolRepository {
       id: nanoid(),
       keyword,
       createdAt: timestamp,
-      updatedAt: timestamp
+      updatedAt: timestamp,
+      recentSampleCount: 0,
+      lastScanAt: null,
     }
 
     this.db.prepare('INSERT INTO patrol_cards (id, keyword, created_at, updated_at) VALUES (?, ?, ?, ?)')
@@ -188,7 +203,14 @@ export function isThreadsUrl(url: string) {
 }
 
 function mapCard(row: CardRow): PatrolCard {
-  return { id: row.id, keyword: row.keyword, createdAt: row.created_at, updatedAt: row.updated_at }
+  return {
+    id: row.id,
+    keyword: row.keyword,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    recentSampleCount: row.recent_sample_count ?? 0,
+    lastScanAt: row.last_scan_at ?? null,
+  }
 }
 
 function mapCandidate(row: CandidateRow): CandidateWithAnalysis {
