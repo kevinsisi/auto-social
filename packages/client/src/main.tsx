@@ -350,7 +350,7 @@ function App() {
           <nav className="hidden sm:flex items-center gap-1">
             {page === 'dashboard' && (
               <>
-                <TabBtn label="概覽" active={dashTab === 'overview' && !selectedId} onClick={() => navigateDashTab('overview')} />
+                <TabBtn label="概覽" active={dashTab === 'overview'} onClick={() => navigateDashTab('overview')} />
                 <TabBtn label="雷達" active={dashTab === 'radar'} onClick={() => navigateDashTab('radar')} />
                 <TabBtn label="工作站" active={dashTab === 'workstation'} onClick={() => navigateDashTab('workstation')} />
               </>
@@ -375,37 +375,89 @@ function App() {
 
         {page === 'settings'
           ? <SettingsPage />
-          : selectedId
-            ? <KeywordDetailPage
-                card={selectedCard}
-                observation={observation}
-                loading={observationLoading}
-                scanBusyLabel={scanBusyLabel}
-                onBack={() => { navigate('dashboard'); setSelectedId(null); setObservation(null) }}
-                onScanThreads={scanThreads}
-                onAddManualLink={addManualLink}
-                onFeedback={submitFeedback}
-                onSelectSuggestedKeyword={(term) => void monitorRadarTerm(term)}
-                onDeleteCard={removeCard}
+          : dashTab === 'radar'
+            ? <RadarTab
+                terms={radarTerms} loading={radarLoading} meta={radarMeta}
+                scanBusy={Boolean(scanBusyLabel)}
+                onRefresh={runRadarScan}
+                onSelect={(term) => void monitorRadarTerm(term)}
               />
-            : dashTab === 'radar'
-              ? <RadarTab
-                  terms={radarTerms} loading={radarLoading} meta={radarMeta}
-                  scanBusy={Boolean(scanBusyLabel)}
-                  onRefresh={runRadarScan}
-                  onSelect={(term) => void monitorRadarTerm(term)}
-                />
-              : dashTab === 'workstation'
-                ? <WorkstationTab drafts={postDrafts} queue={aiQueue} scheduler={scheduler} onRunCompose={runComposePost} />
-                : <OverviewTab
-                    cards={cards}
-                    keyword={keyword}
-                    scanBusyLabel={scanBusyLabel}
-                    onSelectCard={selectCard}
-                    onDeleteCard={removeCard}
-                    onKeywordChange={setKeyword}
-                    onCreateCard={createCard}
-                  />
+            : dashTab === 'workstation'
+              ? <WorkstationTab drafts={postDrafts} queue={aiQueue} scheduler={scheduler} onRunCompose={runComposePost} />
+              : <>
+                  {/* Desktop: sidebar + detail split layout */}
+                  <div className="hidden sm:flex gap-6 items-start">
+                    <aside className="w-72 xl:w-80 shrink-0 space-y-2">
+                      {cards.length === 0
+                        ? <div className="border-4 border-dashed border-asphalt p-8 text-center font-black">還沒有監控關鍵字</div>
+                        : cards.map((card) => (
+                            <DesktopKeywordItem
+                              key={card.id}
+                              card={card}
+                              isSelected={selectedId === card.id}
+                              scanBusy={Boolean(scanBusyLabel)}
+                              onSelect={() => selectCard(card.id)}
+                              onDelete={() => removeCard(card)}
+                            />
+                          ))
+                      }
+                      <form onSubmit={createCard} className="border-4 border-asphalt bg-[#fffaf2] p-3 shadow-[4px_4px_0_#171717]">
+                        <label className="block text-xs font-bold mb-1">新增關鍵字</label>
+                        <div className="flex gap-2">
+                          <input
+                            className="min-h-9 flex-1 border-2 border-asphalt bg-paper px-2 text-sm outline-none focus:bg-white"
+                            value={keyword}
+                            onChange={(e) => setKeyword(e.target.value)}
+                            placeholder="例如：AI 小編"
+                          />
+                          <button className="min-h-9 bg-asphalt px-3 text-sm font-bold text-paper hover:bg-signal" type="submit">加入</button>
+                        </div>
+                      </form>
+                    </aside>
+                    <div className="flex-1 min-w-0">
+                      {selectedId
+                        ? <KeywordObservationPanel
+                            observation={observation}
+                            loading={observationLoading}
+                            scanBusyLabel={scanBusyLabel}
+                            onScanThreads={scanThreads}
+                            onAddManualLink={addManualLink}
+                            onFeedback={submitFeedback}
+                            onSelectSuggestedKeyword={(term) => void monitorRadarTerm(term)}
+                          />
+                        : <div className="flex h-64 items-center justify-center border-4 border-dashed border-asphalt/30 text-xl font-black text-asphalt/40">
+                            點左側關鍵字查看 Threads 風向
+                          </div>
+                      }
+                    </div>
+                  </div>
+                  {/* Mobile: grid or full-page detail */}
+                  <div className="sm:hidden">
+                    {selectedId
+                      ? <KeywordDetailPage
+                          card={selectedCard}
+                          observation={observation}
+                          loading={observationLoading}
+                          scanBusyLabel={scanBusyLabel}
+                          onBack={() => { navigate('dashboard'); setSelectedId(null); setObservation(null) }}
+                          onScanThreads={scanThreads}
+                          onAddManualLink={addManualLink}
+                          onFeedback={submitFeedback}
+                          onSelectSuggestedKeyword={(term) => void monitorRadarTerm(term)}
+                          onDeleteCard={removeCard}
+                        />
+                      : <OverviewTab
+                          cards={cards}
+                          keyword={keyword}
+                          scanBusyLabel={scanBusyLabel}
+                          onSelectCard={selectCard}
+                          onDeleteCard={removeCard}
+                          onKeywordChange={setKeyword}
+                          onCreateCard={createCard}
+                        />
+                    }
+                  </div>
+                </>
         }
       </div>
 
@@ -525,6 +577,29 @@ function KeywordStatusCard({ card, scanBusy, onSelect, onDelete }: {
       >
         ✕
       </button>
+    </div>
+  )
+}
+
+// ─── Desktop keyword sidebar item ────────────────────────────────────────────
+
+function DesktopKeywordItem({ card, isSelected, scanBusy, onSelect, onDelete }: {
+  card: PatrolCard; isSelected: boolean; scanBusy: boolean
+  onSelect: () => void; onDelete: () => void
+}) {
+  const newCount = getNewBadge(card)
+  return (
+    <div className={`relative border-2 transition-colors ${isSelected ? 'border-signal bg-signal/5 shadow-[3px_3px_0_#ff4e00]' : 'border-asphalt bg-paper hover:bg-asphalt/5'}`}>
+      <button type="button" onClick={onSelect} disabled={scanBusy} className="w-full p-2.5 text-left pr-6">
+        <div className="flex items-center justify-between gap-1">
+          <span className={`font-bold truncate ${isSelected ? 'text-signal' : ''}`}>{card.keyword}</span>
+          {newCount > 0 && <span className="shrink-0 rounded-full bg-signal px-1.5 py-0.5 font-mono text-[10px] font-black text-white">+{newCount}</span>}
+        </div>
+        <div className="mt-0.5 font-mono text-[11px] text-asphalt/55">
+          {card.recentSampleCount > 0 ? `${card.recentSampleCount} 則 · ` : ''}{card.lastScanAt ? formatRelative(card.lastScanAt) : '尚未掃描'}
+        </div>
+      </button>
+      <button type="button" onClick={onDelete} title="刪除" className="absolute right-1 top-1 px-1 py-0.5 text-xs text-asphalt/25 hover:text-red-600">✕</button>
     </div>
   )
 }
