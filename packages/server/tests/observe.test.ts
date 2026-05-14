@@ -126,6 +126,24 @@ describe('getKeywordObservation', () => {
     expect(result!.suggestedKeywords).not.toContain('Urus')
   })
 
+  it('does not suggest truncated mixed-language fragments', () => {
+    const db = openMemoryDatabase()
+    const repo = new PatrolRepository(db)
+    const card = repo.createCard('Urus')
+    const now = new Date('2026-05-14T00:00:00.000Z')
+
+    db.prepare(`
+      INSERT INTO trend_candidates (id, source, external_id, fingerprint, card_id, is_trending, url, author, title, text, published_at, engagement_json, fetched_at, pipeline_status)
+      VALUES ('mixed-token', 'threads_playwright', 'mixed-token', 'fp-mixed-token', ?, 0, 'https://www.threads.com/@cars/post/3', '@cars', 'Urus', '尋找一台Lamborghini Urus，MANSORY套件也可以', ?, ?, ?, 'short_circuited')
+    `).run(card.id, now.toISOString(), JSON.stringify({ likes: 5 }), now.toISOString())
+
+    const result = getKeywordObservation(db, card.id, now)
+
+    expect(result).not.toBeNull()
+    expect(result!.suggestedKeywords).toContain('MANSORY套件')
+    expect(result!.suggestedKeywords).not.toContain('尋找一台Lambor')
+  })
+
   it('returns empty aggregate for a card with no recent candidates', () => {
     const db = openMemoryDatabase()
     const repo = new PatrolRepository(db)
