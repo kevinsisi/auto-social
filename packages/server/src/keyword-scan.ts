@@ -1,7 +1,11 @@
 import type { AppDatabase } from './db.js'
 import { PatrolRepository } from './repository.js'
 import { getRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
-import { searchThreadsViaGoogle, type ScanProgressEvent } from './threads-bot/google-search.js'
+import { searchThreadsWithPlaywright } from './threads-bot/search.js'
+
+export type ScanProgressEvent =
+  | { stage: 'searching' }
+  | { stage: 'done'; found: number }
 
 type ScanCandidate = {
   url: string
@@ -37,7 +41,9 @@ export async function scanKeywordCard(
   const card = repo.getCardDetail(cardId)
   if (!card) throw new Error('找不到這張海巡卡。')
 
-  const items = await searchThreadsViaGoogle(db, card.keyword, 6, onProgress)
+  onProgress?.({ stage: 'searching' })
+  const items = await searchThreadsWithPlaywright(db, card.keyword)
+  onProgress?.({ stage: 'done', found: items.length })
   persistAndSchedule(db, cardId, items)
   return repo.createThreadsSearchRun(cardId, items)
 }
