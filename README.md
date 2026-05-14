@@ -8,7 +8,7 @@
 
 ## 目前狀態（2026-05-13）
 
-- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.2.9`
+- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.2.10`
 - ✅ MVP 0.1.0 可跑（舊版「遇見好車海巡台」），UI 已轉為「社群海巡工作站」
 - ✅ 已完成官方 API 可行性盤點（見 [`openspec/specs/mvp/spec.md`](openspec/specs/mvp/spec.md)）
 - ✅ OpenSpec change `add-keyword-patrol-cards`（舊版 MVP，已實作完成）
@@ -18,6 +18,7 @@
 - ✅ **Phase A2a（發文發想 MVP）** — Queue-backed `compose_post` 正式啟用：Dashboard 可手動觸發「生一篇發文靈感」，worker 會根據最近 24h 雷達詞與真實 Threads 候選生成一則原創貼文草稿，寫入 `post_drafts`，可直接複製貼文與查看圖片提示詞；仍維持 human-gated，不自動發布
 - ✅ **關鍵字自動海巡已補上** — server 啟動後會在 `Asia/Taipei` 以 `*/15 * * * *` 每 15 分鐘掃一次所有 keyword cards，並以 no-overlap guard 避免重疊執行；Dashboard 會顯示最近一次自動海巡狀態
 - ✅ **觀察樣本新鮮度 + 建議詞** — Threads 搜尋與觀察站都會排除超過一年以前的已知貼文；觀察站會從目前樣本抽出建議關鍵詞，但只顯示 chip，點擊後才加入監控並出勤，不會自動擴張
+- ✅ **配額 fallback + 防連點回饋** — Threads Playwright search 每日 quota 用完時，keyword scan 會改走 Google `site:threads.net OR site:threads.com` 備援；UI 按下海巡後會立即顯示「海巡中」並鎖住按鈕，避免手機連點重複送出
 - ✅ Phase 0 Batch 1+2 基礎：`@kevinsisi/ai-core` + `playwright` + `node-cron`、KeyPool admin API、5 步 AI pipeline（classify + sponsored + scam + score + draft）、Threads Playwright 唯讀搜尋優先 + `site:threads.net OR site:threads.com` fallback、Settings 路由
 - 🚧 Phase A2 待辦：發文發想 composer（4h cron 從熱門關鍵字產文 → Gemini 生圖 → 半自動發布）、進貼文內頁抓留言、留言情緒、Voice Studio 整頁、voice profile 從 feedback 進化
 - ✅ Threads session 已支援電腦本機登入 helper：`npm run threads:login` 產生 `data/threads-storage-state.json`，Settings 可上傳並加密保存

@@ -144,7 +144,7 @@ async function fetchRadarCandidates(db: AppDatabase, query: string): Promise<Rad
   try {
     return await searchThreadsWithPlaywright(db, query, CANDIDATES_PER_QUERY)
   } catch (error) {
-    if (error instanceof KillSwitchActiveError || error instanceof DailyQuotaExceededError) throw error
+    if (error instanceof KillSwitchActiveError) throw error
     return await fetchThreadsSearchCandidates(query, CANDIDATES_PER_QUERY)
   }
 }

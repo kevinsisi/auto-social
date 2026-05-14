@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import './styles.css'
@@ -87,8 +87,10 @@ function App() {
   const [aiQueue, setAiQueue] = useState<QueueSnapshot | null>(null)
   const [scheduler, setScheduler] = useState<SchedulerStatus | null>(null)
   const [postDrafts, setPostDrafts] = useState<PostDraft[]>([])
+  const [scanBusyLabel, setScanBusyLabel] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const scanInFlightRef = useRef(false)
 
   useEffect(() => {
     void loadCards()
@@ -224,8 +226,11 @@ function App() {
   }
 
   async function monitorRadarTerm(term: string) {
+    if (scanInFlightRef.current) return
+    scanInFlightRef.current = true
+    setScanBusyLabel(term)
     setError(null)
-    setNotice(null)
+    setNotice(`已收到「${term}」海巡要求，正在出勤。請不要連點，完成或失敗會在這裡回報。`)
     try {
       const existing = cards.find((card) => card.keyword === term)
       const card = existing ?? (await api.createCard(term)).card
@@ -237,18 +242,28 @@ function App() {
       await loadObservation(card.id)
     } catch (err) {
       setError(getMessage(err))
+    } finally {
+      scanInFlightRef.current = false
+      setScanBusyLabel(null)
     }
   }
 
   async function scanThreads() {
-    if (!selectedId) return
+    if (!selectedId || scanInFlightRef.current) return
+    const target = cards.find((card) => card.id === selectedId)?.keyword ?? '目前關鍵字'
+    scanInFlightRef.current = true
+    setScanBusyLabel(target)
     setError(null)
+    setNotice(`已收到「${target}」Threads 出勤海巡，正在抓資料。請不要連點，完成或失敗會在這裡回報。`)
     try {
       const data = await api.scanThreads(selectedId)
       setNotice(`${data.run.message} AI 正在背景判讀；30 秒內會自動刷新。`)
       await loadObservation(selectedId)
     } catch (err) {
       setError(getMessage(err))
+    } finally {
+      scanInFlightRef.current = false
+      setScanBusyLabel(null)
     }
   }
 
@@ -352,12 +367,12 @@ function App() {
         <section className="min-w-0 space-y-4">
           {notice && <Message tone="notice" text={notice} onClose={() => setNotice(null)} />}
           {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
-          <HotKeywordCloud terms={radarTerms} loading={radarLoading} meta={radarMeta} onRefresh={runRadarScan} onSelect={(keyword) => void monitorRadarTerm(keyword)} />
+          <HotKeywordCloud terms={radarTerms} loading={radarLoading} meta={radarMeta} scanBusy={Boolean(scanBusyLabel)} onRefresh={runRadarScan} onSelect={(keyword) => void monitorRadarTerm(keyword)} />
           <PostDraftPanel drafts={postDrafts} onRunCompose={runComposePost} />
           <SchedulerPanel scheduler={scheduler} />
           <AiQueuePanel queue={aiQueue} />
           {selectedId
-            ? <KeywordObservationPanel observation={observation} loading={observationLoading} onScanThreads={scanThreads} onAddManualLink={addManualLink} onFeedback={submitFeedback} onSelectSuggestedKeyword={(term) => void monitorRadarTerm(term)} />
+            ? <KeywordObservationPanel observation={observation} loading={observationLoading} scanBusyLabel={scanBusyLabel} onScanThreads={scanThreads} onAddManualLink={addManualLink} onFeedback={submitFeedback} onSelectSuggestedKeyword={(term) => void monitorRadarTerm(term)} />
             : <EmptyState />}
         </section>
       </section>}
@@ -365,7 +380,7 @@ function App() {
   )
 }
 
-function HotKeywordCloud({ terms, loading, meta, onRefresh, onSelect }: { terms: RadarTerm[]; loading: boolean; meta: string | null; onRefresh: () => void; onSelect: (keyword: string) => void }) {
+function HotKeywordCloud({ terms, loading, meta, scanBusy, onRefresh, onSelect }: { terms: RadarTerm[]; loading: boolean; meta: string | null; scanBusy: boolean; onRefresh: () => void; onSelect: (keyword: string) => void }) {
   const max = Math.max(1, ...terms.map((term) => term.count))
   return (
     <section className="relative overflow-hidden border-4 border-asphalt bg-white p-4 shadow-[5px_5px_0_#171717] sm:p-5 sm:shadow-[8px_8px_0_#171717]">
@@ -390,7 +405,8 @@ function HotKeywordCloud({ terms, loading, meta, onRefresh, onSelect }: { terms:
                 key={`${term.word}-${index}`}
                 type="button"
                 onClick={() => onSelect(term.word)}
-                className="max-w-full break-all text-center font-black leading-tight transition-transform hover:scale-110 sm:break-normal"
+                disabled={scanBusy}
+                className={`max-w-full break-all text-center font-black leading-tight transition-transform sm:break-normal ${scanBusy ? 'cursor-wait opacity-40' : 'hover:scale-110'}`}
                 style={{ color: cloudColor(index), fontSize: `${Math.round(16 + (term.count / max) * 42)}px`, transform: `rotate(${cloudRotate(index)}deg)` }}
                 title={`出現 ${term.count} 次`}
               >
@@ -669,9 +685,10 @@ function SettingsPage() {
   )
 }
 
-function KeywordObservationPanel({ observation, loading, onScanThreads, onAddManualLink, onFeedback, onSelectSuggestedKeyword }: {
+function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanThreads, onAddManualLink, onFeedback, onSelectSuggestedKeyword }: {
   observation: KeywordObservation | null
   loading: boolean
+  scanBusyLabel: string | null
   onScanThreads: () => void
   onAddManualLink: (url: string, title: string, excerpt: string) => Promise<void>
   onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>
@@ -701,11 +718,12 @@ function KeywordObservationPanel({ observation, loading, onScanThreads, onAddMan
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={onScanThreads} className="min-h-11 bg-signal px-4 py-2 font-bold text-white transition-colors hover:bg-asphalt">
-              Threads 出勤海巡
+            <button onClick={onScanThreads} disabled={Boolean(scanBusyLabel)} className={`min-h-11 px-4 py-2 font-bold text-white transition-colors ${scanBusyLabel ? 'cursor-wait bg-asphalt/60' : 'bg-signal hover:bg-asphalt'}`}>
+              {scanBusyLabel ? '海巡中...' : 'Threads 出勤海巡'}
             </button>
           </div>
         </div>
+        {scanBusyLabel && <div className="mt-4 border-2 border-asphalt bg-white px-3 py-2 text-sm font-bold">已送出「{scanBusyLabel}」海巡要求，正在抓資料，請不要連點。</div>}
         <SentimentBar distribution={aggregate.sentimentDistribution} classifiedSamples={aggregate.classifiedSamples} />
         {suggestedKeywords.length > 0 && (
           <div className="mt-4 border-t-2 border-asphalt pt-4">
@@ -713,7 +731,7 @@ function KeywordObservationPanel({ observation, loading, onScanThreads, onAddMan
             <p className="mt-1 text-xs text-asphalt/70">從目前樣本抽出的延伸詞；點了才會加入監控並出勤，不會自動擴張。</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {suggestedKeywords.map((term) => (
-                <button key={term} type="button" onClick={() => onSelectSuggestedKeyword(term)} className="min-h-9 border-2 border-asphalt bg-paper px-3 py-1 text-sm font-bold hover:bg-asphalt hover:text-paper">
+                <button key={term} type="button" onClick={() => onSelectSuggestedKeyword(term)} disabled={Boolean(scanBusyLabel)} className={`min-h-9 border-2 border-asphalt bg-paper px-3 py-1 text-sm font-bold ${scanBusyLabel ? 'cursor-wait opacity-50' : 'hover:bg-asphalt hover:text-paper'}`}>
                   {term}
                 </button>
               ))}

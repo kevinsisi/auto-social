@@ -40,12 +40,13 @@ export async function scanKeywordCard(db: AppDatabase, cardId: string): Promise<
     persistAndSchedule(db, cardId, items)
     return repo.createThreadsSearchRun(cardId, items)
   } catch (playwrightError) {
-    if (playwrightError instanceof KillSwitchActiveError || playwrightError instanceof DailyQuotaExceededError) throw playwrightError
+    if (playwrightError instanceof KillSwitchActiveError) throw playwrightError
     const items = await fetchThreadsSearchCandidates(card.keyword)
     persistAndSchedule(db, cardId, items)
     const run = repo.createThreadsSearchRun(cardId, items)
     const reason = playwrightError instanceof Error ? playwrightError.message : 'Threads Playwright 搜尋失敗'
-    return { ...run, message: `${run.message}（Playwright 失敗，已改用 site:threads.net 備援：${reason}）` }
+    const fallbackReason = playwrightError instanceof DailyQuotaExceededError ? 'Threads 配額已用完' : 'Playwright 失敗'
+    return { ...run, message: `${run.message}（${fallbackReason}，已改用 Google site:threads.net/site:threads.com 備援：${reason}）` }
   }
 }
 
