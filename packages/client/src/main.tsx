@@ -341,7 +341,7 @@ function App() {
     <main className="min-h-screen overflow-x-hidden bg-paper text-asphalt">
       {/* ── Header ── */}
       <header className="sticky top-0 z-10 border-b-4 border-asphalt bg-paper/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl min-w-0 items-center justify-between gap-2 px-3 py-3 sm:px-4">
+        <div className="flex min-w-0 items-center justify-between gap-2 px-3 py-3 sm:px-6">
           <div className="min-w-0 shrink-0">
             <p className="font-mono text-[0.6rem] uppercase tracking-[0.28em] text-signal sm:text-xs">Social Patrol</p>
             <h1 className="font-display text-xl font-black leading-none tracking-tight sm:text-2xl md:text-3xl">社群海巡工作站</h1>
@@ -368,7 +368,7 @@ function App() {
       </header>
 
       {/* ── Page content ── */}
-      <div className="mx-auto max-w-7xl min-w-0 px-3 py-4 sm:px-4 sm:py-6 pb-24 sm:pb-6">
+      <div className="min-w-0 px-3 py-4 sm:px-6 sm:py-6 pb-24 sm:pb-6">
         {/* Global notices */}
         {notice && <Message tone="notice" text={notice} onClose={() => setNotice(null)} />}
         {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
