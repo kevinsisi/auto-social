@@ -63,8 +63,9 @@ export function cleanThreadsExcerptForDisplay(text: string): string {
   let cleaned = text
   // Remove "追蹤username" anywhere (search result cards embed it mid-text too)
   cleaned = cleaned.replace(/追蹤[A-Za-z0-9_.]+\s*/gu, '')
-  // Remove "已追蹤" follow-state button text
+  // Remove "已追蹤" / "已驗證YYYY-M-D" (Threads verified-badge artifact concatenated with date)
   cleaned = cleaned.replace(/已追蹤\s*/gu, '')
+  cleaned = cleaned.replace(/已驗證[^\s]*\s*/gu, '')
   cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分(?!享)|小時|時|天|週|月|年)\s*(以前)?\s*更多/gu, '')
   cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分(?!享)|小時|時|天|週|月|年)\s*(以前)?/gu, ' ')
   cleaned = cleaned.replace(/今天|昨天|前天|剛才|剛剛/gu, ' ')
@@ -80,6 +81,10 @@ export function cleanThreadsExcerptForDisplay(text: string): string {
   cleaned = cleaned.replace(/\b\d+\s*\/\s*\d+\b/gu, ' ')
   // Orphaned 萬/千 not adjacent to digits or other CJK (e.g., "TW❤ 萬" at end)
   cleaned = cleaned.replace(/(?<![.\d])[萬千](?![.\d一-鿿])/gu, ' ')
+  // Orphaned time units at string start (old scraping stripped the number but not the unit)
+  cleaned = cleaned.replace(/^(秒|分鐘|小時|時|天|週|月|年)(?:\s*(?:前|以前))?\s+/u, '')
+  // Leading date fragment like "-11-22" left after year was stripped
+  cleaned = cleaned.replace(/^-\d{1,2}-\d{1,2}\s+/u, '')
   return cleaned.replace(/\s+/g, ' ').trim()
 }
 
@@ -170,8 +175,9 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
         let cleaned = text
         cleaned = cleaned.replace(/追蹤[A-Za-z0-9_.]+\s*/gu, '')
         cleaned = cleaned.replace(/已追蹤\s*/gu, '')
-        cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?\s*更多/gu, '')
-        cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分|小時|時|天|週|月|年)\s*(以前)?/gu, ' ')
+        cleaned = cleaned.replace(/已驗證[^\s]*\s*/gu, '')
+        cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分(?!享)|小時|時|天|週|月|年)\s*(以前)?\s*更多/gu, '')
+        cleaned = cleaned.replace(/\s*\d+\s*(秒|分鐘|分(?!享)|小時|時|天|週|月|年)\s*(以前)?/gu, ' ')
         cleaned = cleaned.replace(/今天|昨天|前天|剛才|剛剛/gu, ' ')
         cleaned = cleaned.replace(/更多|翻譯|靜音|編輯/gu, ' ')
         cleaned = cleaned.replace(/已(?:讚|轉發|分享|回覆|留言)(?:過)?/gu, ' ')
@@ -181,6 +187,8 @@ export async function searchThreadsWithPlaywright(db: AppDatabase, keyword: stri
         cleaned = cleaned.replace(/(^|\s)(?:讚|留言|回覆|轉發|分\s*享|分享)(?=\s|$)/gu, ' ')
         cleaned = cleaned.replace(/\b\d+\s*\/\s*\d+\b/gu, ' ')
         cleaned = cleaned.replace(/(?<![.\d])[萬千](?![.\d一-鿿])/gu, ' ')
+        cleaned = cleaned.replace(/^(秒|分鐘|小時|時|天|週|月|年)(?:\s*(?:前|以前))?\s+/u, '')
+        cleaned = cleaned.replace(/^-\d{1,2}-\d{1,2}\s+/u, '')
         return cleaned.replace(/\s+/g, ' ').trim()
       }
 
