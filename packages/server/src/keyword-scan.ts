@@ -1,12 +1,13 @@
 import type { AppDatabase } from './db.js'
 import { PatrolRepository } from './repository.js'
 import { getRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
-import { fetchThreadsSearchCandidates } from './sources/threads-search.js'
+import { fetchThreadsSearchOutcome } from './sources/threads-search.js'
 import { searchThreadsWithPlaywright } from './threads-bot/search.js'
-import { DailyQuotaExceededError } from './threads-bot/throttle.js'
+import { KillSwitchActiveError } from './threads-bot/throttle.js'
 
 export type ScanProgressEvent =
   | { stage: 'searching' }
+  | { stage: 'fallback'; provider: 'google' | 'bing' }
   | { stage: 'done'; found: number }
 
 type ScanCandidate = {
@@ -24,6 +25,8 @@ type ScanCandidate = {
   videos?: Array<{ src: string; poster: string | null }> | null
 }
 
+export type KeywordScanOutcomeKind = 'playwright_ok' | 'fallback_ok' | 'no_matching_threads_results' | 'search_provider_blocked'
+
 export type KeywordScanRun = {
   id: string
   cardId: string
@@ -32,6 +35,9 @@ export type KeywordScanRun = {
   createdAt: string
   completedAt: string
   inserted: unknown[]
+  outcomeKind: KeywordScanOutcomeKind
+  providerUsed: 'threads_playwright' | 'google' | 'bing' | null
+  blockedProviders: Array<'google' | 'bing'>
 }
 
 export async function scanKeywordCard(
@@ -44,30 +50,40 @@ export async function scanKeywordCard(
   if (!card) throw new Error('找不到這張海巡卡。')
 
   onProgress?.({ stage: 'searching' })
-  let items: ScanCandidate[]
-  let fallbackNote = ''
+
+  let items: ScanCandidate[] = []
+  let outcomeKind: KeywordScanOutcomeKind = 'playwright_ok'
+  let providerUsed: 'threads_playwright' | 'google' | 'bing' | null = null
+  let blockedProviders: Array<'google' | 'bing'> = []
+  let primaryError: Error | null = null
+
   try {
     items = await searchThreadsWithPlaywright(db, card.keyword)
+    providerUsed = items.length > 0 ? 'threads_playwright' : null
   } catch (error) {
-    if (!isDailyQuotaExceeded(error)) throw error
-    items = await fetchThreadsSearchCandidates(card.keyword)
-    fallbackNote = `（Threads 配額已用完，已改用 Google site:threads.net/site:threads.com 備援：${getErrorMessage(error)}）`
+    if (error instanceof KillSwitchActiveError) throw error
+    primaryError = error instanceof Error ? error : new Error(String(error))
   }
+
+  if (providerUsed === null) {
+    const fallback = await fetchThreadsSearchOutcome(card.keyword)
+    blockedProviders = fallback.blockedProviders
+    if (fallback.status === 'ok' && fallback.providerUsed) {
+      onProgress?.({ stage: 'fallback', provider: fallback.providerUsed })
+      items = fallback.candidates
+      providerUsed = fallback.providerUsed
+      outcomeKind = 'fallback_ok'
+    } else if (fallback.status === 'blocked') {
+      outcomeKind = 'search_provider_blocked'
+    } else {
+      outcomeKind = 'no_matching_threads_results'
+    }
+  }
+
   onProgress?.({ stage: 'done', found: items.length })
   persistAndSchedule(db, cardId, items)
-  const run = repo.createThreadsSearchRun(cardId, items)
-  if (!fallbackNote) return run
-  const message = `${run.message}${fallbackNote}`
-  db.prepare('UPDATE patrol_runs SET message = ? WHERE id = ?').run(message, run.id)
-  return { ...run, message }
-}
-
-function isDailyQuotaExceeded(error: unknown) {
-  return error instanceof DailyQuotaExceededError || (typeof error === 'object' && error !== null && 'code' in error && error.code === 'DAILY_QUOTA_EXCEEDED')
-}
-
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Threads search 每日上限已用完。'
+  const run = repo.createThreadsSearchRun(cardId, items, { outcomeKind, providerUsed, blockedProviders, primaryError })
+  return { ...run, outcomeKind, providerUsed, blockedProviders }
 }
 
 function persistAndSchedule(db: AppDatabase, cardId: string, items: ScanCandidate[]) {

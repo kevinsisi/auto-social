@@ -111,7 +111,16 @@ export class PatrolRepository {
     return { id, cardId, status: 'failed' as const, message: `請手動確認 Threads 搜尋頁：${searchUrl}`, createdAt: timestamp, completedAt: timestamp, searchUrl }
   }
 
-  createThreadsSearchRun(cardId: string, items: PatrolSourceCandidate[]) {
+  createThreadsSearchRun(
+    cardId: string,
+    items: PatrolSourceCandidate[],
+    outcome: {
+      outcomeKind?: 'playwright_ok' | 'fallback_ok' | 'no_matching_threads_results' | 'search_provider_blocked'
+      providerUsed?: 'threads_playwright' | 'google' | 'bing' | null
+      blockedProviders?: Array<'google' | 'bing'>
+      primaryError?: Error | null
+    } = {}
+  ) {
     const card = this.getCardDetail(cardId)
     if (!card) throw new Error('找不到這張海巡卡。')
 
@@ -138,9 +147,7 @@ export class PatrolRepository {
       inserted.push({ ...mapCandidate(row), analysis })
     }
 
-    const message = inserted.length > 0
-      ? `Threads 海巡完成，找到 ${inserted.length} 筆候選。`
-      : `Threads 海巡完成，但沒有找到「${card.keyword}」新的相關結果。`
+    const message = buildThreadsRunMessage(card.keyword, inserted.length, outcome)
 
     this.db.prepare('UPDATE patrol_runs SET status = ?, message = ?, completed_at = ? WHERE id = ?').run('completed', message, timestamp, runId)
     this.touchCard(cardId)
@@ -211,6 +218,34 @@ function mapCard(row: CardRow): PatrolCard {
     recentSampleCount: row.recent_sample_count ?? 0,
     lastScanAt: row.last_scan_at ?? null,
   }
+}
+
+type ThreadsRunOutcomeMeta = {
+  outcomeKind?: 'playwright_ok' | 'fallback_ok' | 'no_matching_threads_results' | 'search_provider_blocked'
+  providerUsed?: 'threads_playwright' | 'google' | 'bing' | null
+  blockedProviders?: Array<'google' | 'bing'>
+  primaryError?: Error | null
+}
+
+function buildThreadsRunMessage(keyword: string, insertedCount: number, outcome: ThreadsRunOutcomeMeta): string {
+  const { outcomeKind, providerUsed, blockedProviders } = outcome
+  if (outcomeKind === 'fallback_ok' && insertedCount > 0) {
+    const providerLabel = providerUsed === 'bing' ? 'Bing' : 'Google'
+    return `Threads 直接搜尋暫不可用，已改用 ${providerLabel} site:threads.net/site:threads.com 備援，找到 ${insertedCount} 筆候選。`
+  }
+  if (outcomeKind === 'search_provider_blocked') {
+    const blockedList = (blockedProviders ?? []).map((p) => p === 'bing' ? 'Bing' : 'Google').join('、')
+    return blockedList
+      ? `Threads 直接搜尋暫不可用，備援搜尋（${blockedList}）被阻擋或無法使用，請稍後再試。`
+      : 'Threads 直接搜尋暫不可用，備援搜尋無法使用，請稍後再試。'
+  }
+  if (outcomeKind === 'no_matching_threads_results') {
+    return `Threads 海巡完成，備援搜尋未找到「${keyword}」相關的 Threads 貼文。`
+  }
+  if (insertedCount === 0) {
+    return `Threads 海巡完成，但沒有找到「${keyword}」新的相關結果。`
+  }
+  return `Threads 海巡完成，找到 ${insertedCount} 筆候選。`
 }
 
 function mapCandidate(row: CandidateRow): CandidateWithAnalysis {
