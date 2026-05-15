@@ -252,6 +252,15 @@ function App() {
     } catch (err) { setError(getMessage(err)) }
   }
 
+  async function regenerateDraftImage(draftId: string) {
+    setError(null)
+    try {
+      const { result } = await api.regenerateDraftImage(draftId)
+      setNotice(result.ok ? '配圖已生成。' : `生圖失敗：${result.error ?? '未知原因'}`)
+      await loadPostDrafts()
+    } catch (err) { setError(getMessage(err)) }
+  }
+
   function setRadar(radar: { terms: RadarTerm[]; sampledCandidates: number; source: 'threads_playwright' | 'threads_search' | 'mixed'; scanRun?: { candidatesAdded: number } }) {
     setRadarTerms(radar.terms)
     const inserted = radar.scanRun ? `；本次新增 ${radar.scanRun.candidatesAdded} 筆` : ''
@@ -434,7 +443,7 @@ function App() {
                 onSelect={(term) => void monitorRadarTerm(term)}
               />
             : dashTab === 'workstation'
-              ? <WorkstationTab drafts={postDrafts} queue={aiQueue} scheduler={scheduler} onRunCompose={runComposePost} />
+              ? <WorkstationTab drafts={postDrafts} queue={aiQueue} scheduler={scheduler} onRunCompose={runComposePost} onRegenerateImage={regenerateDraftImage} />
               : <>
                   {/* Desktop: sidebar + detail split layout */}
                   <div className="hidden sm:flex gap-6 items-start">
@@ -717,12 +726,12 @@ function RadarTab({ terms, loading, meta, scanBusy, onRefresh, onSelect }: {
 
 // ─── Workstation Tab ─────────────────────────────────────────────────────────
 
-function WorkstationTab({ drafts, queue, scheduler, onRunCompose }: {
-  drafts: PostDraft[]; queue: QueueSnapshot | null; scheduler: SchedulerStatus | null; onRunCompose: () => Promise<void>
+function WorkstationTab({ drafts, queue, scheduler, onRunCompose, onRegenerateImage }: {
+  drafts: PostDraft[]; queue: QueueSnapshot | null; scheduler: SchedulerStatus | null; onRunCompose: () => Promise<void>; onRegenerateImage: (draftId: string) => Promise<void>
 }) {
   return (
     <div className="space-y-4">
-      <PostDraftPanel drafts={drafts} onRunCompose={onRunCompose} />
+      <PostDraftPanel drafts={drafts} onRunCompose={onRunCompose} onRegenerateImage={onRegenerateImage} />
       <AiQueuePanel queue={queue} />
       <SchedulerPanel scheduler={scheduler} />
     </div>
@@ -1102,14 +1111,19 @@ function SchedulerPanel({ scheduler }: { scheduler: SchedulerStatus | null }) {
   )
 }
 
-function PostDraftPanel({ drafts, onRunCompose }: { drafts: PostDraft[]; onRunCompose: () => Promise<void> }) {
+function PostDraftPanel({ drafts, onRunCompose, onRegenerateImage }: { drafts: PostDraft[]; onRunCompose: () => Promise<void>; onRegenerateImage: (draftId: string) => Promise<void> }) {
+  const [busyImageId, setBusyImageId] = useState<string | null>(null)
+  async function regenerate(draftId: string) {
+    setBusyImageId(draftId)
+    try { await onRegenerateImage(draftId) } finally { setBusyImageId(null) }
+  }
   return (
     <section className="border-4 border-asphalt bg-white p-4 shadow-[5px_5px_0_#171717]">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Post Composer</p>
           <h3 className="text-xl font-black">發文發想</h3>
-          <p className="mt-1 text-sm text-asphalt/70">用最近 24 小時的 Threads 雷達樣本，生一則你自己可以發的原創貼文草稿。</p>
+          <p className="mt-1 text-sm text-asphalt/70">用最近 24 小時的 Threads 雷達樣本，生一則你自己可以發的原創貼文草稿。設定 image-gen key 後會自動配圖。</p>
         </div>
         <button onClick={() => void onRunCompose()} className="min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold hover:bg-signal hover:text-white">生一篇發文靈感</button>
       </div>
@@ -1125,8 +1139,28 @@ function PostDraftPanel({ drafts, onRunCompose }: { drafts: PostDraft[]; onRunCo
                 </div>
                 {draft.seedTopic && <p className="mt-2 text-sm font-bold">主題：{draft.seedTopic}</p>}
                 <p className="mt-2 whitespace-pre-line text-sm">{draft.text}</p>
-                <div className="mt-3 flex gap-2">
+                {draft.imagePath && (
+                  <div className="mt-3 border-2 border-asphalt bg-paper p-2">
+                    <p className="font-mono text-xs uppercase tracking-[0.2em] text-signal">配圖</p>
+                    <a href={api.draftImageUrl(draft.id)} target="_blank" rel="noopener" className="mt-2 block">
+                      <img src={api.draftImageUrl(draft.id)} alt={draft.imagePrompt ?? '生成配圖'} className="block w-full border-2 border-asphalt object-contain" loading="lazy" />
+                    </a>
+                    {draft.imageProvider && <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-[0.15em] text-asphalt/60">{draft.imageProvider}</p>}
+                  </div>
+                )}
+                {draft.imageError && (
+                  <div className="mt-3 border-2 border-red-600 bg-red-50 p-2 text-sm">
+                    <p className="font-mono text-xs uppercase tracking-[0.2em] text-red-700">生圖失敗</p>
+                    <p className="mt-1">{draft.imageError}</p>
+                  </div>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
                   <button onClick={() => copyText(draft.text)} className="min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold hover:bg-asphalt hover:text-paper">複製貼文</button>
+                  {draft.imagePrompt && (
+                    <button onClick={() => void regenerate(draft.id)} disabled={busyImageId === draft.id} className={`min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold ${busyImageId === draft.id ? 'cursor-wait opacity-50' : 'hover:bg-asphalt hover:text-paper'}`}>
+                      {busyImageId === draft.id ? '生圖中…' : draft.imagePath ? '重新生圖' : '生圖'}
+                    </button>
+                  )}
                 </div>
                 {draft.imagePrompt && (
                   <details className="mt-3 text-sm">
@@ -1154,6 +1188,10 @@ function SettingsPage() {
   const [keyText, setKeyText] = useState('')
   const [threadsStorageState, setThreadsStorageState] = useState('')
   const [about, setAbout] = useState<{ version: string; geminiDefaultModel: string; keyManagerHost: string | null; sessionKeyConfigured: boolean; adminTokenConfigured: boolean; insecureTlsEnabled: boolean; node: string } | null>(null)
+  const [imageGen, setImageGen] = useState<{ configured: boolean; keySuffix: string | null; model: string } | null>(null)
+  const [imageGenKey, setImageGenKey] = useState('')
+  const [imageGenModel, setImageGenModel] = useState('')
+  const [defaultImageModel, setDefaultImageModel] = useState('gemini-2.5-flash-image-preview')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -1162,6 +1200,7 @@ function SettingsPage() {
     void refreshThreadsSession()
     void refreshThreadsThrottle()
     void refreshAbout()
+    void refreshImageGen()
     const onHashChange = () => setSection(getSettingsSection())
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
@@ -1169,6 +1208,33 @@ function SettingsPage() {
 
   async function refreshAbout() {
     try { setAbout((await api.getAboutInfo()).about) } catch (err) { setError(getMessage(err)) }
+  }
+  async function refreshImageGen() {
+    try {
+      const data = await api.getImageGenStatus()
+      setImageGen(data.imageGen)
+      setDefaultImageModel(data.defaultModel)
+      setImageGenModel(data.imageGen.model)
+    } catch (err) { setError(getMessage(err)) }
+  }
+  async function saveImageGenKey(e: React.FormEvent) {
+    e.preventDefault(); setError(null)
+    if (imageGenKey.trim().length < 8) { setError('image-gen key 太短，請貼完整的 key。'); return }
+    try {
+      const data = await api.setImageGenKey(imageGenKey.trim(), imageGenModel.trim() || undefined)
+      setImageGen(data.imageGen)
+      setImageGenKey('')
+      setMessage(`Image gen key 已儲存（後綴 …${data.imageGen.keySuffix}，模型 ${data.imageGen.model}）。`)
+    } catch (err) { setError(getMessage(err)) }
+  }
+  async function clearImageGenKey() {
+    if (!window.confirm('要清除 image-gen key 嗎？清除後發文發想就不會配圖。')) return
+    setError(null)
+    try {
+      const data = await api.clearImageGenKey()
+      setImageGen(data.imageGen)
+      setMessage('Image gen key 已清除。')
+    } catch (err) { setError(getMessage(err)) }
   }
 
   useEffect(() => {
@@ -1407,15 +1473,57 @@ function SettingsPage() {
         </details>
       </div>}
 
-      {section === 'pipeline' && <div className="border-2 border-asphalt bg-paper p-4">
-        <h3 className="text-2xl font-black">AI Pipeline 狀態</h3>
-        <div className="mt-3 grid gap-2 text-sm">
-          <Info label="classify" value="已建立 JSON parser + StepRunner step" />
-          <Info label="score" value="已建立 shouldDraft short-circuit" />
-          <Info label="draft" value="已限制 exactly 3 variants + no-go 過濾" />
-          <Info label="Threads" value="Playwright 搜尋優先；失敗時自動退回 Google → Bing 備援。" />
+      {section === 'pipeline' && <>
+        <div className="border-2 border-asphalt bg-paper p-4">
+          <h3 className="text-2xl font-black">AI Pipeline 狀態</h3>
+          <div className="mt-3 grid gap-2 text-sm">
+            <Info label="classify" value="已建立 JSON parser + StepRunner step" />
+            <Info label="score" value="已建立 shouldDraft short-circuit" />
+            <Info label="draft" value="已限制 exactly 3 variants + no-go 過濾" />
+            <Info label="Threads" value="Playwright 搜尋優先；失敗時自動退回 Google → Bing 備援。" />
+          </div>
         </div>
-      </div>}
+        <div className="border-2 border-asphalt bg-paper p-4">
+          <h3 className="text-2xl font-black">Image Gen Key（獨立於文字 Gemini key pool）</h3>
+          <p className="mt-1 text-sm">
+            這把 key 只用來生發文配圖；和 #keys 那邊的文字 key pool <strong>完全分開計費 / 配額</strong>。
+            建議貼一把獨立的（含 billing 的）Gemini API key，避免吃掉文字判讀的 RPD。
+            預設模型：<code>{defaultImageModel}</code>。沒設就不會自動生圖。
+          </p>
+          <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+            <Info label="目前狀態" value={imageGen ? (imageGen.configured ? `已設定（後綴 …${imageGen.keySuffix}）` : '尚未設定') : '讀取中…'} />
+            <Info label="目前模型" value={imageGen?.model ?? '讀取中…'} />
+          </div>
+          <form onSubmit={saveImageGenKey} className="mt-3 grid gap-2 md:grid-cols-[1fr_auto] md:items-end">
+            <label className="text-sm font-bold">貼入 API key
+              <input
+                className="mt-1 block min-h-11 w-full border-2 border-asphalt bg-[#fffaf2] px-3 font-mono text-sm outline-none"
+                type="password"
+                value={imageGenKey}
+                onChange={(e) => setImageGenKey(e.target.value)}
+                placeholder="AIza…（建議用獨立 / billing-enabled 的 key）"
+                autoComplete="off"
+              />
+            </label>
+            <button className="min-h-11 bg-asphalt px-4 py-2 font-bold text-paper" type="submit">儲存 key</button>
+          </form>
+          <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto] md:items-end">
+            <label className="text-sm font-bold">模型（不填用預設）
+              <input
+                className="mt-1 block min-h-11 w-full border-2 border-asphalt bg-[#fffaf2] px-3 font-mono text-sm outline-none"
+                value={imageGenModel}
+                onChange={(e) => setImageGenModel(e.target.value)}
+                placeholder={defaultImageModel}
+              />
+            </label>
+            <button className="min-h-11 border-2 border-red-700 px-4 py-2 font-bold text-red-700 hover:bg-red-700 hover:text-white" type="button" onClick={clearImageGenKey} disabled={!imageGen?.configured}>清除 key</button>
+          </div>
+          <p className="mt-3 text-xs text-asphalt/60">
+            提示：生圖內容由 compose_post 產出的 imagePrompt 驅動，會跟文章主題對應；風格不限定，由模型自己挑。
+            生圖失敗會記在 draft 上，可以在 Workstation 重生。
+          </p>
+        </div>
+      </>}
 
       {section === 'about' && <div className="border-2 border-asphalt bg-paper p-4">
         <h3 className="text-2xl font-black">關於這個服務</h3>

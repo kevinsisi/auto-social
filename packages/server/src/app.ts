@@ -11,7 +11,8 @@ import { scanKeywordCard } from './keyword-scan.js'
 import { getKeywordObservation, saveVoiceFeedback } from './observe.js'
 import { repipelineCard } from './repipeline.js'
 import { DEFAULT_GEMINI_MODEL } from './ai/gemini-client.js'
-import { enqueueComposePostDraft, listPostDrafts } from './post-drafts.js'
+import { enqueueComposePostDraft, listPostDrafts, regenerateImageForPostDraft } from './post-drafts.js'
+import { clearImageGenKey, DEFAULT_IMAGE_MODEL, getImageGenStatus, setImageGenKey } from './image-gen/settings.js'
 import { getRadarTrends, scanRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
 import { getQueueSnapshot } from './scheduler/task-queue.js'
 import { getKeywordSchedulerStatus } from './scheduler/keyword-scheduler.js'
@@ -43,6 +44,10 @@ const voiceFeedbackSchema = z.object({
   comment: z.string().max(2000).optional()
 })
 const adminLoginSchema = z.object({ token: z.string().min(1) })
+const imageGenKeySchema = z.object({
+  key: z.string().min(8).max(256),
+  model: z.string().min(1).max(120).optional()
+})
 const clickThreadsLoginSchema = z.object({ x: z.number().min(0), y: z.number().min(0) })
 const typeThreadsLoginSchema = z.object({ text: z.string().min(1).max(512) })
 const pressThreadsLoginSchema = z.object({ key: z.enum(['Enter', 'Tab', 'Escape', 'Backspace']) })
@@ -222,6 +227,43 @@ export function createApp(db: AppDatabase) {
     } catch (error) {
       sendError(res, error)
     }
+  })
+
+  app.post('/api/admin/post-drafts/:id/regenerate-image', requireAdmin, async (req, res) => {
+    try {
+      const result = await regenerateImageForPostDraft(db, String(req.params.id))
+      res.json({ result })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.get('/api/post-drafts/:id/image', (req, res) => {
+    const row = db.prepare('SELECT image_path FROM post_drafts WHERE id = ?').get(String(req.params.id)) as { image_path: string | null } | undefined
+    if (!row?.image_path) return res.status(404).json({ error: '尚無圖片。' })
+    const dataDir = process.env.AUTO_SOCIAL_DB ? resolve(process.env.AUTO_SOCIAL_DB, '..') : resolve(process.cwd(), 'data')
+    const absolutePath = resolve(dataDir, row.image_path)
+    if (!existsSync(absolutePath)) return res.status(404).json({ error: '圖片檔案遺失。' })
+    res.sendFile(absolutePath)
+  })
+
+  app.get('/api/admin/image-gen/status', requireAdmin, (_req, res) => {
+    res.json({ imageGen: getImageGenStatus(db), defaultModel: DEFAULT_IMAGE_MODEL })
+  })
+
+  app.put('/api/admin/image-gen/key', requireAdmin, (req, res) => {
+    try {
+      const body = imageGenKeySchema.parse(req.body)
+      setImageGenKey(db, body.key, body.model)
+      res.json({ imageGen: getImageGenStatus(db) })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.delete('/api/admin/image-gen/key', requireAdmin, (_req, res) => {
+    clearImageGenKey(db)
+    res.json({ imageGen: getImageGenStatus(db) })
   })
 
   app.get('/api/radar/trends', async (_req, res) => {
