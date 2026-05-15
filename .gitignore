@@ -9,3 +9,5 @@ data/
 coverage/
 .vite/
 *.tsbuildinfo
+.superpowers/
+.playwright-mcp/
