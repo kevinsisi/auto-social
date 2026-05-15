@@ -284,8 +284,8 @@ User feedback after A1 deploy drove a tight iteration cycle. Every item below is
 - [x] 17.D.2 Preserve kill-switch semantics: kill switch errors still stop all Threads-targeted discovery and must not fall back to Google.
 - [x] 17.D.3 Add immediate Dashboard feedback for manual keyword scans: show an in-flight message, change the button to `海巡中...`, disable scan/suggestion/radar-term actions, and use a synchronous click lock to prevent mobile double-taps before React re-renders.
 
-### 17.E Fallback search reliability (next)
+### 17.E Fallback search reliability
 
-- [ ] 17.E.1 Replace the single Google-only fallback with multi-provider Threads-targeted discovery. Bing should be tried when Google returns no extractable Threads URLs or returns an `httpservice/retry/enablejs` / JavaScript retry page.
-- [ ] 17.E.2 Make scan responses distinguish `no_matching_threads_results` from `search_provider_blocked`, so the UI does not imply there are no results when the fallback provider was blocked.
-- [ ] 17.E.3 Add tests covering Google retry-page HTML, Bing result-link extraction, and fallback-provider ordering.
+- [x] 17.E.1 Multi-provider fallback in `sources/threads-fallback-search.ts`: Google → Bing. Bing kicks in when Google returns no extractable Threads URLs, when the page is a `/sorry/` / `httpservice/retry/enablejs` retry-page, when status is 429/5xx, or when fetch throws. `scanKeywordCard` also gained the missing fallback wiring that was promised in 17.D.1 but not actually implemented (previously the keyword-scan test was failing).
+- [x] 17.E.2 `KeywordScanRun.outcomeKind` ∈ {`playwright_ok`, `fallback_ok`, `no_matching_threads_results`, `search_provider_blocked`} surfaces through `/api/cards/:cardId/scan-threads` and the SSE `done` event. `providerUsed` and `blockedProviders[]` are included for diagnostics. Run message distinguishes "備援搜尋（Google、Bing）被阻擋" from "備援搜尋未找到 ...".
+- [x] 17.E.3 `tests/threads-fallback-search.test.ts` (18 cases) covers Google `/sorry/` / `httpservice/retry/enablejs` / unusual-traffic detection, Bing CAPTCHA + ck/captcha URL detection, provider ordering (Google preferred, Bing fallback), 429/5xx + fetch-throw handling, limit honouring, dedup. `tests/keyword-scan.test.ts` extended (5 cases) for outcome-kind branching including kill-switch still blocking fallback.
