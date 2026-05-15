@@ -96,21 +96,6 @@ export class PatrolRepository {
     return row ? { ...mapCandidate(row), analysis: this.getAnalysis(candidateId) } : null
   }
 
-  createBrowserRun(cardId: string) {
-    const card = this.getCardDetail(cardId)
-    if (!card) throw new Error('找不到這張海巡卡。')
-    const id = nanoid()
-    const timestamp = nowIso()
-    const searchUrl = `https://www.threads.com/search?q=${encodeURIComponent(card.keyword)}`
-
-    this.db.prepare(`
-      INSERT INTO patrol_runs (id, card_id, status, message, created_at, completed_at)
-      VALUES (?, ?, 'failed', ?, ?, ?)
-    `).run(id, cardId, `已準備開啟 Threads 搜尋頁：${searchUrl}。目前 MVP 不儲存帳號，也不保證能自動讀取 Threads Web。`, timestamp, timestamp)
-    this.touchCard(cardId)
-    return { id, cardId, status: 'failed' as const, message: `請手動確認 Threads 搜尋頁：${searchUrl}`, createdAt: timestamp, completedAt: timestamp, searchUrl }
-  }
-
   createThreadsSearchRun(
     cardId: string,
     items: PatrolSourceCandidate[],

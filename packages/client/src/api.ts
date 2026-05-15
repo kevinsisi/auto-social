@@ -71,12 +71,6 @@ export const api = {
       body: JSON.stringify({ url, title, excerpt })
     })
   },
-  async startBrowserRun(cardId: string) {
-    return request<{ run: { searchUrl: string; message: string } }>(`/api/cards/${cardId}/browser-run`, {
-      method: 'POST',
-      body: JSON.stringify({})
-    })
-  },
   async scanThreads(cardId: string) {
     return request<{ run: { message: string; inserted: unknown[] } }>(`/api/cards/${cardId}/scan-threads`, {
       method: 'POST',
@@ -203,6 +197,12 @@ export const api = {
       body: JSON.stringify({})
     })
   },
+  async probeThreadsBoundHandle() {
+    return request<{ probe: { handle: string; source: 'redirect' | 'dom' } | { handle: null; reason: string }; session: ThreadsSessionStatus }>('/api/threads/session/probe-handle', {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
+  },
   async getKeywordObservation(cardId: string) {
     return request<{ observation: KeywordObservation }>(`/api/keywords/${cardId}/observe`)
   },
@@ -226,6 +226,17 @@ export const api = {
   },
   async listPostDrafts() {
     return request<{ drafts: PostDraft[] }>('/api/post-drafts')
+  },
+  async getAboutInfo() {
+    return request<{ about: {
+      version: string
+      geminiDefaultModel: string
+      keyManagerHost: string | null
+      sessionKeyConfigured: boolean
+      adminTokenConfigured: boolean
+      insecureTlsEnabled: boolean
+      node: string
+    } }>('/api/about')
   },
   async runComposePost() {
     return request<{ queued: { taskId: string | null; payload: { seedKeyword: string } } }>('/api/admin/post-drafts/run-now', {
