@@ -69,6 +69,25 @@ describe('generateImageForDraft', () => {
     expect(written.equals(pngBytes)).toBe(true)
   })
 
+  it('prepends the no-CJK-text constraint to every prompt sent to Gemini', async () => {
+    const db = openMemoryDatabase()
+    setImageGenKey(db, 'AIzaTestKey0000000')
+    const base64 = Buffer.from('a'.repeat(256)).toString('base64')
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true, status: 200, url: 'https://example/api',
+      text: async () => JSON.stringify({ candidates: [{ content: { parts: [{ inline_data: { mime_type: 'image/png', data: base64 } }] } }] })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    await generateImageForDraft(db, 'd2', '台北夜市的夜景，霓虹燈閃爍', tmp)
+
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
+    const sentText: string = body.contents[0].parts[0].text
+    expect(sentText).toContain('DO NOT render any Chinese, Japanese, or Korean characters')
+    expect(sentText).toContain('台北夜市的夜景，霓虹燈閃爍')
+    expect(sentText.indexOf('DO NOT render')).toBeLessThan(sentText.indexOf('台北夜市'))
+  })
+
   it('surfaces the Gemini error message on non-200 response', async () => {
     const db = openMemoryDatabase()
     setImageGenKey(db, 'AIzaTestKey0000000')
