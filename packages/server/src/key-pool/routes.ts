@@ -43,4 +43,18 @@ export function registerKeyPoolRoutes(router: Router, db: AppDatabase) {
       next(error)
     }
   })
+
+  router.delete('/admin/keys/:id', (req, res, next) => {
+    try {
+      const id = Number(req.params.id)
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ error: 'id 必須是正整數。' })
+      }
+      const removed = new KeyPoolRepository(db).deleteKey(id)
+      if (!removed) return res.status(404).json({ error: `找不到 id=${id} 的 key。` })
+      res.json({ deleted: id })
+    } catch (error) {
+      next(error)
+    }
+  })
 }

@@ -117,7 +117,7 @@
   - [ ] 11A.3.1 Multi-line textarea for batch import; one key per non-empty non-`#` line; accepts the exact format key-manager's `複製可用金鑰` produces.
   - [ ] 11A.3.2 `匯入` button calls a new `POST /api/admin/keys/batch-import` endpoint; reports `新增 N 把、重複略過 M 把`.
   - [ ] 11A.3.3 `KEY_MANAGER_URL` input + `從 key-manager 同步` button that triggers `/api/admin/keys/sync`.
-  - [ ] 11A.3.4 Per-key table by suffix showing health (`available` / `cooldown` / `leased` / `inactive`), `usage_count`, `cooldown_until`, delete button.
+  - [x] 11A.3.4 Per-key table by suffix showing health (`available` / `cooldown` / `leased` / `inactive`), `usage_count`, `cooldown_until`, delete button. (1.2.30) Each row in `#settings/keys` has a `✕ 砍` button; `DELETE /api/admin/keys/:id` route returns 404 when the id is unknown, 200 + `{deleted}` on success. Confirmed via 6-case `tests/key-pool.test.ts`.
 - [~] 11A.4 `#threads-session` tab: red sub-account warning banner on first-bind; current session health badge; bound handle from `threads_session.bound_handle`; `登入 Threads` + `清除 Session` buttons. Current UI exposes session health, local-helper JSON upload/import, remote-browser fallback start, and clear; reliable bound-handle extraction remains deferred.
 - [ ] 11A.5 `#sources` tab: per-source toggle + trending limit input; last-success / last-failure timestamps.
 - [ ] 11A.6 `#voice` tab: short copy + button linking to Voice Studio page.

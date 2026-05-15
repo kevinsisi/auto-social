@@ -1265,6 +1265,12 @@ function SettingsPage() {
     try { const r = await api.resetKeyCooldowns(); setMessage(`已清除 ${r.reset} 把 key 的 cooldown。`); await refreshKeys() }
     catch (err) { setError(getMessage(err)) }
   }
+  async function deleteKey(id: number, suffix: string) {
+    if (!window.confirm(`砍掉 key id=${id}（…${suffix}）？這個動作不可復原。`)) return
+    setError(null)
+    try { await api.deleteKey(id); setMessage(`已砍掉 key id=${id}（…${suffix}）。`); await refreshKeys() }
+    catch (err) { setError(getMessage(err)) }
+  }
   async function refreshThreadsSession() {
     try { setThreadsSession((await api.getThreadsSessionStatus()).session) } catch (err) { setError(getMessage(err)) }
   }
@@ -1386,8 +1392,8 @@ function SettingsPage() {
           </div>
           <p className="mt-1 text-xs text-asphalt/60">每 10 秒自動更新</p>
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-              <thead><tr className="border-b-2 border-asphalt"><th className="p-2">ID</th><th className="p-2">Suffix</th><th className="p-2">Health</th><th className="p-2">Usage</th><th className="p-2">Cooldown 到期</th></tr></thead>
+            <table className="w-full min-w-[700px] border-collapse text-left text-sm">
+              <thead><tr className="border-b-2 border-asphalt"><th className="p-2">ID</th><th className="p-2">Suffix</th><th className="p-2">Health</th><th className="p-2">Usage</th><th className="p-2">Cooldown 到期</th><th className="p-2 text-right">動作</th></tr></thead>
               <tbody>
                 {keys.map((key) => (
                   <tr key={key.id} className="border-b border-asphalt/30">
@@ -1396,9 +1402,12 @@ function SettingsPage() {
                     <td className={`p-2 font-bold ${key.health === 'available' ? 'text-green-700' : key.health === 'cooldown' ? 'text-orange-600' : key.health === 'leased' ? 'text-blue-600' : 'text-asphalt/40'}`}>{key.health}</td>
                     <td className="p-2">{key.usageCount}</td>
                     <td className="p-2">{key.health === 'cooldown' ? formatDate(new Date(key.cooldownUntil).toISOString()) : '-'}</td>
+                    <td className="p-2 text-right">
+                      <button onClick={() => void deleteKey(key.id, key.suffix)} className="min-h-8 border border-red-600 px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-600 hover:text-white" title={`砍掉 key id=${key.id}（…${key.suffix}）`}>✕ 砍</button>
+                    </td>
                   </tr>
                 ))}
-                {keys.length === 0 && <tr><td className="p-4 text-center" colSpan={5}>目前沒有 key。</td></tr>}
+                {keys.length === 0 && <tr><td className="p-4 text-center" colSpan={6}>目前沒有 key。</td></tr>}
               </tbody>
             </table>
           </div>
