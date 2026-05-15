@@ -1123,7 +1123,7 @@ function PostDraftPanel({ drafts, onRunCompose, onRegenerateImage }: { drafts: P
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Post Composer</p>
           <h3 className="text-xl font-black">發文發想</h3>
-          <p className="mt-1 text-sm text-asphalt/70">用最近 24 小時的 Threads 雷達樣本，生一則你自己可以發的原創貼文草稿。設定 image-gen key 後會自動配圖。</p>
+          <p className="mt-1 text-sm text-asphalt/70">用最近 24 小時的 Threads 雷達樣本，生一則你自己可以發的原創貼文草稿。配圖是按需的——每張 ~NT$1.3，要圖才按「生圖」。</p>
         </div>
         <button onClick={() => void onRunCompose()} className="min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold hover:bg-signal hover:text-white">生一篇發文靈感</button>
       </div>
@@ -1497,7 +1497,7 @@ function SettingsPage() {
           <p className="mt-1 text-sm">
             這把 key 只用來生發文配圖；和 #keys 那邊的文字 key pool <strong>完全分開計費 / 配額</strong>。
             建議貼一把獨立的（含 billing 的）Gemini API key，避免吃掉文字判讀的 RPD。
-            預設模型：<code>{defaultImageModel}</code>。沒設就不會自動生圖。
+            預設模型：<code>{defaultImageModel}</code>。<strong>圖是按需產生</strong>——compose_post 只會留 imagePrompt，要實際產圖請到 Workstation 點「生圖」（每張 ~NT$1.3）。
           </p>
           <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
             <Info label="目前狀態" value={imageGen ? (imageGen.configured ? `已設定（後綴 …${imageGen.keySuffix}）` : '尚未設定') : '讀取中…'} />

@@ -7,7 +7,6 @@ import { buildComposePostPrompt, parseComposePost, type ComposePostInput } from 
 import { DEFAULT_VOICE_PROFILE, type TextGenerator } from './ai/types.js'
 import { createKeyPool } from './key-pool/key-pool.js'
 import { generateImageForDraft, ImageGenNotConfiguredError } from './image-gen/gemini-image.js'
-import { getImageGenStatus } from './image-gen/settings.js'
 import { getRadarTrends } from './radar-trends.js'
 import { enqueueTask } from './scheduler/task-queue.js'
 import { nowIso } from './time.js'
@@ -100,10 +99,11 @@ export async function composePostTaskHandler(db: AppDatabase, payload: ComposePo
     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
   `).run(id, parsed.seedKeyword, parsed.seedTopic, parsed.angle, parsed.text, parsed.imagePrompt || null, createdAt)
 
-  // Best-effort image generation. Never fails the compose task — surface the error in image_error.
-  if (parsed.imagePrompt && parsed.imagePrompt.trim() && getImageGenStatus(db).configured) {
-    void regenerateImageForPostDraft(db, id).catch(() => undefined)
-  }
+  // Image generation is human-gated: the imagePrompt is stored on the draft
+  // but the actual Gemini image call only happens when the user clicks
+  // "生圖" / "重新生圖" in the Workstation UI (or hits the admin endpoint).
+  // Auto-generation was removed because each image costs ~NT$1.3 and most
+  // composed drafts are discarded — auto-firing wasted ~90% of the spend.
 
   return { draftId: id, text: parsed.text, seedKeyword: parsed.seedKeyword }
 }
