@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { openMemoryDatabase } from '../src/db.js'
 import { composePostTaskHandler, enqueueComposePostDraft, listPostDrafts } from '../src/post-drafts.js'
 import { KeyPoolRepository } from '../src/key-pool/key-pool.js'
+import { setImageGenKey } from '../src/image-gen/settings.js'
 
 describe('post draft composer', () => {
   it('enqueues a compose_post task from recent radar context', () => {
@@ -41,6 +42,39 @@ describe('post draft composer', () => {
       angle: '觀察'
     })
     expect(drafts[0]!.text).toContain('台灣很多事')
+  })
+
+  it('does NOT auto-fire image generation, even when image-gen key is configured', async () => {
+    const db = openMemoryDatabase()
+    seedTrend(db)
+    new KeyPoolRepository(db).importKeys('AIzaValidKey1111111111111111')
+    setImageGenKey(db, 'AIzaImageGenKey1111111111')
+
+    const fetchSpy = vi.fn().mockRejectedValue(new Error('fetch must not be called during compose'))
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const { payload } = enqueueComposePostDraft(db)
+    await composePostTaskHandler(db, payload, {
+      generator: async () => JSON.stringify({
+        seedKeyword: '台灣',
+        seedTopic: '日常觀察',
+        angle: '觀察',
+        text: '台灣很多事不是突然變怪，是你某天終於有空看清楚。',
+        imagePrompt: '台灣城市夜色，路人低頭滑手機。'
+      })
+    })
+
+    // Allow any stray fire-and-forget to surface
+    await new Promise((r) => setTimeout(r, 20))
+
+    const drafts = listPostDrafts(db)
+    expect(drafts).toHaveLength(1)
+    expect(drafts[0]!.imagePath).toBeNull()
+    expect(drafts[0]!.imageError).toBeNull()
+    expect(drafts[0]!.imagePrompt).toContain('台灣城市夜色')
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    vi.unstubAllGlobals()
   })
 })
 
