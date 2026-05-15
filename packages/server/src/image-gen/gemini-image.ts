@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import type { AppDatabase } from '../db.js'
-import { getImageGenKey, getImageGenModel } from './settings.js'
+import { FALLBACK_IMAGE_MODELS, getImageGenKey, getImageGenModel } from './settings.js'
 
 const REQUEST_TIMEOUT_MS = 60_000
 
@@ -35,17 +35,20 @@ type GeminiResponse = {
   error?: { message?: string }
 }
 
-export async function generateImageForDraft(db: AppDatabase, draftId: string, prompt: string, dataDir?: string): Promise<GeneratedImage> {
-  const trimmedPrompt = prompt.trim()
-  if (!trimmedPrompt) throw new ImageGenFailedError('imagePrompt 為空，無法生圖。')
+function isModelNotFoundError(message: string) {
+  const lower = message.toLowerCase()
+  return (
+    lower.includes('not found') ||
+    lower.includes(' 404') ||
+    lower.includes('not supported') ||
+    lower.includes('invalid model')
+  )
+}
 
-  const apiKey = getImageGenKey(db)
-  if (!apiKey) throw new ImageGenNotConfiguredError()
-  const model = getImageGenModel(db)
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
+async function callGeminiImageOnce(apiKey: string, modelName: string, prompt: string) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(apiKey)}`
   const body = {
-    contents: [{ parts: [{ text: trimmedPrompt }] }],
+    contents: [{ parts: [{ text: prompt }] }],
     generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
   }
 
@@ -83,13 +86,47 @@ export async function generateImageForDraft(db: AppDatabase, draftId: string, pr
   const buffer = Buffer.from(data, 'base64')
   if (buffer.length < 64) throw new ImageGenFailedError(`Gemini image API 回傳資料過小（${buffer.length} bytes）。`)
 
-  const ext = mimeType.endsWith('jpeg') ? 'jpg' : mimeType.endsWith('webp') ? 'webp' : 'png'
+  return { buffer, mimeType }
+}
+
+export async function generateImageForDraft(db: AppDatabase, draftId: string, prompt: string, dataDir?: string): Promise<GeneratedImage> {
+  const trimmedPrompt = prompt.trim()
+  if (!trimmedPrompt) throw new ImageGenFailedError('imagePrompt 為空，無法生圖。')
+
+  const apiKey = getImageGenKey(db)
+  if (!apiKey) throw new ImageGenNotConfiguredError()
+  const primary = getImageGenModel(db)
+
+  // Try primary, then fall through fallbacks if the model itself is the problem.
+  // Other errors (quota, auth) propagate immediately.
+  const candidates = [primary, ...FALLBACK_IMAGE_MODELS.filter((m) => m !== primary)]
+  let lastError: ImageGenFailedError | null = null
+  let success: { buffer: Buffer; mimeType: string; model: string } | null = null
+  for (const modelName of candidates) {
+    try {
+      const out = await callGeminiImageOnce(apiKey, modelName, trimmedPrompt)
+      success = { ...out, model: modelName }
+      break
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (isModelNotFoundError(message) && modelName !== candidates[candidates.length - 1]) {
+        lastError = error instanceof ImageGenFailedError ? error : new ImageGenFailedError(message)
+        continue
+      }
+      throw error
+    }
+  }
+  if (!success) {
+    throw lastError ?? new ImageGenFailedError('所有 image-gen 模型都無法使用。')
+  }
+
+  const ext = success.mimeType.endsWith('jpeg') ? 'jpg' : success.mimeType.endsWith('webp') ? 'webp' : 'png'
   const baseDir = dataDir ?? resolve(process.cwd(), 'data')
   const dir = resolve(baseDir, 'post-images')
   await mkdir(dir, { recursive: true })
   const relativePath = `post-images/${draftId}.${ext}`
   const absolutePath = resolve(dir, `${draftId}.${ext}`)
-  await writeFile(absolutePath, buffer)
+  await writeFile(absolutePath, success.buffer)
 
-  return { relativePath, absolutePath, mimeType, model }
+  return { relativePath, absolutePath, mimeType: success.mimeType, model: success.model }
 }

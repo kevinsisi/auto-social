@@ -2,7 +2,14 @@ import type { AppDatabase } from '../db.js'
 
 const SETTING_KEY = 'imageGen.apiKey'
 const SETTING_MODEL = 'imageGen.model'
-export const DEFAULT_IMAGE_MODEL = 'gemini-2.5-flash-image-preview'
+// Primary model + fallback chain.
+// Per sheet-to-car 2026-05 production: gemini-3-pro-image-preview is the
+// highest-quality "Nano Banana" model; gemini-2.5-flash-image (no -preview
+// suffix) is the cheaper / faster fallback. The earlier
+// `gemini-2.5-flash-image-preview` string was a typo — that model doesn't
+// exist on generateContent v1beta.
+export const DEFAULT_IMAGE_MODEL = 'gemini-3-pro-image-preview'
+export const FALLBACK_IMAGE_MODELS = ['gemini-2.5-flash-image'] as const
 
 export type ImageGenStatus = {
   configured: boolean
