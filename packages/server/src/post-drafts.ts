@@ -6,6 +6,8 @@ import { buildSystemInstruction } from './ai/prompt-builder.js'
 import { buildComposePostPrompt, parseComposePost, type ComposePostInput } from './ai/steps/compose-post.js'
 import { DEFAULT_VOICE_PROFILE, type TextGenerator } from './ai/types.js'
 import { createKeyPool } from './key-pool/key-pool.js'
+import { generateImageForDraft, ImageGenNotConfiguredError } from './image-gen/gemini-image.js'
+import { getImageGenStatus } from './image-gen/settings.js'
 import { getRadarTrends } from './radar-trends.js'
 import { enqueueTask } from './scheduler/task-queue.js'
 import { nowIso } from './time.js'
@@ -97,7 +99,36 @@ export async function composePostTaskHandler(db: AppDatabase, payload: ComposePo
     INSERT INTO post_drafts (id, seed_keyword, seed_topic, angle, text, image_prompt, status, created_at)
     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
   `).run(id, parsed.seedKeyword, parsed.seedTopic, parsed.angle, parsed.text, parsed.imagePrompt || null, createdAt)
+
+  // Best-effort image generation. Never fails the compose task — surface the error in image_error.
+  if (parsed.imagePrompt && parsed.imagePrompt.trim() && getImageGenStatus(db).configured) {
+    void regenerateImageForPostDraft(db, id).catch(() => undefined)
+  }
+
   return { draftId: id, text: parsed.text, seedKeyword: parsed.seedKeyword }
+}
+
+export async function regenerateImageForPostDraft(db: AppDatabase, draftId: string) {
+  const row = db.prepare('SELECT image_prompt FROM post_drafts WHERE id = ?').get(draftId) as { image_prompt: string | null } | undefined
+  if (!row) throw new Error(`找不到 post draft：${draftId}`)
+  const prompt = row.image_prompt?.trim()
+  if (!prompt) throw new Error('這則 draft 沒有 imagePrompt，無法生圖。')
+
+  db.prepare('UPDATE post_drafts SET image_error = NULL WHERE id = ?').run(draftId)
+  try {
+    const image = await generateImageForDraft(db, draftId, prompt)
+    db.prepare(`
+      UPDATE post_drafts
+      SET image_path = ?, image_provider = ?, image_error = NULL
+      WHERE id = ?
+    `).run(image.relativePath, `gemini:${image.model}`, draftId)
+    return { ok: true as const, relativePath: image.relativePath, provider: `gemini:${image.model}` }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'image gen failed'
+    db.prepare('UPDATE post_drafts SET image_error = ? WHERE id = ?').run(message, draftId)
+    if (error instanceof ImageGenNotConfiguredError) throw error
+    return { ok: false as const, error: message }
+  }
 }
 
 function buildComposePostInput(db: AppDatabase): ComposePostInput | null {

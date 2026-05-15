@@ -243,5 +243,28 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({})
     })
+  },
+  async regenerateDraftImage(draftId: string) {
+    return request<{ result: { ok: boolean; relativePath?: string; provider?: string; error?: string } }>(`/api/admin/post-drafts/${draftId}/regenerate-image`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
+  },
+  draftImageUrl(draftId: string) {
+    return `/api/post-drafts/${draftId}/image?t=${Date.now()}`
+  },
+  async getImageGenStatus() {
+    return request<{ imageGen: { configured: boolean; keySuffix: string | null; model: string }; defaultModel: string }>('/api/admin/image-gen/status')
+  },
+  async setImageGenKey(key: string, model?: string) {
+    return request<{ imageGen: { configured: boolean; keySuffix: string | null; model: string } }>('/api/admin/image-gen/key', {
+      method: 'PUT',
+      body: JSON.stringify(model ? { key, model } : { key })
+    })
+  },
+  async clearImageGenKey() {
+    return request<{ imageGen: { configured: boolean; keySuffix: string | null; model: string } }>('/api/admin/image-gen/key', {
+      method: 'DELETE'
+    })
   }
 }

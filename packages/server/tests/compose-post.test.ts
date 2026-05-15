@@ -27,4 +27,29 @@ describe('compose-post step', () => {
     expect(parsed.angle).toBe('觀察')
     expect(parsed.text).toContain('突然變怪')
   })
+
+  it('prompt bans AI self-disclosure language', () => {
+    const prompt = buildComposePostPrompt({
+      seedKeyword: '台灣',
+      radarTerms: ['台灣'],
+      posts: [{ author: '@u', topic: 't', excerpt: '夠長的一段樣本文字' }]
+    })
+
+    expect(prompt).toContain('身為 AI')
+    expect(prompt).toContain('作為 AI')
+    expect(prompt).toContain('我是 AI')
+    expect(prompt).toContain('語言模型')
+    expect(prompt).toContain('真人在發 Threads')
+  })
+
+  it('prompt instructs imagePrompt to be tied to article content with no style lock', () => {
+    const prompt = buildComposePostPrompt({
+      seedKeyword: '台灣',
+      radarTerms: ['台灣'],
+      posts: [{ author: '@u', topic: 't', excerpt: '夠長的一段樣本文字' }]
+    })
+
+    expect(prompt).toContain('跟 text 的主題或情緒對應')
+    expect(prompt).toContain('風格不限')
+  })
 })
