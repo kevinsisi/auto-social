@@ -197,6 +197,12 @@ export const api = {
   async getKeywordObservation(cardId: string) {
     return request<{ observation: KeywordObservation }>(`/api/keywords/${cardId}/observe`)
   },
+  async repipelineKeyword(cardId: string) {
+    return request<{ repipeline: { cardId: string; candidatesConsidered: number; candidatesQueued: number; skippedAlreadyDrafted: number; skippedNothingToRun: boolean } }>(`/api/keywords/${cardId}/repipeline`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
+  },
   async submitVoiceFeedback(input: { draftId: string; variantIdx: number; decision: FeedbackDecision; comment?: string }) {
     return request<{ feedback: { id: string; createdAt: string } }>('/api/voice/feedback', {
       method: 'POST',

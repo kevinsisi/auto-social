@@ -313,6 +313,23 @@ function App() {
     } catch (err) { setError(getMessage(err)) }
   }
 
+  async function repipelineKeyword() {
+    if (!selectedId) return
+    setError(null)
+    try {
+      const { repipeline } = await api.repipelineKeyword(selectedId)
+      if (repipeline.candidatesQueued === 0 && repipeline.skippedNothingToRun) {
+        setNotice(`所有 ${repipeline.skippedAlreadyDrafted} 則樣本都已成功 draft 過了，沒有可重跑的項目。`)
+      } else if (repipeline.candidatesQueued === 0) {
+        setNotice('目前沒有可以重跑的樣本。')
+      } else {
+        const skippedNote = repipeline.skippedAlreadyDrafted > 0 ? `（已 draft 過的 ${repipeline.skippedAlreadyDrafted} 則跳過）` : ''
+        setNotice(`已把 ${repipeline.candidatesQueued} 則樣本排入 AI 重新判讀${skippedNote}；30 秒內會自動刷新。`)
+      }
+      void loadObservation(selectedId)
+    } catch (err) { setError(getMessage(err)) }
+  }
+
   async function removeCard(card: PatrolCard) {
     if (!window.confirm(`確認刪除「${card.keyword}」？這會把該關鍵字的監控、候選樣本一起清掉。`)) return
     setError(null)
@@ -433,6 +450,7 @@ function App() {
                             loading={observationLoading}
                             scanBusyLabel={scanBusyLabel}
                             onScanThreads={scanThreads}
+                            onRepipeline={repipelineKeyword}
                             onAddManualLink={addManualLink}
                             onFeedback={submitFeedback}
                             onSelectSuggestedKeyword={(term) => void monitorRadarTerm(term)}
@@ -453,6 +471,7 @@ function App() {
                           scanBusyLabel={scanBusyLabel}
                           onBack={() => { navigate('dashboard'); setSelectedId(null); setObservation(null) }}
                           onScanThreads={scanThreads}
+                          onRepipeline={repipelineKeyword}
                           onAddManualLink={addManualLink}
                           onFeedback={submitFeedback}
                           onSelectSuggestedKeyword={(term) => void monitorRadarTerm(term)}
@@ -682,13 +701,14 @@ function WorkstationTab({ drafts, queue, scheduler, onRunCompose }: {
 
 // ─── Keyword Detail Page ─────────────────────────────────────────────────────
 
-function KeywordDetailPage({ card, observation, loading, scanBusyLabel, onBack, onScanThreads, onAddManualLink, onFeedback, onSelectSuggestedKeyword, onDeleteCard }: {
+function KeywordDetailPage({ card, observation, loading, scanBusyLabel, onBack, onScanThreads, onRepipeline, onAddManualLink, onFeedback, onSelectSuggestedKeyword, onDeleteCard }: {
   card: PatrolCard | null
   observation: KeywordObservation | null
   loading: boolean
   scanBusyLabel: string | null
   onBack: () => void
   onScanThreads: () => void
+  onRepipeline: () => void
   onAddManualLink: (url: string, title: string, excerpt: string) => Promise<void>
   onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>
   onSelectSuggestedKeyword: (term: string) => void
@@ -717,6 +737,7 @@ function KeywordDetailPage({ card, observation, loading, scanBusyLabel, onBack, 
         loading={loading}
         scanBusyLabel={scanBusyLabel}
         onScanThreads={onScanThreads}
+        onRepipeline={onRepipeline}
         onAddManualLink={onAddManualLink}
         onFeedback={onFeedback}
         onSelectSuggestedKeyword={onSelectSuggestedKeyword}
@@ -727,11 +748,12 @@ function KeywordDetailPage({ card, observation, loading, scanBusyLabel, onBack, 
 
 // ─── Existing panels (unchanged logic, kept as-is) ───────────────────────────
 
-function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanThreads, onAddManualLink, onFeedback, onSelectSuggestedKeyword }: {
+function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanThreads, onRepipeline, onAddManualLink, onFeedback, onSelectSuggestedKeyword }: {
   observation: KeywordObservation | null
   loading: boolean
   scanBusyLabel: string | null
   onScanThreads: () => void
+  onRepipeline: () => void
   onAddManualLink: (url: string, title: string, excerpt: string) => Promise<void>
   onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>
   onSelectSuggestedKeyword: (term: string) => void
@@ -759,9 +781,14 @@ function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanTh
               {aggregate.pipelineBlockedCount > 0 ? ` · ${aggregate.pipelineBlockedCount} 則 AI 判讀失敗` : ''}
             </p>
           </div>
-          <button onClick={onScanThreads} disabled={Boolean(scanBusyLabel)} className={`min-h-11 px-4 py-2 font-bold text-white transition-colors ${scanBusyLabel ? 'cursor-wait bg-asphalt/60' : 'bg-signal hover:bg-asphalt'}`}>
-            {scanBusyLabel ? '海巡中...' : 'Threads 出勤海巡'}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={onScanThreads} disabled={Boolean(scanBusyLabel)} className={`min-h-11 px-4 py-2 font-bold text-white transition-colors ${scanBusyLabel ? 'cursor-wait bg-asphalt/60' : 'bg-signal hover:bg-asphalt'}`}>
+              {scanBusyLabel ? '海巡中...' : 'Threads 出勤海巡'}
+            </button>
+            <button onClick={onRepipeline} disabled={Boolean(scanBusyLabel)} className={`min-h-11 border-2 border-asphalt bg-paper px-3 py-2 text-sm font-bold transition-colors ${scanBusyLabel ? 'cursor-wait opacity-50' : 'hover:bg-asphalt hover:text-paper'}`} title="把這個關鍵字下還沒成功 draft 的樣本全部重排 AI 判讀">
+              AI 重新判讀
+            </button>
+          </div>
         </div>
         {scanBusyLabel && (
           <div className="mt-4 flex items-center gap-3 border-2 border-asphalt bg-white px-3 py-2">
