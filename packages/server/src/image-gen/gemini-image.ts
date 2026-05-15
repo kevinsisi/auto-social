@@ -5,6 +5,21 @@ import { FALLBACK_IMAGE_MODELS, getImageGenKey, getImageGenModel } from './setti
 
 const REQUEST_TIMEOUT_MS = 60_000
 
+// Gemini image models render CJK characters as gibberish ~100% of the time
+// (e.g., "士林夜市" → "土綱夜市"). We hard-prepend this constraint so the
+// model never tries. English letters render OK so they're allowed, but
+// rendered text is discouraged in general because it draws attention to
+// the weakest part of the model.
+const TEXT_FREE_CONSTRAINT = [
+  '[Visual constraints — must follow]',
+  '- DO NOT render any Chinese, Japanese, or Korean characters anywhere in the image. No CJK shop signs, no CJK banners, no CJK captions.',
+  '- If a scene element would normally carry CJK text (a 招牌 / 看板 / 路標 / 杯子上的字 / 手機畫面 / 報紙頭條), replace it with abstract patterns, generic icons, or leave the surface blank.',
+  '- Avoid making rendered text the focus of the image. Express mood through composition, lighting, body language, objects, color — not through written words.',
+  '- Latin letters and digits (e.g., room numbers, brand-free product shapes) are fine if minimal and incidental.',
+  '',
+  '[Scene prompt]'
+].join('\n')
+
 export class ImageGenNotConfiguredError extends Error {
   readonly code = 'IMAGE_GEN_NOT_CONFIGURED'
   constructor() {
@@ -46,9 +61,10 @@ function isModelNotFoundError(message: string) {
 }
 
 async function callGeminiImageOnce(apiKey: string, modelName: string, prompt: string) {
+  const wrappedPrompt = `${TEXT_FREE_CONSTRAINT}\n${prompt}`
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(apiKey)}`
   const body = {
-    contents: [{ parts: [{ text: prompt }] }],
+    contents: [{ parts: [{ text: wrappedPrompt }] }],
     generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
   }
 
