@@ -113,6 +113,9 @@ export const api = {
       body: JSON.stringify({})
     })
   },
+  async deleteKey(id: number) {
+    return request<{ deleted: number }>(`/api/admin/keys/${id}`, { method: 'DELETE' })
+  },
   async getThreadsSessionStatus() {
     return request<{ session: ThreadsSessionStatus }>('/api/threads/session/status')
   },

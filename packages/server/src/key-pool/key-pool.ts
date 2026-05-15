@@ -71,6 +71,11 @@ export class KeyPoolRepository {
     const keys = await this.adapter.getKeys()
     return keys.map(toStatus)
   }
+
+  deleteKey(id: number): boolean {
+    const result = this.db.prepare('DELETE FROM api_keys WHERE id = ?').run(id)
+    return result.changes > 0
+  }
 }
 
 export function parseKeyImport(rawText: string) {

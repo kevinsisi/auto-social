@@ -18,4 +18,21 @@ describe('key pool import', () => {
     expect(status).toHaveLength(2)
     expect(status.every((key) => key.health === 'available')).toBe(true)
   })
+
+  it('deleteKey removes a specific key by id and reports false for unknown ids', async () => {
+    const repo = new KeyPoolRepository(openMemoryDatabase())
+    repo.importKeys('AIzaValidKey1111111111111111\nAIzaValidKey2222222222222222\nAIzaValidKey3333333333333333')
+    const before = await repo.status()
+    expect(before).toHaveLength(3)
+
+    const targetId = before[1].id
+    expect(repo.deleteKey(targetId)).toBe(true)
+
+    const after = await repo.status()
+    expect(after).toHaveLength(2)
+    expect(after.map((k) => k.id)).not.toContain(targetId)
+
+    expect(repo.deleteKey(targetId)).toBe(false)
+    expect(repo.deleteKey(999999)).toBe(false)
+  })
 })
