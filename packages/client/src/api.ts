@@ -125,6 +125,15 @@ export const api = {
   async getThreadsThrottle() {
     return request<{ throttle: ThreadsThrottleSnapshot }>('/api/threads/throttle')
   },
+  async getThreadsKillSwitch() {
+    return request<{ killSwitch: boolean }>('/api/threads/kill-switch')
+  },
+  async setThreadsKillSwitch(enabled: boolean) {
+    return request<{ killSwitch: boolean }>('/api/threads/kill-switch', {
+      method: 'PUT',
+      body: JSON.stringify({ enabled })
+    })
+  },
   async updateThreadsDailyLimits(limits: Partial<ThreadsThrottleSnapshot['dailyLimits']>) {
     return request<{ throttle: ThreadsThrottleSnapshot }>('/api/admin/threads/daily-limits', {
       method: 'PUT',

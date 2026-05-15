@@ -126,6 +126,7 @@ function App() {
   const [scanBusyLabel, setScanBusyLabel] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [killSwitchOn, setKillSwitchOn] = useState<boolean>(false)
   const scanInFlightRef = useRef(false)
 
   useEffect(() => {
@@ -134,9 +135,11 @@ function App() {
     void loadAiStatus()
     void loadSchedulerStatus()
     void loadPostDrafts()
+    void loadKillSwitch()
     const aiTimer = window.setInterval(() => void loadAiStatus(), 3000)
     const schedulerTimer = window.setInterval(() => void loadSchedulerStatus(), 10000)
     const postDraftTimer = window.setInterval(() => void loadPostDrafts(), 5000)
+    const killSwitchTimer = window.setInterval(() => void loadKillSwitch(), 10000)
     const onHashChange = () => {
       setPage(getPageFromHash())
       setDashTab(getDashTabFromHash())
@@ -148,6 +151,7 @@ function App() {
       window.clearInterval(aiTimer)
       window.clearInterval(schedulerTimer)
       window.clearInterval(postDraftTimer)
+      window.clearInterval(killSwitchTimer)
     }
   }, [])
 
@@ -209,6 +213,19 @@ function App() {
 
   async function loadPostDrafts() {
     try { setPostDrafts((await api.listPostDrafts()).drafts) } catch { setPostDrafts([]) }
+  }
+
+  async function loadKillSwitch() {
+    try { setKillSwitchOn((await api.getThreadsKillSwitch()).killSwitch) } catch { /* keep last known */ }
+  }
+
+  async function disableKillSwitch() {
+    setError(null)
+    try {
+      const { killSwitch } = await api.setThreadsKillSwitch(false)
+      setKillSwitchOn(killSwitch)
+      setNotice('Kill switch 已解除：Threads 海巡恢復。')
+    } catch (err) { setError(getMessage(err)) }
   }
 
   async function loadRadarTrends() {
@@ -390,6 +407,19 @@ function App() {
 
       {/* ── Page content ── */}
       <div className="min-w-0 px-3 py-4 sm:px-6 sm:py-6 pb-24 sm:pb-6">
+        {/* Kill-switch banner — always on top when active */}
+        {killSwitchOn && (
+          <div className="mb-3 flex flex-col gap-2 border-4 border-red-700 bg-red-700 px-4 py-3 text-white shadow-[6px_6px_0_#171717] sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-mono text-xs uppercase tracking-[0.25em]">Kill Switch · ON</p>
+              <p className="text-base font-black">Threads 海巡全部暫停中（手動 + 排程）。</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => navigate('settings/threads')} className="min-h-11 border-2 border-white bg-red-700 px-3 py-2 text-sm font-bold hover:bg-white hover:text-red-700">到 Settings</button>
+              <button type="button" onClick={() => void disableKillSwitch()} className="min-h-11 border-2 border-white bg-white px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-100">立即解除</button>
+            </div>
+          </div>
+        )}
         {/* Global notices */}
         {notice && <Message tone="notice" text={notice} onClose={() => setNotice(null)} />}
         {error && <Message tone="error" text={error} onClose={() => setError(null)} />}
@@ -1185,6 +1215,15 @@ function SettingsPage() {
     try { const data = await api.resetThreadsSearchQuotaToday(); setThreadsThrottle(data.throttle); setSearchLimitText(String(data.throttle.dailyLimits.search)); setMessage('已清除今天的 Threads search 使用量。') }
     catch (err) { setError(getMessage(err)) }
   }
+  async function toggleKillSwitch(next: boolean) {
+    if (next && !window.confirm('啟用 kill switch 後，所有 Threads 海巡（手動 + 排程）會立刻停止。確定要切到 ON？')) return
+    setError(null)
+    try {
+      await api.setThreadsKillSwitch(next)
+      await refreshThreadsThrottle()
+      setMessage(next ? 'Kill switch 已啟用：Threads 海巡全部暫停。' : 'Kill switch 已解除：Threads 海巡恢復。')
+    } catch (err) { setError(getMessage(err)) }
+  }
   async function clearThreadsSession() {
     setError(null)
     try { setThreadsSession((await api.clearThreadsSession()).session); setMessage('Threads session 已清除。') }
@@ -1290,6 +1329,19 @@ function SettingsPage() {
           <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshThreadsSession}>重新整理 Session</button>
           <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshThreadsThrottle}>重新整理 Quota</button>
           <button className="min-h-11 bg-red-700 px-4 py-2 font-bold text-white" type="button" onClick={clearThreadsSession}>清除 Session</button>
+        </div>
+        <div className={`mt-4 border-t-2 border-asphalt pt-4`}>
+          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Threads Kill Switch</p>
+          <p className="mt-1 text-sm">出事時的緊急開關。啟用後，所有 Threads 搜尋（手動 + 排程）都會立刻停下；Google/Bing 備援也會被擋掉。</p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <div className={`inline-flex min-h-11 items-center border-2 px-3 py-2 font-bold ${threadsThrottle?.killSwitch ? 'border-red-700 bg-red-700 text-white' : 'border-asphalt bg-paper'}`}>
+              目前：{threadsThrottle?.killSwitch ? 'ON · 海巡停用中' : 'OFF · 海巡可運作'}
+            </div>
+            {threadsThrottle?.killSwitch
+              ? <button className="min-h-11 border-2 border-asphalt bg-paper px-4 py-2 font-bold hover:bg-asphalt hover:text-paper" type="button" onClick={() => toggleKillSwitch(false)}>解除 Kill Switch</button>
+              : <button className="min-h-11 bg-red-700 px-4 py-2 font-bold text-white hover:bg-red-800" type="button" onClick={() => toggleKillSwitch(true)}>啟用 Kill Switch</button>
+            }
+          </div>
         </div>
         <form onSubmit={saveThreadsSearchLimit} className="mt-4 border-t-2 border-asphalt pt-4">
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Threads search quota</p>
