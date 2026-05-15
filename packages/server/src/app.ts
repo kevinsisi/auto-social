@@ -9,6 +9,7 @@ import type { AppDatabase } from './db.js'
 import { registerKeyPoolRoutes } from './key-pool/routes.js'
 import { scanKeywordCard } from './keyword-scan.js'
 import { getKeywordObservation, saveVoiceFeedback } from './observe.js'
+import { repipelineCard } from './repipeline.js'
 import { enqueueComposePostDraft, listPostDrafts } from './post-drafts.js'
 import { getRadarTrends, scanRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
 import { getQueueSnapshot } from './scheduler/task-queue.js'
@@ -116,6 +117,15 @@ export function createApp(db: AppDatabase) {
     const observation = getKeywordObservation(db, String(req.params.cardId))
     if (!observation) return res.status(404).json({ error: '找不到這張海巡卡。' })
     res.json({ observation })
+  })
+
+  app.post('/api/keywords/:cardId/repipeline', (req, res) => {
+    try {
+      const result = repipelineCard(db, String(req.params.cardId))
+      res.status(202).json({ repipeline: result })
+    } catch (error) {
+      sendError(res, error)
+    }
   })
 
   app.post('/api/voice/feedback', (req, res) => {
