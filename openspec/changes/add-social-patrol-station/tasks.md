@@ -74,7 +74,7 @@
 - [x] 8.8 Add `/api/threads/kill-switch` GET/PUT and surface in UI with a big red button. API + `throttle.gate()` enforcement landed in 15.A.2. UI (1.2.26): toggle in `#settings/threads` (red ON / paper OFF state), plus an always-on-top red banner across every dashboard page when kill-switch is ON, with a one-click 「立即解除」 button. App polls `/api/threads/kill-switch` every 10s.
 - [~] 8.9 Add `/api/threads/quotas` GET (today's counts + limits + remaining) and PUT for limits. Current implementation exposes `GET /api/threads/throttle`, `PUT /api/admin/threads/daily-limits`, and `POST /api/admin/threads/quotas/search/reset-today` for the load-bearing search quota controls.
 - [x] 8.10 Decide and document where the Playwright worker actually runs (in-container vs sidecar container). Current production uses in-container Playwright on a Playwright base image; desktop login helper is local-only for creating importable `storageState`.
-- [ ] 8.11 Parse the bound Threads handle from `storageState` after login and store in `threads_session.bound_handle`; surface in Settings → Threads Session tab.
+- [x] 8.11 Parse the bound Threads handle from `storageState` after login and store in `threads_session.bound_handle`; surface in Settings → Threads Session tab. (1.2.27) Implementation: `threads-bot/handle-probe.ts` opens a Playwright context with the imported storageState, navigates to `https://www.threads.com/`, scans nav anchors for the user's own profile link via aria-label hint, and persists the matched `@handle`. Probe is fire-and-forget after both import paths and also exposed manually as `POST /api/threads/session/probe-handle` with a `抓綁定帳號` button in Settings → Threads.
 
 ## 9. Scan Scheduler
 
@@ -103,7 +103,7 @@
 - [ ] 11.2 Dashboard header: today's draft count, per-source health, scan history button, pool status, kill-switch + (Phase 1) quota summary.
 - [ ] 11.3 Move keyword-card list management into a `Sources & Keywords` sub-page; cards remain the source of keyword input for scans.
 - [ ] 11.4 Preserve the existing manual link import path on a keyword card as a fallback when an interesting thread is found out-of-band.
-- [ ] 11.5 Remove the old "patrol-detail" Threads-search browser-open button; replace with "run scan for this keyword now" that triggers `/api/admin/scan/run-now?keyword=...`.
+- [x] 11.5 Remove the old "patrol-detail" Threads-search browser-open button; replace with "run scan for this keyword now" that triggers `/api/admin/scan/run-now?keyword=...`. (1.2.27) Legacy `POST /api/cards/:cardId/browser-run`, `api.startBrowserRun`, and `PatrolRepository.createBrowserRun` removed — replacement `scanThreads` SSE flow has been the user-facing path for several releases.
 - [x] 11.6 Add an interim `Threads 出勤海巡` button that performs Threads-targeted fallback discovery using `site:threads.net OR site:threads.com` search and stores only Threads links. This is explicitly not a Dcard substitute and remains a fallback when Playwright search fails.
 - [x] 11.7 Desktop keyword empty state now keeps the add-keyword form visible and tells the user to add a brand/topic/product term before the right observation panel can show Threads wind direction.
 
@@ -121,7 +121,7 @@
 - [~] 11A.4 `#threads-session` tab: red sub-account warning banner on first-bind; current session health badge; bound handle from `threads_session.bound_handle`; `登入 Threads` + `清除 Session` buttons. Current UI exposes session health, local-helper JSON upload/import, remote-browser fallback start, and clear; reliable bound-handle extraction remains deferred.
 - [ ] 11A.5 `#sources` tab: per-source toggle + trending limit input; last-success / last-failure timestamps.
 - [ ] 11A.6 `#voice` tab: short copy + button linking to Voice Studio page.
-- [ ] 11A.7 `#about` tab: version, `KEY_MANAGER_URL` host, `GEMINI_DEFAULT_MODEL`, `AUTO_SOCIAL_SESSION_KEY 已設定` boolean, link to risk-acknowledgement doc.
+- [x] 11A.7 `#about` tab: version, `KEY_MANAGER_URL` host, `GEMINI_DEFAULT_MODEL`, `AUTO_SOCIAL_SESSION_KEY 已設定` boolean, link to risk-acknowledgement doc. (1.2.27) New `GET /api/about` returns `version`, `geminiDefaultModel`, `keyManagerHost`, `sessionKeyConfigured`, `adminTokenConfigured`, `insecureTlsEnabled`, `node`; the `#settings/about` tab renders them and surfaces the model-default-rule explainer to prevent the recurring 2.0 vs 2.5-flash confusion.
 - [x] 11A.8 Settings page has an explicit `回儀表板` escape hatch, and the mobile header swaps the Settings button for a Dashboard button while on Settings.
 
 ## 12. Verification
@@ -131,8 +131,8 @@
 - [~] 12.3 `npm run test` covers: ai pipeline parsing, voice prompt builder, source adapter fingerprinting, throttle gate (mocked time + mocked killswitch), session encryption round-trip. (Batch 2 covers key import + AI pipeline parsing/short-circuit; source/throttle/session tests remain for later batches.)
 - [ ] 12.4 Local Docker `docker compose up -d --build` boots; `/api/health` reports OK; the Playwright base image is used; `~/.cache/ms-playwright` mount is intact.
 - [~] 12.5 End-to-end smoke (manual, Phase 0): set voice profile → batch-import 2+ keys via Settings → trigger scan-now → verify trending Dcard candidates appear in `全網熱門` tab → trigger keyword-card scan-now → verify keyword candidates appear in `我的關鍵字` tab → start interactive Threads login (副帳號 acknowledgement) → trigger scan-now again → verify Threads candidates appear → `定稿` a draft → confirm clipboard copy + Threads opens in new tab → paste a fake Threads URL into `已發` → confirm draft moves to `posted_manually`. Production v1.0.5 verified health/version, session `hasSession:true healthy:true`, and radar scan from Threads Playwright with persisted candidates; full Draft Inbox flow remains pending.
-- [ ] 12.6 Confirm per-scan search quota enforcement by setting `perScanSearchLimit` to 1 and running a scan with 3+ keyword cards; only 1 Threads search per tick should fire, rest should record `quota` errors.
-- [ ] 12.7 Confirm kill switch by engaging it and triggering a scan; Threads adapter must report `KillSwitchActiveError` and Dcard adapter must still run.
+- [x] 12.6 Confirm per-scan search quota enforcement by setting `perScanSearchLimit` to 1 and running a scan with 3+ keyword cards; only 1 Threads search per tick should fire, rest should record `quota` errors. (1.2.27) Backend integration test `quota-killswitch-smoke.test.ts` covers daily-limit=1 with 3 cards: first scan returns `playwright_ok`, the next two see `DailyQuotaExceededError` thrown from the Playwright path and fall back into `fetchThreadsSearchOutcome` (mocked to `no_results`). The fallback being entered exactly N-1 times is asserted.
+- [x] 12.7 Confirm kill switch by engaging it and triggering a scan; Threads adapter must report `KillSwitchActiveError` and Dcard adapter must still run. (1.2.27) Same test file: kill-switch ON → `scanKeywordCard` rethrows `KillSwitchActiveError` and the fallback path is never called (assertion: `fetchThreadsSearchOutcome` is not invoked); toggle OFF restores normal scans. Dcard is no longer in the patrol flow (rule: Threads only), so the original Dcard-still-runs requirement is moot.
 - [ ] 12.8 Confirm `POST /api/drafts/:id/publish` returns `501 Not Implemented` in Phase 0.
 
 ## 13. Documentation

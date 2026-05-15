@@ -10,6 +10,7 @@ import { registerKeyPoolRoutes } from './key-pool/routes.js'
 import { scanKeywordCard } from './keyword-scan.js'
 import { getKeywordObservation, saveVoiceFeedback } from './observe.js'
 import { repipelineCard } from './repipeline.js'
+import { DEFAULT_GEMINI_MODEL } from './ai/gemini-client.js'
 import { enqueueComposePostDraft, listPostDrafts } from './post-drafts.js'
 import { getRadarTrends, scanRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
 import { getQueueSnapshot } from './scheduler/task-queue.js'
@@ -17,6 +18,7 @@ import { getKeywordSchedulerStatus } from './scheduler/keyword-scheduler.js'
 import { PatrolRepository } from './repository.js'
 import { getKillSwitch, getThrottleSnapshot, KillSwitchActiveError, resetTodayCount, setDailyLimits, setKillSwitch } from './threads-bot/throttle.js'
 import { clearThreadsSession, getThreadsSessionStatus, importThreadsStorageState } from './threads-bot/session.js'
+import { probeBoundHandle } from './threads-bot/handle-probe.js'
 import { cancelThreadsLoginJob, clickThreadsLoginJob, finishThreadsLoginJob, getThreadsLoginJobStatus, pressThreadsLoginJob, screenshotThreadsLoginJob, startThreadsLoginJob, typeThreadsLoginJob } from './threads-bot/login.js'
 import { APP_VERSION } from './version.js'
 
@@ -58,6 +60,25 @@ export function createApp(db: AppDatabase) {
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, version: APP_VERSION })
+  })
+
+  app.get('/api/about', (_req, res) => {
+    const keyManagerHost = (() => {
+      const raw = process.env.KEY_MANAGER_URL?.trim()
+      if (!raw) return null
+      try { return new URL(raw).host } catch { return raw }
+    })()
+    res.json({
+      about: {
+        version: APP_VERSION,
+        geminiDefaultModel: DEFAULT_GEMINI_MODEL,
+        keyManagerHost,
+        sessionKeyConfigured: Boolean(process.env.AUTO_SOCIAL_SESSION_KEY?.trim()),
+        adminTokenConfigured: Boolean(process.env.ADMIN_TOKEN?.trim()),
+        insecureTlsEnabled: process.env.AUTO_SOCIAL_INSECURE_TLS === '1' || process.env.AUTO_SOCIAL_INSECURE_TLS === 'true',
+        node: process.version
+      }
+    })
   })
 
   app.get('/api/admin/session', (req, res) => {
@@ -143,14 +164,6 @@ export function createApp(db: AppDatabase) {
       const body = addCandidateSchema.parse(req.body)
       const candidate = repo.addManualCandidate(req.params.cardId, body.url, body.title, body.excerpt)
       res.status(201).json({ candidate })
-    } catch (error) {
-      sendError(res, error)
-    }
-  })
-
-  app.post('/api/cards/:cardId/browser-run', (req, res) => {
-    try {
-      res.status(202).json({ run: repo.createBrowserRun(req.params.cardId) })
     } catch (error) {
       sendError(res, error)
     }
@@ -345,7 +358,9 @@ export function createApp(db: AppDatabase) {
   app.post('/api/threads/session/import', requireAdmin, (req, res) => {
     try {
       const body = importThreadsSessionSchema.parse(req.body)
-      res.status(201).json({ session: importThreadsStorageState(db, body.storageStateJson) })
+      const session = importThreadsStorageState(db, body.storageStateJson)
+      schedulePostImportProbe(db)
+      res.status(201).json({ session })
     } catch (error) {
       sendError(res, error)
     }
@@ -359,7 +374,17 @@ export function createApp(db: AppDatabase) {
       }
       const storageStateJson = readFileSync(filePath, 'utf8')
       const session = importThreadsStorageState(db, storageStateJson)
+      schedulePostImportProbe(db)
       res.status(201).json({ session, importedFrom: filePath })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.post('/api/threads/session/probe-handle', requireAdmin, async (_req, res) => {
+    try {
+      const result = await probeBoundHandle(db)
+      res.json({ probe: result, session: getThreadsSessionStatus(db) })
     } catch (error) {
       sendError(res, error)
     }
@@ -388,4 +413,9 @@ function sendError(res: express.Response, error: unknown) {
     return res.status(400).json({ error: error.message })
   }
   return res.status(400).json({ error: '操作失敗，這很難評，但我們有記下來。' })
+}
+
+function schedulePostImportProbe(db: AppDatabase) {
+  // Fire-and-forget: try to grab bound handle via Playwright; never block the import response.
+  void probeBoundHandle(db).catch(() => undefined)
 }

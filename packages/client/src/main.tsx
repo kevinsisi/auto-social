@@ -59,7 +59,7 @@ const TASK_TYPE_LABELS: Record<TaskType, string> = {
 
 type Page = 'dashboard' | 'settings'
 type DashTab = 'overview' | 'radar' | 'workstation'
-type SettingsSection = 'admin' | 'keys' | 'threads' | 'pipeline'
+type SettingsSection = 'admin' | 'keys' | 'threads' | 'pipeline' | 'about'
 
 // ─── routing helpers ────────────────────────────────────────────────────────
 
@@ -71,7 +71,7 @@ function getPageFromHash(): Page {
 
 function getSettingsSection(): SettingsSection {
   const section = window.location.hash.replace(/^#settings\/?/, '')
-  if (section === 'keys' || section === 'threads' || section === 'pipeline') return section
+  if (section === 'keys' || section === 'threads' || section === 'pipeline' || section === 'about') return section
   return 'admin'
 }
 
@@ -1153,6 +1153,7 @@ function SettingsPage() {
   const [searchLimitText, setSearchLimitText] = useState('')
   const [keyText, setKeyText] = useState('')
   const [threadsStorageState, setThreadsStorageState] = useState('')
+  const [about, setAbout] = useState<{ version: string; geminiDefaultModel: string; keyManagerHost: string | null; sessionKeyConfigured: boolean; adminTokenConfigured: boolean; insecureTlsEnabled: boolean; node: string } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -1160,10 +1161,15 @@ function SettingsPage() {
     void refreshAdminSession()
     void refreshThreadsSession()
     void refreshThreadsThrottle()
+    void refreshAbout()
     const onHashChange = () => setSection(getSettingsSection())
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
+
+  async function refreshAbout() {
+    try { setAbout((await api.getAboutInfo()).about) } catch (err) { setError(getMessage(err)) }
+  }
 
   useEffect(() => {
     if (!adminSession?.authenticated) return
@@ -1229,6 +1235,24 @@ function SettingsPage() {
     try { setThreadsSession((await api.clearThreadsSession()).session); setMessage('Threads session 已清除。') }
     catch (err) { setError(getMessage(err)) }
   }
+  async function probeBoundHandle() {
+    setError(null); setMessage('正在用 Playwright 開 Threads 抓綁定帳號，可能要幾秒…')
+    try {
+      const result = await api.probeThreadsBoundHandle()
+      setThreadsSession(result.session)
+      if (result.probe.handle) {
+        setMessage(`已抓到綁定帳號：${result.probe.handle}`)
+      } else {
+        const reason = 'reason' in result.probe ? result.probe.reason : 'unknown'
+        const reasonText = reason === 'login_redirect'
+          ? 'Threads 還在要求登入；請確認 storageState 是登入後產生的'
+          : reason === 'no_anchor_found'
+            ? 'Playwright 開到首頁但沒找到個人檔案連結；UI 可能改版或 Session 沒生效'
+            : '探測失敗（網路或 Playwright 啟動異常）'
+        setMessage(`沒抓到綁定帳號：${reasonText}`)
+      }
+    } catch (err) { setError(getMessage(err)) }
+  }
   async function importThreadsSession(e: React.FormEvent) {
     e.preventDefault(); setError(null)
     try { setThreadsSession((await api.importThreadsSession(threadsStorageState)).session); setThreadsStorageState(''); setMessage('Threads storageState 已加密保存。') }
@@ -1257,8 +1281,8 @@ function SettingsPage() {
           <button type="button" onClick={() => navigate('dashboard')} className="min-h-11 border-2 border-asphalt bg-paper px-4 py-2 text-sm font-bold hover:bg-asphalt hover:text-paper">回儀表板</button>
         </div>
       </div>
-      <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {(['admin', 'keys', 'threads', 'pipeline'] as SettingsSection[]).map((item) => (
+      <nav className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {(['admin', 'keys', 'threads', 'pipeline', 'about'] as SettingsSection[]).map((item) => (
           <button key={item} type="button" onClick={() => navigate(`settings/${item}`)} className={`min-h-11 border-2 border-asphalt px-3 py-2 font-bold ${section === item ? 'bg-asphalt text-paper' : 'bg-paper'}`}>{item}</button>
         ))}
       </nav>
@@ -1328,6 +1352,7 @@ function SettingsPage() {
         <div className="mt-3 flex flex-wrap gap-2">
           <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshThreadsSession}>重新整理 Session</button>
           <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshThreadsThrottle}>重新整理 Quota</button>
+          <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={probeBoundHandle} disabled={!threadsSession?.hasSession}>抓綁定帳號</button>
           <button className="min-h-11 bg-red-700 px-4 py-2 font-bold text-white" type="button" onClick={clearThreadsSession}>清除 Session</button>
         </div>
         <div className={`mt-4 border-t-2 border-asphalt pt-4`}>
@@ -1388,8 +1413,29 @@ function SettingsPage() {
           <Info label="classify" value="已建立 JSON parser + StepRunner step" />
           <Info label="score" value="已建立 shouldDraft short-circuit" />
           <Info label="draft" value="已限制 exactly 3 variants + no-go 過濾" />
-          <Info label="Threads" value="Playwright 搜尋優先；失敗時自動退回 site:threads.net 備援。" />
+          <Info label="Threads" value="Playwright 搜尋優先；失敗時自動退回 Google → Bing 備援。" />
         </div>
+      </div>}
+
+      {section === 'about' && <div className="border-2 border-asphalt bg-paper p-4">
+        <h3 className="text-2xl font-black">關於這個服務</h3>
+        <p className="mt-1 text-sm">回報 bug 或要求功能時，貼出下面的 version 與模型，能讓除錯快十倍。</p>
+        <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+          <Info label="App Version" value={about?.version ?? '讀取中…'} />
+          <Info label="Gemini Default Model" value={about?.geminiDefaultModel ?? '讀取中…'} />
+          <Info label="Node Runtime" value={about?.node ?? '讀取中…'} />
+          <Info label="Key Manager Host" value={about?.keyManagerHost ?? '未設定（key-pool 只從本地 DB 讀）'} />
+          <Info label="ADMIN_TOKEN" value={about ? (about.adminTokenConfigured ? '已設定' : '未設定（本機 single-user 模式）') : '讀取中…'} />
+          <Info label="AUTO_SOCIAL_SESSION_KEY" value={about ? (about.sessionKeyConfigured ? '已設定（Threads session 可加密儲存）' : '未設定') : '讀取中…'} />
+          <Info label="AUTO_SOCIAL_INSECURE_TLS" value={about ? (about.insecureTlsEnabled ? '啟用（公司網路 MITM 兼容模式）' : '停用') : '讀取中…'} />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshAbout}>重新整理</button>
+        </div>
+        <p className="mt-3 border-t-2 border-asphalt pt-3 text-xs text-asphalt/70">
+          模型規則：`homelab-docs/skills/key-pool-standard/SKILL.md` 定義 default `gemini-2.5-flash`。
+          2.5-flash free tier 為 20 RPD per GCP project；單日大量重判要 billing key 或多 project keys。
+        </p>
       </div>}
     </section>
   )
