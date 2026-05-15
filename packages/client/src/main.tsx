@@ -1191,7 +1191,7 @@ function SettingsPage() {
   const [imageGen, setImageGen] = useState<{ configured: boolean; keySuffix: string | null; model: string } | null>(null)
   const [imageGenKey, setImageGenKey] = useState('')
   const [imageGenModel, setImageGenModel] = useState('')
-  const [defaultImageModel, setDefaultImageModel] = useState('gemini-2.5-flash-image-preview')
+  const [defaultImageModel, setDefaultImageModel] = useState('gemini-3-pro-image-preview')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 

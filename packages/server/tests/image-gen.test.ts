@@ -24,7 +24,7 @@ describe('image-gen settings', () => {
   it('falls back to default model when none is given', () => {
     const db = openMemoryDatabase()
     setImageGenKey(db, 'AIzaTestKey0000000')
-    expect(getImageGenStatus(db).model).toBe('gemini-2.5-flash-image-preview')
+    expect(getImageGenStatus(db).model).toBe('gemini-3-pro-image-preview')
   })
 
   it('rejects empty key', () => {
