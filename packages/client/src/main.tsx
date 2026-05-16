@@ -265,7 +265,7 @@ function App() {
   function setRadar(radar: { terms: RadarTerm[]; sampledCandidates: number; source: 'threads_playwright' | 'threads_search' | 'mixed'; scanRun?: { candidatesAdded: number } }) {
     setRadarTerms(radar.terms)
     const inserted = radar.scanRun ? `；本次新增 ${radar.scanRun.candidatesAdded} 筆` : ''
-    setRadarMeta(`最近 24 小時實際候選 ${radar.sampledCandidates} 筆；來源 ${formatRadarSource(radar.source)}${inserted}`)
+    setRadarMeta(`最近 24 小時樣本候選 ${radar.sampledCandidates} 筆；來源 ${formatRadarSource(radar.source)}${inserted}`)
   }
 
   async function createCard(event: React.FormEvent) {
@@ -712,14 +712,14 @@ function RadarTab({ terms, loading, meta, scanBusy, onRefresh, onSelect }: {
       <div className="border-4 border-asphalt bg-white p-4 shadow-[5px_5px_0_#171717] sm:p-5 sm:shadow-[8px_8px_0_#171717]">
         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[0.28em] text-signal">Patrol Radar</p>
-            <h2 className="text-3xl font-black sm:text-4xl">熱門關鍵字雲</h2>
+            <p className="font-mono text-xs uppercase tracking-[0.28em] text-signal">Sample Radar</p>
+            <h2 className="text-3xl font-black sm:text-4xl">Threads 樣本雷達</h2>
             {meta && <p className="mt-1 font-mono text-xs text-asphalt/60">{meta}</p>}
           </div>
           <div className="space-y-2 text-sm">
-            <p>只顯示已寫入資料庫的 Threads 實際候選抽詞。點詞會直接加入監控並出勤。</p>
+            <p>不是官方熱門榜；這裡顯示最近 Threads 樣本的互動加權抽詞。點詞會直接加入監控並出勤。</p>
             <button type="button" onClick={onRefresh} disabled={loading} className="min-h-9 border-2 border-asphalt px-3 py-1 font-bold hover:bg-signal hover:text-white">
-              {loading ? '掃描中' : '掃描 Threads 雷達'}
+              {loading ? '掃描中' : '掃描 Threads 樣本'}
             </button>
           </div>
         </div>
@@ -736,13 +736,13 @@ function RadarTab({ terms, loading, meta, scanBusy, onRefresh, onSelect }: {
                       disabled={scanBusy}
                       className={`max-w-full break-all text-center font-black leading-tight transition-transform sm:break-normal ${scanBusy ? 'cursor-wait opacity-40' : 'hover:scale-110'}`}
                       style={{ color: cloudColor(i), fontSize: `${Math.round(16 + (term.count / max) * 42)}px`, transform: `rotate(${cloudRotate(i)}deg)` }}
-                      title={`出現 ${term.count} 次`}
+                      title={`樣本分數 ${term.count}`}
                     >
                       {term.word}
                     </button>
                   ))}
                 </div>
-              : <div className="flex min-h-[220px] items-center justify-center text-center text-xl font-black text-asphalt/50">最近 24 小時還沒有可用的 Threads 實際詞，請掃描雷達或先匯入 Threads session。</div>
+              : <div className="flex min-h-[220px] items-center justify-center text-center text-xl font-black text-asphalt/50">最近 24 小時還沒有可用的 Threads 樣本詞，請掃描樣本或先匯入 Threads session。</div>
           }
         </div>
       </div>

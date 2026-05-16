@@ -74,4 +74,20 @@ describe('getRadarTrends', () => {
       { word: 'AI', count: 1 }
     ]))
   })
+
+  it('weights sample terms by engagement and filters junk words', () => {
+    const db = openMemoryDatabase()
+    const now = new Date().toISOString()
+    db.prepare(`
+      INSERT INTO trend_candidates (id, source, external_id, fingerprint, is_trending, url, title, text, engagement_json, fetched_at, pipeline_status)
+      VALUES
+        ('candidate-low', 'threads_playwright', 'low', 'fp-low', 1, 'https://threads.net/@a/post/low', '生活', '生活 一下 有人 東西', NULL, ?, 'pending'),
+        ('candidate-high', 'threads_playwright', 'high', 'fp-high', 1, 'https://threads.net/@a/post/high', '豪車', '豪車 交車 一下', '{"likes":1000,"replies":100,"reposts":20,"shares":50}', ?, 'pending')
+    `).run(now, now)
+
+    const radar = getRadarTrends(db)
+
+    expect(radar.terms[0]?.word).toBe('豪車')
+    expect(radar.terms.some((term) => ['一下', '有人', '東西'].includes(term.word))).toBe(false)
+  })
 })

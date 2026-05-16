@@ -47,9 +47,11 @@ type TrendCandidateRow = {
   source: 'threads_playwright' | 'threads_search'
   title: string | null
   text: string
+  engagement_json: string | null
 }
 
-const RADAR_SAMPLE_QUERIES = ['台灣', '生活', 'AI', '社群']
+const DEFAULT_RADAR_SAMPLE_QUERIES = ['台灣', '生活', 'AI', '社群']
+const MAX_RADAR_SAMPLE_QUERIES = 6
 const CANDIDATES_PER_QUERY = 6
 const MAX_TERMS = 70
 const MIN_TERM_LENGTH = 2
@@ -63,28 +65,30 @@ const stopWords = new Set([
   'https', 'http', 'www', 'com', 'net', 'post', 'search', 'login', 'privacy',
   '這個', '那個', '一個', '我們', '你們', '他們', '她們', '自己', '大家', '什麼', '怎麼',
   '可以', '不是', '沒有', '就是', '因為', '所以', '如果', '今天', '現在', '真的', '覺得',
+  '一下', '有人', '東西', '這是', '都會', '直接', '記得', '一起', '出來', '加入', '正式',
+  '這次', '這裡', '原本', '發現', '休息', '先前', '再次', '各位', '已經', '不只', '不需要',
+  '一件', '一期', '一塊', '下次', '下限', '在做', '用到', '來了', '將會', '預計',
   '的', '了', '和', '與', '在', '是', '有', '我', '你', '他', '她', '它', '們'
 ])
 
 export function getRadarTrends(db: AppDatabase): RadarTrendResult {
   const since = new Date(Date.now() - RADAR_WINDOW_MS).toISOString()
   const rows = db.prepare(`
-    SELECT source, title, text
+    SELECT source, title, text, engagement_json
     FROM trend_candidates
     WHERE is_trending = 1 AND fetched_at >= ?
     ORDER BY fetched_at DESC
     LIMIT 250
   `).all(since) as TrendCandidateRow[]
   const sourceCounts = new Map<'threads_playwright' | 'threads_search', number>()
-  const text = rows.map((row) => {
+  for (const row of rows) {
     sourceCounts.set(row.source, (sourceCounts.get(row.source) ?? 0) + 1)
-    return `${row.title ?? ''} ${sanitizeTrendText(row.text)}`
-  }).join(' ')
+  }
   const sources = [...sourceCounts.keys()]
   return {
-    terms: extractRadarTerms(text).slice(0, MAX_TERMS),
+    terms: extractRadarTermsFromRows(rows).slice(0, MAX_TERMS),
     source: sources.length > 1 ? 'mixed' : sources[0] ?? 'threads_search',
-    sampledQueries: RADAR_SAMPLE_QUERIES.length,
+    sampledQueries: getRadarSampleQueries(db).length,
     sampledCandidates: rows.length,
     errors: getLatestScanErrors(db)
   }
@@ -93,17 +97,18 @@ export function getRadarTrends(db: AppDatabase): RadarTrendResult {
 export async function scanRadarTrends(db: AppDatabase): Promise<RadarScanResult> {
   const scanId = nanoid()
   const startedAt = nowIso()
+  const queries = getRadarSampleQueries(db)
   db.prepare(`
     INSERT INTO scan_runs (id, started_at, status, reason, sources_summary_json, errors_json)
     VALUES (?, ?, 'running', 'manual_radar', ?, ?)
-  `).run(scanId, startedAt, JSON.stringify({ queries: RADAR_SAMPLE_QUERIES }), JSON.stringify([]))
+  `).run(scanId, startedAt, JSON.stringify({ queries }), JSON.stringify([]))
 
-  const batches = await Promise.allSettled(RADAR_SAMPLE_QUERIES.map((query) => fetchRadarCandidates(db, query)))
+  const batches = await Promise.allSettled(queries.map((query) => fetchRadarCandidates(db, query)))
   const errors: string[] = []
   const newCandidateIds: string[] = []
 
   for (const [index, batch] of batches.entries()) {
-    const query = RADAR_SAMPLE_QUERIES[index] ?? 'unknown'
+    const query = queries[index] ?? 'unknown'
     if (batch.status === 'rejected') {
       errors.push(batch.reason instanceof Error ? batch.reason.message : 'Threads 雷達抓取失敗')
       continue
@@ -116,7 +121,7 @@ export async function scanRadarTrends(db: AppDatabase): Promise<RadarScanResult>
   }
 
   const endedAt = nowIso()
-  const status = errors.length === RADAR_SAMPLE_QUERIES.length ? 'failed' : 'completed'
+  const status = errors.length === queries.length ? 'failed' : 'completed'
   db.prepare(`
     UPDATE scan_runs
     SET ended_at = ?, status = ?, candidates_added = ?, errors_json = ?
@@ -147,6 +152,17 @@ async function fetchRadarCandidates(db: AppDatabase, query: string): Promise<Rad
     if (error instanceof KillSwitchActiveError) throw error
     return await fetchThreadsSearchCandidates(query, CANDIDATES_PER_QUERY)
   }
+}
+
+function getRadarSampleQueries(db: AppDatabase) {
+  const rows = db.prepare(`
+    SELECT keyword
+    FROM patrol_cards
+    ORDER BY updated_at DESC
+    LIMIT ?
+  `).all(MAX_RADAR_SAMPLE_QUERIES) as Array<{ keyword: string }>
+  const monitored = rows.map((row) => row.keyword.trim()).filter(Boolean)
+  return monitored.length > 0 ? [...new Set(monitored)] : DEFAULT_RADAR_SAMPLE_QUERIES
 }
 
 function insertTrendCandidate(db: AppDatabase, _query: string, candidate: RadarCandidate) {
@@ -255,12 +271,46 @@ function getLatestScanErrors(db: AppDatabase) {
 export function extractRadarTerms(text: string): RadarTerm[] {
   const counts = new Map<string, number>()
   for (const term of segmentText(text)) {
-    if (term.length < MIN_TERM_LENGTH || stopWords.has(term)) continue
+    if (shouldSkipTerm(term)) continue
     counts.set(term, (counts.get(term) ?? 0) + 1)
   }
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-TW'))
     .map(([word, count]) => ({ word, count }))
+}
+
+function extractRadarTermsFromRows(rows: TrendCandidateRow[]): RadarTerm[] {
+  const scores = new Map<string, number>()
+  for (const row of rows) {
+    const weight = getEngagementWeight(row.engagement_json)
+    const text = `${row.title ?? ''} ${sanitizeTrendText(row.text)}`
+    for (const term of segmentText(text)) {
+      if (shouldSkipTerm(term)) continue
+      scores.set(term, (scores.get(term) ?? 0) + weight)
+    }
+  }
+  return [...scores.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-TW'))
+    .map(([word, count]) => ({ word, count: Math.round(count) }))
+}
+
+function getEngagementWeight(json: string | null) {
+  if (!json) return 1
+  try {
+    const parsed = JSON.parse(json) as Partial<Record<'likes' | 'replies' | 'reposts' | 'shares', unknown>>
+    const score = numberOrZero(parsed.likes) + numberOrZero(parsed.replies) * 3 + numberOrZero(parsed.reposts) * 5 + numberOrZero(parsed.shares) * 2
+    return 1 + Math.log10(score + 1)
+  } catch {
+    return 1
+  }
+}
+
+function numberOrZero(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function shouldSkipTerm(term: string) {
+  return term.length < MIN_TERM_LENGTH || stopWords.has(term)
 }
 
 function segmentText(text: string) {
@@ -273,10 +323,16 @@ function segmentText(text: string) {
     ? new Intl.Segmenter('zh-TW', { granularity: 'word' })
     : null
   if (segmenter) {
-    return [...segmenter.segment(normalized)]
+    const segmented = [...segmenter.segment(normalized)]
       .filter((part) => part.isWordLike)
       .map((part) => part.segment.trim())
       .filter(Boolean)
+    return [...segmented, ...extractShortCjkChunks(normalized, segmented)]
   }
   return normalized.split(/\s+/).filter(Boolean)
+}
+
+function extractShortCjkChunks(text: string, segmented: string[]) {
+  const segmentedTerms = new Set(segmented)
+  return text.split(/\s+/).filter((term) => /^[\p{Script=Han}]{2,6}$/u.test(term) && !segmentedTerms.has(term))
 }

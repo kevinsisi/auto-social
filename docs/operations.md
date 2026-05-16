@@ -4,7 +4,7 @@
 
 - Domain: `https://social.sisihome.org`
 - Health check: `https://social.sisihome.org/api/health`
-- Current expected API version after the latest deployment: `1.2.38`
+- Current expected API version after the latest deployment: `1.2.39`
 
 ## Threads Login
 
@@ -44,7 +44,7 @@ Then inspect:
 curl https://social.sisihome.org/api/radar/trends
 ```
 
-Expected healthy shape: `source:"threads_playwright"`, `sampledCandidates > 0`, and no canned/filler terms.
+Expected healthy shape: `source:"threads_playwright"`, `sampledCandidates > 0`, and no canned/filler terms. The Radar UI is intentionally labeled as a sample radar, not an official Threads trending chart. Scans prefer the current monitored keywords as sample queries, falling back to broad defaults only when no cards exist. Term scores are engagement-weighted and filtered for common junk words.
 
 ## Keyword Auto Scan
 
