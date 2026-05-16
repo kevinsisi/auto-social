@@ -26,6 +26,7 @@ function parseResponse(text: string): unknown {
 }
 
 function getErrorMessage(data: unknown, status: number) {
+  if (status === 502 || status === 503 || status === 504) return '服務剛更新或短暫重啟中，請等 10 秒再試一次。'
   if (data && typeof data === 'object' && 'error' in data && typeof data.error === 'string') return data.error
   return `操作失敗，HTTP ${status}`
 }

@@ -4,7 +4,7 @@
 
 - Domain: `https://social.sisihome.org`
 - Health check: `https://social.sisihome.org/api/health`
-- Current expected API version after the latest deployment: `1.2.37`
+- Current expected API version after the latest deployment: `1.2.38`
 
 ## Threads Login
 
@@ -85,6 +85,10 @@ The add-keyword form gives immediate quality hints for broad terms, UI-noise ter
 ## Search Fallback
 
 When direct Threads Playwright search exhausts the daily `search` quota, keyword scans fall back to Bing-first / Google-second `site:threads.net OR site:threads.com` discovery and clearly label the run message as fallback. The kill switch still stops all Threads-targeted discovery; it is not bypassed by fallback search.
+
+## Transient 502s
+
+The single-container homelab deployment can briefly return `502` while Docker recreates the service during CI/CD deploys. The frontend maps `502`/`503`/`504` API responses to a short retry message instead of showing a raw proxy or HTML error.
 
 Known limitation: search providers can return challenge pages to server-side fetches. The fallback layer detects Google retry pages and Bing CAPTCHA / Cloudflare Turnstile challenges separately from true no-result pages, so empty scans should be read as either `search_provider_blocked` or `no_matching_threads_results` rather than a generic success.
 
