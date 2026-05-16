@@ -106,6 +106,7 @@
 - [x] 11.5 Remove the old "patrol-detail" Threads-search browser-open button; replace with "run scan for this keyword now" that triggers `/api/admin/scan/run-now?keyword=...`. (1.2.27) Legacy `POST /api/cards/:cardId/browser-run`, `api.startBrowserRun`, and `PatrolRepository.createBrowserRun` removed — replacement `scanThreads` SSE flow has been the user-facing path for several releases.
 - [x] 11.6 Add an interim `Threads 出勤海巡` button that performs Threads-targeted fallback discovery using `site:threads.net OR site:threads.com` search and stores only Threads links. This is explicitly not a Dcard substitute and remains a fallback when Playwright search fails.
 - [x] 11.7 Desktop keyword empty state now keeps the add-keyword form visible and tells the user to add a brand/topic/product term before the right observation panel can show Threads wind direction.
+- [x] 11.8 Mobile add-keyword form keeps the submit button visible by stacking the input/button on narrow screens and allowing the input to shrink instead of pushing `加入` off-screen. (1.2.34)
 
 ## 11A. Settings Page
 
@@ -113,6 +114,7 @@
 - [x] 11A.1a Interim settings routes: `#settings/admin`, `#settings/keys`, `#settings/threads`, `#settings/pipeline` split the previous stacked page into explicit sections; in single-user deployment mode, admin operations are server-side guarded by configured `ADMIN_TOKEN` and the UI does not ask the user to paste token values.
 - [ ] 11A.2 `#quotas` tab: fields for `dailyPublishLimit`, `dailyReplyLimit`, `perScanSearchLimit`, `scanCadenceCron`, `jitterMinMs`, `jitterMaxMs`; save persists to `settings` table; scheduler re-registers cron on cadence change. Phase 0 disables publish/reply fields visually with `Phase 1 啟用` label.
 - [x] 11A.2a Interim Threads quota controls live under `#settings/threads`: show today's search usage, save the daily search limit, and clear today's search counter.
+- [x] 11A.2b Default Threads search quota raised to `2000` per day so the 8-keyword auto scheduler no longer exhausts the previous 200/day limit early in the day. (1.2.34)
 - [ ] 11A.3 `#key-pool` tab:
   - [ ] 11A.3.1 Multi-line textarea for batch import; one key per non-empty non-`#` line; accepts the exact format key-manager's `複製可用金鑰` produces.
   - [ ] 11A.3.2 `匯入` button calls a new `POST /api/admin/keys/batch-import` endpoint; reports `新增 N 把、重複略過 M 把`.

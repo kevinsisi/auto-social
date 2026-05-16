@@ -26,7 +26,7 @@ const SETTING_KILL_SWITCH = 'threads.killSwitch'
 const SETTING_DAILY_LIMITS = 'threads.dailyLimits'
 const SETTING_JITTER_MS = 'threads.jitterMs'
 
-const DEFAULT_DAILY_LIMITS: Record<ThrottleOp, number> = { search: 200, publish: 3, reply: 10 }
+const DEFAULT_DAILY_LIMITS: Record<ThrottleOp, number> = { search: 2_000, publish: 3, reply: 10 }
 const DEFAULT_JITTER_MS = { min: 5_000, max: 30_000 }
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue }
