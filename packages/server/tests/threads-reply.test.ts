@@ -35,14 +35,17 @@ function fakeDeps(options: FakePageOptions = {}) {
   const page = {
     goto: vi.fn().mockResolvedValue(undefined),
     waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    keyboard: { press: vi.fn().mockResolvedValue(undefined) },
     url: vi.fn().mockReturnValue(options.url ?? input.targetUrl),
     locator: vi.fn((selector: string) => {
       const count = visible.has(selector) ? 1 : 0
       const makeLocator = () => ({
         count: vi.fn().mockResolvedValue(count),
         isVisible: vi.fn().mockResolvedValue(count > 0),
+        scrollIntoViewIfNeeded: vi.fn().mockResolvedValue(undefined),
         click: vi.fn().mockImplementation(async () => { clicks.push(selector) }),
-        fill: vi.fn().mockImplementation(async (text: string) => { fills.push(text) })
+        fill: vi.fn().mockImplementation(async (text: string) => { fills.push(text) }),
+        evaluate: vi.fn().mockImplementation(async (fn: (element: HTMLElement) => void) => { clicks.push(`dom:${selector}`); fn({ click: () => undefined } as HTMLElement) })
       })
       return {
         count: vi.fn().mockResolvedValue(count),
@@ -144,5 +147,27 @@ describe('performThreadsReply', () => {
 
     await expect(performThreadsReply(db, input, { createContext: fake.deps.createContext })).rejects.toBeInstanceOf(DailyQuotaExceededError)
     expect(fake.deps.createContext).not.toHaveBeenCalled()
+  })
+
+  it('falls back to DOM click when Threads overlays intercept pointer events', async () => {
+    const db = openMemoryDatabase()
+    const fake = fakeDeps()
+    fake.page.locator = vi.fn((selector: string) => {
+      const visible = selector === '[contenteditable="true"][role="textbox"]' || selector === 'div[role="button"]:has-text("發布")'
+      const makeLocator = () => ({
+        count: vi.fn().mockResolvedValue(visible ? 1 : 0),
+        isVisible: vi.fn().mockResolvedValue(visible),
+        scrollIntoViewIfNeeded: vi.fn().mockResolvedValue(undefined),
+        click: vi.fn().mockRejectedValue(new Error('subtree intercepts pointer events')),
+        fill: vi.fn().mockImplementation(async (text: string) => { fake.fills.push(text) }),
+        evaluate: vi.fn().mockImplementation(async () => { fake.clicks.push(`dom:${selector}`) })
+      })
+      return { count: vi.fn().mockResolvedValue(visible ? 1 : 0), nth: vi.fn(() => makeLocator()), last: vi.fn(() => makeLocator()) }
+    })
+
+    const result = await performThreadsReply(db, input, fake.deps)
+
+    expect(result.status).toBe('succeeded')
+    expect(fake.clicks).toContain('dom:div[role="button"]:has-text("發布")')
   })
 })
