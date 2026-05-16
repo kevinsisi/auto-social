@@ -47,24 +47,54 @@ export async function performThreadsReply(db: AppDatabase, input: ThreadsReplyIn
       return { status: 'failed', error: 'Threads session 已失效或尚未登入。' }
     }
 
-    const clickedReply = await clickFirstVisible(page, [
-      'div[role="button"][aria-label*="回覆"]',
-      'div[role="button"][aria-label*="留言"]',
-      'div[role="button"][aria-label*="Reply"]',
-      'button[aria-label*="Reply"]',
-      '[role="button"]:has-text("回覆")',
-      '[role="button"]:has-text("Reply")'
-    ])
-    if (!clickedReply) {
-      return { status: 'failed', error: '找不到 Threads 回覆按鈕。', screenshotPath: await saveScreenshot(page, input.attemptId) }
-    }
-
-    const textbox = await firstVisibleLocator(page, [
+    let textbox = await firstVisibleLocator(page, [
+      '[contenteditable="true"][role="textbox"][aria-label*="回覆"]',
+      '[contenteditable="true"][role="textbox"][aria-label*="留言"]',
+      '[contenteditable="true"][role="textbox"][aria-label*="Reply"]',
+      '[contenteditable="true"][aria-label*="回覆"]',
+      '[contenteditable="true"][aria-label*="Reply"]',
+      '[contenteditable="true"][data-lexical-editor="true"]',
       '[contenteditable="true"][role="textbox"]',
       '[role="textbox"][contenteditable="true"]',
-      'textarea',
-      '[contenteditable="true"]'
+      'textarea'
     ])
+    if (!textbox) {
+      const clickedReply = await clickFirstVisible(page, [
+        'div[role="button"][aria-label*="回覆"]',
+        'div[role="button"][aria-label*="留言"]',
+        'div[role="button"][aria-label*="Reply"]',
+        'div[role="button"][aria-label*="Comment"]',
+        'button[aria-label*="回覆"]',
+        'button[aria-label*="留言"]',
+        'button[aria-label*="Reply"]',
+        'button[aria-label*="Comment"]',
+        '[role="button"]:has([aria-label*="回覆"])',
+        '[role="button"]:has([aria-label*="留言"])',
+        '[role="button"]:has([aria-label*="Reply"])',
+        '[role="button"]:has([aria-label*="Comment"])',
+        '[aria-label*="回覆"]',
+        '[aria-label*="留言"]',
+        '[aria-label*="Reply"]',
+        '[aria-label*="Comment"]',
+        '[role="button"]:has-text("回覆")',
+        '[role="button"]:has-text("Reply")'
+      ])
+      if (!clickedReply) {
+        return { status: 'failed', error: '找不到 Threads 回覆按鈕。', screenshotPath: await saveScreenshot(page, input.attemptId) }
+      }
+      textbox = await firstVisibleLocator(page, [
+        '[contenteditable="true"][role="textbox"][aria-label*="回覆"]',
+        '[contenteditable="true"][role="textbox"][aria-label*="留言"]',
+        '[contenteditable="true"][role="textbox"][aria-label*="Reply"]',
+        '[contenteditable="true"][aria-label*="回覆"]',
+        '[contenteditable="true"][aria-label*="Reply"]',
+        '[contenteditable="true"][data-lexical-editor="true"]',
+        '[contenteditable="true"][role="textbox"]',
+        '[role="textbox"][contenteditable="true"]',
+        'textarea',
+        '[contenteditable="true"]'
+      ])
+    }
     if (!textbox) {
       return { status: 'failed', error: '找不到 Threads 留言輸入框。', screenshotPath: await saveScreenshot(page, input.attemptId) }
     }
@@ -124,7 +154,13 @@ async function firstVisibleLocator(page: Page, selectors: string[]): Promise<Loc
   for (const selector of selectors) {
     const loc = page.locator(selector).last()
     try {
-      if (await loc.count() > 0 && await loc.isVisible({ timeout: 1_000 })) return loc
+      const group = page.locator(selector)
+      const count = Math.min(await group.count(), 20)
+      for (let i = 0; i < count; i += 1) {
+        const candidate = group.nth(i)
+        if (await candidate.isVisible({ timeout: 500 })) return candidate
+      }
+      if (await loc.count() > 0 && await loc.isVisible({ timeout: 500 })) return loc
     } catch {
       // Try the next selector; Threads changes labels frequently.
     }
