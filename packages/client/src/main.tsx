@@ -605,14 +605,14 @@ function OverviewTab({ cards, keyword, scanBusyLabel, onSelectCard, onDeleteCard
 
       <form onSubmit={onCreateCard} className="border-4 border-asphalt bg-[#fffaf2] p-4 shadow-[5px_5px_0_#171717]">
         <label className="block text-sm font-bold">新增監控關鍵字</label>
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2 flex flex-col gap-2 min-[420px]:flex-row">
           <input
-            className="min-h-11 flex-1 border-2 border-asphalt bg-paper px-3 text-base outline-none focus:bg-white"
+            className="min-h-11 min-w-0 flex-1 border-2 border-asphalt bg-paper px-3 text-base outline-none focus:bg-white"
             value={keyword}
             onChange={(e) => onKeywordChange(e.target.value)}
             placeholder="例如：AI 小編、Threads 經營"
           />
-          <button className="min-h-11 bg-asphalt px-4 font-bold text-paper hover:bg-signal" type="submit">加入</button>
+          <button className="min-h-11 shrink-0 bg-asphalt px-4 font-bold text-paper hover:bg-signal" type="submit">加入</button>
         </div>
       </form>
     </div>

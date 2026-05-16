@@ -4,7 +4,7 @@
 
 - Domain: `https://social.sisihome.org`
 - Health check: `https://social.sisihome.org/api/health`
-- Current expected API version after the latest deployment: `1.2.23`
+- Current expected API version after the latest deployment: `1.2.34`
 
 ## Threads Login
 
@@ -78,7 +78,7 @@ Known limitation: production has shown Google sometimes returns an `httpservice/
 
 ## Threads Quota
 
-Settings → Threads shows today's `search` count and daily limit. Use `儲存上限` to raise or lower the Playwright search quota, and `清除今天 search 用量` to delete only today's `search` counter. The publish/reply counters remain Phase 1 safeguards.
+Settings → Threads shows today's `search` count and daily limit. The default Playwright search limit is `2000` per day. Use `儲存上限` to raise or lower it, and `清除今天 search 用量` to delete only today's `search` counter. The publish/reply counters remain Phase 1 safeguards.
 
 ## Version Rule
 
