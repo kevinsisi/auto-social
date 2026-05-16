@@ -4,7 +4,7 @@ import { createThreadsContext } from './browser.js'
 const PROBE_TIMEOUT_MS = 15_000
 
 export type HandleProbeResult =
-  | { handle: string; source: 'redirect' | 'dom' }
+  | { handle: string; source: 'redirect' | 'dom' | 'instagram_api' }
   | { handle: null; reason: 'login_redirect' | 'no_anchor_found' | 'probe_failed' }
 
 export async function probeBoundHandle(db: AppDatabase): Promise<HandleProbeResult> {
@@ -15,6 +15,13 @@ export async function probeBoundHandle(db: AppDatabase): Promise<HandleProbeResu
     return { handle: null, reason: 'probe_failed' }
   }
   try {
+    const fromInstagram = await probeInstagramCurrentUser(context)
+    if (fromInstagram) {
+      const handle = `@${fromInstagram}`
+      persistHandle(db, handle)
+      return { handle, source: 'instagram_api' }
+    }
+
     const page = await context.newPage()
     try {
       await page.goto('https://www.threads.com/', { waitUntil: 'domcontentloaded', timeout: PROBE_TIMEOUT_MS })
@@ -71,6 +78,52 @@ export async function probeBoundHandle(db: AppDatabase): Promise<HandleProbeResu
   } finally {
     await context.close()
   }
+}
+
+async function probeInstagramCurrentUser(context: Awaited<ReturnType<typeof createThreadsContext>>): Promise<string | null> {
+  const endpoints = [
+    'https://www.instagram.com/api/v1/accounts/current_user/?edit=true',
+    'https://www.instagram.com/api/v1/accounts/edit/web_form_data/'
+  ]
+  for (const endpoint of endpoints) {
+    try {
+      const response = await context.request.get(endpoint, {
+        timeout: PROBE_TIMEOUT_MS,
+        headers: {
+          'x-ig-app-id': '936619743392459',
+          'x-requested-with': 'XMLHttpRequest'
+        }
+      })
+      if (!response.ok()) continue
+      const text = await response.text()
+      const username = extractInstagramUsername(text)
+      if (username) return username
+    } catch {
+      // Try the next read-only endpoint.
+    }
+  }
+  return null
+}
+
+function extractInstagramUsername(text: string): string | null {
+  try {
+    const parsed = JSON.parse(text) as unknown
+    const fromObject = findUsername(parsed)
+    if (fromObject) return fromObject
+  } catch {
+    // Fall through to regex for non-standard JSON responses.
+  }
+  return text.match(/"username"\s*:\s*"([A-Za-z0-9_.]+)"/)?.[1] ?? null
+}
+
+function findUsername(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null
+  if ('username' in value && typeof value.username === 'string' && /^[A-Za-z0-9_.]+$/.test(value.username)) return value.username
+  for (const child of Object.values(value as Record<string, unknown>)) {
+    const found = findUsername(child)
+    if (found) return found
+  }
+  return null
 }
 
 function persistHandle(db: AppDatabase, handle: string | null) {
