@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { api } from './api'
+import { evaluateKeywordQuality, type KeywordQuality } from './keyword-quality'
 import './styles.css'
 import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, PostDraft, QueueSnapshot, RadarTerm, ScamSignal, SchedulerStatus, Sentiment, SponsoredSignal, TaskStatus, TaskType, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
 import { APP_VERSION } from './version'
@@ -469,18 +470,7 @@ function App() {
                             />
                           ))
                       }
-                      <form onSubmit={createCard} className="border-4 border-asphalt bg-[#fffaf2] p-3 shadow-[4px_4px_0_#171717]">
-                        <label className="block text-xs font-bold mb-1">新增關鍵字</label>
-                        <div className="flex gap-2">
-                          <input
-                            className="min-h-9 flex-1 border-2 border-asphalt bg-paper px-2 text-sm outline-none focus:bg-white"
-                            value={keyword}
-                            onChange={(e) => setKeyword(e.target.value)}
-                            placeholder="例如：AI 小編"
-                          />
-                          <button className="min-h-9 bg-asphalt px-3 text-sm font-bold text-paper hover:bg-signal" type="submit">加入</button>
-                        </div>
-                      </form>
+                      <AddKeywordForm keyword={keyword} compact onKeywordChange={setKeyword} onCreateCard={createCard} />
                     </aside>
                     <div className="flex-1 min-w-0">
                       {selectedId
@@ -603,18 +593,54 @@ function OverviewTab({ cards, keyword, scanBusyLabel, onSelectCard, onDeleteCard
           </div>
       }
 
-      <form onSubmit={onCreateCard} className="border-4 border-asphalt bg-[#fffaf2] p-4 shadow-[5px_5px_0_#171717]">
-        <label className="block text-sm font-bold">新增監控關鍵字</label>
-        <div className="mt-2 flex flex-col gap-2 min-[420px]:flex-row">
-          <input
-            className="min-h-11 min-w-0 flex-1 border-2 border-asphalt bg-paper px-3 text-base outline-none focus:bg-white"
-            value={keyword}
-            onChange={(e) => onKeywordChange(e.target.value)}
-            placeholder="例如：AI 小編、Threads 經營"
-          />
-          <button className="min-h-11 shrink-0 bg-asphalt px-4 font-bold text-paper hover:bg-signal" type="submit">加入</button>
+      <AddKeywordForm keyword={keyword} onKeywordChange={onKeywordChange} onCreateCard={onCreateCard} />
+    </div>
+  )
+}
+
+function AddKeywordForm({ keyword, compact = false, onKeywordChange, onCreateCard }: {
+  keyword: string
+  compact?: boolean
+  onKeywordChange: (value: string) => void
+  onCreateCard: (event: React.FormEvent) => void
+}) {
+  const quality = evaluateKeywordQuality(keyword)
+  const buttonLabel = quality.level === 'poor' ? '仍然加入' : '加入'
+  return (
+    <form onSubmit={onCreateCard} className={`border-4 border-asphalt bg-[#fffaf2] shadow-[5px_5px_0_#171717] ${compact ? 'p-3 shadow-[4px_4px_0_#171717]' : 'p-4'}`}>
+      <label className={`block font-bold ${compact ? 'mb-1 text-xs' : 'text-sm'}`}>新增監控關鍵字</label>
+      <div className={`mt-2 flex flex-col gap-2 ${compact ? '' : 'min-[420px]:flex-row'}`}>
+        <input
+          className={`min-w-0 flex-1 border-2 border-asphalt bg-paper outline-none focus:bg-white ${compact ? 'min-h-9 px-2 text-sm' : 'min-h-11 px-3 text-base'}`}
+          value={keyword}
+          onChange={(event) => onKeywordChange(event.target.value)}
+          placeholder={compact ? '例如：AI 小編' : '例如：AI 小編、Threads 經營'}
+        />
+        <button className={`shrink-0 bg-asphalt font-bold text-paper hover:bg-signal ${compact ? 'min-h-9 px-3 text-sm' : 'min-h-11 px-4'}`} type="submit">{buttonLabel}</button>
+      </div>
+      <KeywordQualityHint quality={quality} onPick={onKeywordChange} />
+    </form>
+  )
+}
+
+function KeywordQualityHint({ quality, onPick }: { quality: KeywordQuality; onPick: (keyword: string) => void }) {
+  if (quality.reasons.length === 0) return null
+  const tone = quality.level === 'poor' ? 'border-orange-600 bg-orange-50 text-orange-900' : 'border-asphalt/40 bg-white text-asphalt/70'
+  return (
+    <div className={`mt-3 border-2 p-3 text-sm ${tone}`}>
+      <p className="font-bold">關鍵字品質提醒</p>
+      <ul className="mt-1 list-disc space-y-1 pl-5">
+        {quality.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+      </ul>
+      {quality.suggestions.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {quality.suggestions.map((suggestion) => (
+            <button key={suggestion} type="button" onClick={() => onPick(suggestion)} className="border-2 border-asphalt bg-paper px-2 py-1 text-xs font-bold hover:bg-asphalt hover:text-paper">
+              改用「{suggestion}」
+            </button>
+          ))}
         </div>
-      </form>
+      )}
     </div>
   )
 }

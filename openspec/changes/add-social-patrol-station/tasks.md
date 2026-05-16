@@ -107,6 +107,7 @@
 - [x] 11.6 Add an interim `Threads 出勤海巡` button that performs Threads-targeted fallback discovery using `site:threads.net OR site:threads.com` search and stores only Threads links. This is explicitly not a Dcard substitute and remains a fallback when Playwright search fails.
 - [x] 11.7 Desktop keyword empty state now keeps the add-keyword form visible and tells the user to add a brand/topic/product term before the right observation panel can show Threads wind direction.
 - [x] 11.8 Mobile add-keyword form keeps the submit button visible by stacking the input/button on narrow screens and allowing the input to shrink instead of pushing `加入` off-screen. (1.2.34)
+- [x] 11.9 Add keyword quality hints to the add-keyword form. The UI flags broad, too-short, sentence-like, hashtag-heavy, and Threads UI-noise keywords (for example `轉發分享`), offers replacement chips, and still allows override via `仍然加入`. (1.2.37)
 
 ## 11A. Settings Page
 
