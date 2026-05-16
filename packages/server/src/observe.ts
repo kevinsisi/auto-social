@@ -1,5 +1,5 @@
 import type { AppDatabase } from './db.js'
-import { SENTIMENT_CLASSES, type ScamSignal, type Sentiment, type SponsoredSignal } from './ai/types.js'
+import { SENTIMENT_CLASSES, type ImageAnalysisResult, type ScamSignal, type Sentiment, type SponsoredSignal } from './ai/types.js'
 import { listLatestReplyAttempts, type ReplyAttempt } from './reply-attempts.js'
 import { cleanThreadsExcerptForDisplay, isKeywordRelevant, isRecentThreadsPost } from './threads-bot/search.js'
 
@@ -33,6 +33,7 @@ export type ObservedPost = {
   shares: number | null
   excerpt: string
   images: string[]
+  imageAnalysis: ImageAnalysisResult | null
   videos: ObservedVideo[]
   fetchedAt: string
   pipelineStatus: string
@@ -78,6 +79,7 @@ type CandidateRow = {
   published_at: string | null
   engagement_json: string | null
   images_json: string | null
+  image_analysis_json: string | null
   videos_json: string | null
   fetched_at: string
   pipeline_status: string
@@ -98,7 +100,7 @@ export function getKeywordObservation(db: AppDatabase, cardId: string, now: Date
 
   const since = new Date(now.getTime() - WINDOW_HOURS * 60 * 60 * 1000).toISOString()
   const rows = db.prepare(`
-    SELECT id, source, url, author, title, text, published_at, engagement_json, images_json, videos_json, fetched_at,
+    SELECT id, source, url, author, title, text, published_at, engagement_json, images_json, image_analysis_json, videos_json, fetched_at,
            pipeline_status, pipeline_error, classify_json, sponsored_json, scam_json, score_json, draft_variants_json
     FROM trend_candidates
     WHERE card_id = ? AND fetched_at >= ?
@@ -195,6 +197,7 @@ function toObservedPost(row: CandidateRow, latestReplyAttempt: ReplyAttempt | nu
   const engagement = parseJson(row.engagement_json) as { likes?: number | null; replies?: number | null; reposts?: number | null; shares?: number | null } | null
   const imagesRaw = parseJson(row.images_json)
   const images = Array.isArray(imagesRaw) ? imagesRaw.filter((src): src is string => typeof src === 'string') : []
+  const imageAnalysis = parseImageAnalysis(row.image_analysis_json)
   const videosRaw = parseJson(row.videos_json)
   const videos: ObservedVideo[] = Array.isArray(videosRaw)
     ? videosRaw
@@ -215,6 +218,7 @@ function toObservedPost(row: CandidateRow, latestReplyAttempt: ReplyAttempt | nu
     shares: engagement?.shares ?? null,
     excerpt: cleanExcerptForDisplay(row.text),
     images,
+    imageAnalysis,
     videos,
     fetchedAt: row.fetched_at,
     pipelineStatus: row.pipeline_status,
@@ -288,6 +292,27 @@ function parseJson(text: string | null): unknown {
   } catch {
     return null
   }
+}
+
+function parseImageAnalysis(text: string | null): ImageAnalysisResult | null {
+  const parsed = parseJson(text)
+  if (!parsed || typeof parsed !== 'object') return null
+  const value = parsed as Partial<ImageAnalysisResult>
+  if (value.status !== 'none' && value.status !== 'success' && value.status !== 'partial' && value.status !== 'failed') return null
+  return {
+    status: value.status,
+    summary: typeof value.summary === 'string' ? value.summary : null,
+    images: Array.isArray(value.images) ? value.images.filter(isImageAnalysisImage) : [],
+    error: typeof value.error === 'string' ? value.error : null,
+    model: typeof value.model === 'string' ? value.model : null,
+    analyzedAt: typeof value.analyzedAt === 'string' ? value.analyzedAt : ''
+  }
+}
+
+function isImageAnalysisImage(value: unknown): value is ImageAnalysisResult['images'][number] {
+  if (!value || typeof value !== 'object') return false
+  const image = value as ImageAnalysisResult['images'][number]
+  return typeof image.url === 'string' && typeof image.description === 'string' && Array.isArray(image.notableObjects)
 }
 
 export type VoiceFeedbackInput = {

@@ -194,6 +194,28 @@ describe('getKeywordObservation', () => {
     expect(post?.latestReplyAttempt).toMatchObject({ id: 'reply-new', status: 'succeeded', replyUrl: 'https://www.threads.com/@kevin/post/reply' })
   })
 
+  it('exposes image analysis for observed posts', () => {
+    const db = openMemoryDatabase()
+    const repo = new PatrolRepository(db)
+    const card = repo.createCard('Urus')
+    db.prepare(`
+      INSERT INTO trend_candidates (id, source, external_id, fingerprint, card_id, is_trending, url, author, title, text, published_at, engagement_json, images_json, image_analysis_json, fetched_at, pipeline_status)
+      VALUES ('image-urus', 'threads_playwright', 'image-urus', 'fp-image-urus', ?, 0, 'https://www.threads.com/@cars/post/image', '@cars', 'Urus 圖片', 'Urus 新車照片', ?, ?, ?, ?, ?, 'drafted')
+    `).run(
+      card.id,
+      nowIso(),
+      JSON.stringify({ likes: 12 }),
+      JSON.stringify(['https://cdn.example.com/urus.jpg']),
+      JSON.stringify({ status: 'success', summary: '圖片是一台黑色 Urus', images: [{ url: 'https://cdn.example.com/urus.jpg', description: '黑色 SUV', textDetected: null, notableObjects: ['SUV'] }], error: null, model: 'test-vision', analyzedAt: nowIso() }),
+      nowIso()
+    )
+
+    const result = getKeywordObservation(db, card.id)
+    const post = [...result!.highlights, ...result!.posts].find((item) => item.id === 'image-urus')
+
+    expect(post?.imageAnalysis).toMatchObject({ status: 'success', summary: '圖片是一台黑色 Urus' })
+  })
+
   it('splits high-engagement posts into highlights and sorts the rest by engagement', () => {
     const db = openMemoryDatabase()
     const repo = new PatrolRepository(db)

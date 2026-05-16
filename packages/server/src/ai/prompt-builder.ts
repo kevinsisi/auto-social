@@ -31,12 +31,28 @@ export function buildVoiceSystemInstruction(profile: VoiceProfile) {
 }
 
 export function candidateBlock(candidate: SourceCandidateInput) {
-  return [
+  const lines = [
     `source: ${candidate.source}`,
     `url: ${candidate.url}`,
     `title: ${candidate.title ?? ''}`,
     `author: ${candidate.author ?? ''}`,
     `text: ${candidate.text}`,
     `engagement: ${JSON.stringify(candidate.engagement ?? {})}`
-  ].join('\n')
+  ]
+  const visualSummary = formatVisualSummary(candidate)
+  if (visualSummary) lines.push(`visualSummary: ${visualSummary}`)
+  return lines.join('\n')
+}
+
+function formatVisualSummary(candidate: SourceCandidateInput) {
+  const analysis = candidate.imageAnalysis
+  if (!analysis || (analysis.status !== 'success' && analysis.status !== 'partial') || !analysis.summary?.trim()) return null
+  const imageDetails = analysis.images
+    .map((image, index) => {
+      const objects = image.notableObjects.length > 0 ? `；物件：${image.notableObjects.join('、')}` : ''
+      const text = image.textDetected ? `；圖中文字：${image.textDetected}` : ''
+      return `圖${index + 1}：${image.description}${objects}${text}`
+    })
+    .join(' / ')
+  return `以下是已實際分析貼文附圖得到的視覺摘要，不是從 URL 猜測：${analysis.summary}${imageDetails ? `。${imageDetails}` : ''}`
 }

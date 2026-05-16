@@ -186,6 +186,17 @@ export type ObservedDraft = {
   length: number
 }
 
+export type ImageAnalysisStatus = 'none' | 'success' | 'partial' | 'failed'
+
+export type ImageAnalysisResult = {
+  status: ImageAnalysisStatus
+  summary: string | null
+  images: Array<{ url: string; description: string; textDetected: string | null; notableObjects: string[] }>
+  error: string | null
+  model: string | null
+  analyzedAt: string
+}
+
 export type ReplyAttemptStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'uncertain'
 
 export type ReplyAttempt = {
@@ -219,6 +230,7 @@ export type ObservedPost = {
   shares: number | null
   excerpt: string
   images: string[]
+  imageAnalysis: ImageAnalysisResult | null
   videos: Array<{ src: string; poster: string | null }>
   fetchedAt: string
   pipelineStatus: string
