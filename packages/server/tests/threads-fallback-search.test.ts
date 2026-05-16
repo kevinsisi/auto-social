@@ -19,6 +19,16 @@ describe('extractThreadsLinks', () => {
     ])
   })
 
+  it('extracts Threads URLs from Bing /ck/a u=a1 redirect wrappers', () => {
+    const target = 'https://www.threads.com/@cars/post/BING123'
+    const encoded = Buffer.from(target, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+    const html = `<a href="/ck/a?!&&p=abc&u=a1${encoded}&ntb=1">result</a>`
+
+    const results = extractThreadsLinks(html, 'Urus')
+
+    expect(results.map((item) => item.url)).toEqual([target])
+  })
+
   it('deduplicates the same Threads URL appearing in different result blocks', () => {
     const html = '<a href="https://www.threads.net/@a/post/x">1</a>' +
       '<cite>https://www.threads.net/@a/post/x</cite>'
@@ -70,6 +80,12 @@ describe('isBingBlockPage', () => {
     expect(isBingBlockPage(html, 'https://www.bing.com/search?q=foo')).toBe(true)
   })
 
+  it('flags Bing Cloudflare Turnstile challenge HTML', () => {
+    const html = '<html><body><div class="captcha_header">最後一個步驟</div><script src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script></body></html>'
+
+    expect(isBingBlockPage(html, 'https://www.bing.com/search?q=foo')).toBe(true)
+  })
+
   it('flags ck/captcha URL', () => {
     expect(isBingBlockPage('<html/>', 'https://www.bing.com/ck/captcha?...')).toBe(true)
   })
@@ -84,55 +100,55 @@ describe('isBingBlockPage', () => {
 describe('fetchThreadsFallbackOutcome', () => {
   const okResponse = (html: string, finalUrl = 'https://example.com', status = 200) => async () => ({ html, finalUrl, status })
 
-  it('returns ok with Google when Google has Threads results', async () => {
+  it('returns ok with Bing when Bing has Threads results', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
       fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>'),
       fetchBing: okResponse('<a href="https://www.threads.net/@b/post/b1">y</a>')
     })
 
     expect(outcome.status).toBe('ok')
-    expect(outcome.providerUsed).toBe('google')
-    expect(outcome.candidates.map((c) => c.url)).toEqual(['https://www.threads.net/@a/post/g1'])
+    expect(outcome.providerUsed).toBe('bing')
+    expect(outcome.candidates.map((c) => c.url)).toEqual(['https://www.threads.net/@b/post/b1'])
     expect(outcome.blockedProviders).toEqual([])
   })
 
-  it('falls back to Bing when Google is blocked (retry-page detected)', async () => {
+  it('falls back to Google when Bing is blocked', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
-      fetchGoogle: okResponse('<html>httpservice/retry/enablejs</html>'),
-      fetchBing: okResponse('<a href="https://www.threads.net/@b/post/b1">y</a>')
+      fetchBing: okResponse('<html>Verify you are human</html>'),
+      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>')
     })
 
     expect(outcome.status).toBe('ok')
-    expect(outcome.providerUsed).toBe('bing')
-    expect(outcome.candidates.map((c) => c.url)).toEqual(['https://www.threads.net/@b/post/b1'])
-    expect(outcome.blockedProviders).toEqual(['google'])
+    expect(outcome.providerUsed).toBe('google')
+    expect(outcome.candidates.map((c) => c.url)).toEqual(['https://www.threads.net/@a/post/g1'])
+    expect(outcome.blockedProviders).toEqual(['bing'])
   })
 
-  it('falls back to Bing when Google returns no extractable Threads URLs', async () => {
+  it('falls back to Google when Bing returns no extractable Threads URLs', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
-      fetchGoogle: okResponse('<html>no results here</html>'),
-      fetchBing: okResponse('<a href="https://www.threads.net/@b/post/b1">y</a>')
+      fetchBing: okResponse('<html>no results here</html>'),
+      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>')
     })
 
     expect(outcome.status).toBe('ok')
-    expect(outcome.providerUsed).toBe('bing')
+    expect(outcome.providerUsed).toBe('google')
   })
 
   it('reports blocked when both providers are blocked', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
-      fetchGoogle: okResponse('<html>httpservice/retry/enablejs</html>'),
-      fetchBing: okResponse('<html>Verify you are human</html>')
+      fetchBing: okResponse('<html>Verify you are human</html>'),
+      fetchGoogle: okResponse('<html>httpservice/retry/enablejs</html>')
     })
 
     expect(outcome.status).toBe('blocked')
     expect(outcome.providerUsed).toBeNull()
-    expect(outcome.blockedProviders).toEqual(['google', 'bing'])
+    expect(outcome.blockedProviders).toEqual(['bing', 'google'])
   })
 
   it('reports no_results when both providers respond normally but find nothing', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
-      fetchGoogle: okResponse('<html>no threads here</html>'),
-      fetchBing: okResponse('<html>also nothing</html>')
+      fetchBing: okResponse('<html>also nothing</html>'),
+      fetchGoogle: okResponse('<html>no threads here</html>')
     })
 
     expect(outcome.status).toBe('no_results')
@@ -142,38 +158,38 @@ describe('fetchThreadsFallbackOutcome', () => {
 
   it('treats 429 / 5xx as blocked for the provider that returned the status', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
-      fetchGoogle: okResponse('whatever', 'https://www.google.com', 429),
-      fetchBing: okResponse('<a href="https://www.threads.net/@b/post/b1">y</a>')
+      fetchBing: okResponse('whatever', 'https://www.bing.com', 429),
+      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>')
     })
 
     expect(outcome.status).toBe('ok')
-    expect(outcome.providerUsed).toBe('bing')
-    expect(outcome.blockedProviders).toEqual(['google'])
+    expect(outcome.providerUsed).toBe('google')
+    expect(outcome.blockedProviders).toEqual(['bing'])
   })
 
   it('treats a thrown fetch error (timeout, DNS) as blocked', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
-      fetchGoogle: async () => { throw new Error('timeout') },
-      fetchBing: okResponse('<a href="https://www.threads.net/@b/post/b1">y</a>')
+      fetchBing: async () => { throw new Error('timeout') },
+      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>')
     })
 
     expect(outcome.status).toBe('ok')
-    expect(outcome.providerUsed).toBe('bing')
-    expect(outcome.blockedProviders).toEqual(['google'])
+    expect(outcome.providerUsed).toBe('google')
+    expect(outcome.blockedProviders).toEqual(['bing'])
   })
 
-  it('honours limit when Google returns more candidates than asked for', async () => {
+  it('honours limit when Bing returns more candidates than asked for', async () => {
     const html = '<a href="https://www.threads.net/@a/post/1">a</a>' +
       '<a href="https://www.threads.net/@a/post/2">b</a>' +
       '<a href="https://www.threads.net/@a/post/3">c</a>'
 
     const outcome = await fetchThreadsFallbackOutcome('foo', {
       limit: 2,
-      fetchGoogle: okResponse(html),
-      fetchBing: okResponse('<html/>')
+      fetchBing: okResponse(html),
+      fetchGoogle: okResponse('<html/>')
     })
 
     expect(outcome.candidates).toHaveLength(2)
-    expect(outcome.providerUsed).toBe('google')
+    expect(outcome.providerUsed).toBe('bing')
   })
 })
