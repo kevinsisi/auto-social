@@ -36,14 +36,20 @@ function fakeDeps(options: FakePageOptions = {}) {
     goto: vi.fn().mockResolvedValue(undefined),
     waitForTimeout: vi.fn().mockResolvedValue(undefined),
     url: vi.fn().mockReturnValue(options.url ?? input.targetUrl),
-    locator: vi.fn((selector: string) => ({
-      last: () => ({
-        count: vi.fn().mockResolvedValue(visible.has(selector) ? 1 : 0),
-        isVisible: vi.fn().mockResolvedValue(visible.has(selector)),
+    locator: vi.fn((selector: string) => {
+      const count = visible.has(selector) ? 1 : 0
+      const makeLocator = () => ({
+        count: vi.fn().mockResolvedValue(count),
+        isVisible: vi.fn().mockResolvedValue(count > 0),
         click: vi.fn().mockImplementation(async () => { clicks.push(selector) }),
         fill: vi.fn().mockImplementation(async (text: string) => { fills.push(text) })
       })
-    })),
+      return {
+        count: vi.fn().mockResolvedValue(count),
+        nth: vi.fn(() => makeLocator()),
+        last: vi.fn(() => makeLocator())
+      }
+    }),
     evaluate: vi.fn().mockImplementation(async () => verifyResults.shift() ?? { replyUrl: null, domMatch: false }),
     reload: vi.fn().mockResolvedValue(undefined),
     screenshot: vi.fn().mockResolvedValue(Buffer.from('png'))
