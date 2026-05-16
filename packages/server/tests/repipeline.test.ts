@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { nanoid } from 'nanoid'
 import { openMemoryDatabase } from '../src/db.js'
-import { repipelineCard } from '../src/repipeline.js'
+import { repipelineCard, repipelineCandidate } from '../src/repipeline.js'
 import { PatrolRepository } from '../src/repository.js'
 import { nowIso } from '../src/time.js'
 
@@ -90,5 +90,43 @@ describe('repipelineCard', () => {
 
     expect(pendingTaskCount(db)).toBe(1)
     expect(getPipelineStatus(db, a)?.pipeline_status).toBe('pending')
+  })
+})
+
+describe('repipelineCandidate', () => {
+  it('requeues one failed candidate and leaves siblings untouched', () => {
+    const db = openMemoryDatabase()
+    const card = new PatrolRepository(db).createCard('法拉利')
+    const failed = seedCandidate(db, card.id, 'pipeline_blocked')
+    const sibling = seedCandidate(db, card.id, 'pipeline_blocked')
+
+    const result = repipelineCandidate(db, card.id, failed)
+
+    expect(result).toEqual({ cardId: card.id, candidateId: failed, queued: true, skippedReason: null })
+    expect(getPipelineStatus(db, failed)?.pipeline_status).toBe('pending')
+    expect(getPipelineStatus(db, failed)?.pipeline_error).toBeNull()
+    expect(getPipelineStatus(db, sibling)?.pipeline_status).toBe('pipeline_blocked')
+    expect(pendingTaskCount(db)).toBe(1)
+  })
+
+  it('does not requeue an already drafted candidate', () => {
+    const db = openMemoryDatabase()
+    const card = new PatrolRepository(db).createCard('法拉利')
+    const drafted = seedCandidate(db, card.id, 'drafted')
+
+    const result = repipelineCandidate(db, card.id, drafted)
+
+    expect(result).toEqual({ cardId: card.id, candidateId: drafted, queued: false, skippedReason: 'already_drafted' })
+    expect(pendingTaskCount(db)).toBe(0)
+  })
+
+  it('throws when candidate does not belong to card', () => {
+    const db = openMemoryDatabase()
+    const repo = new PatrolRepository(db)
+    const first = repo.createCard('法拉利')
+    const second = repo.createCard('豪車')
+    const candidate = seedCandidate(db, first.id, 'pipeline_blocked')
+
+    expect(() => repipelineCandidate(db, second.id, candidate)).toThrow('找不到這則樣本。')
   })
 })

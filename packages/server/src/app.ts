@@ -9,7 +9,7 @@ import type { AppDatabase } from './db.js'
 import { registerKeyPoolRoutes } from './key-pool/routes.js'
 import { scanKeywordCard } from './keyword-scan.js'
 import { getKeywordObservation, saveVoiceFeedback } from './observe.js'
-import { repipelineCard } from './repipeline.js'
+import { repipelineCard, repipelineCandidate } from './repipeline.js'
 import { DEFAULT_GEMINI_MODEL } from './ai/gemini-client.js'
 import { enqueueComposePostDraft, listPostDrafts, regenerateImageForPostDraft } from './post-drafts.js'
 import { clearImageGenKey, DEFAULT_IMAGE_MODEL, getImageGenStatus, setImageGenKey } from './image-gen/settings.js'
@@ -149,6 +149,15 @@ export function createApp(db: AppDatabase) {
     try {
       const result = repipelineCard(db, String(req.params.cardId))
       res.status(202).json({ repipeline: result })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.post('/api/keywords/:cardId/candidates/:candidateId/repipeline', (req, res) => {
+    try {
+      const result = repipelineCandidate(db, String(req.params.cardId), String(req.params.candidateId))
+      res.status(result.queued ? 202 : 200).json({ repipeline: result })
     } catch (error) {
       sendError(res, error)
     }
