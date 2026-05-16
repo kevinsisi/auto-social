@@ -4,7 +4,7 @@
 
 - Domain: `https://social.sisihome.org`
 - Health check: `https://social.sisihome.org/api/health`
-- Current expected API version after the latest deployment: `1.2.35`
+- Current expected API version after the latest deployment: `1.2.36`
 
 ## Threads Login
 
@@ -48,7 +48,12 @@ Expected healthy shape: `source:"threads_playwright"`, `sampledCandidates > 0`, 
 
 ## Keyword Auto Scan
 
-Current production now runs keyword-card auto scan every 15 minutes in `Asia/Taipei` with cron `*/15 * * * *`.
+Current production wakes keyword-card auto scan every 15 minutes in `Asia/Taipei` with cron `*/15 * * * *`. It is quota-aware: by default each tick scans at most 2 eligible keyword cards, and a card is eligible only if it has never been scanned or its last completed scan is at least 120 minutes old.
+
+Runtime knobs:
+
+- `AUTO_SOCIAL_KEYWORD_SCAN_MAX_PER_TICK` default `2`
+- `AUTO_SOCIAL_KEYWORD_SCAN_MIN_INTERVAL_MINUTES` default `120`
 
 Check runtime status:
 
@@ -62,7 +67,10 @@ Key fields:
 - `lastStartedAt`
 - `lastCompletedAt`
 - `lastCardCount`
+- `lastEligibleCount`
 - `lastInsertedCount`
+- `lastQuotaRemaining`
+- `lastScannedKeywords`
 - `lastStatus`
 - `lastError`
 

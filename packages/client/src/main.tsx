@@ -1098,7 +1098,10 @@ function SchedulerPanel({ scheduler }: { scheduler: SchedulerStatus | null }) {
           ['下次海巡', scheduler.nextRunAt ? formatDate(scheduler.nextRunAt) : '待計算'],
           ['上次開始', scheduler.lastStartedAt ? formatDate(scheduler.lastStartedAt) : '尚未執行'],
           ['上次完成', scheduler.lastCompletedAt ? formatDate(scheduler.lastCompletedAt) : '尚未完成'],
-          ['上次成果', `掃 ${scheduler.lastCardCount} 張 / 新增 ${scheduler.lastInsertedCount} 筆`],
+          ['上次成果', `掃 ${scheduler.lastCardCount}/${scheduler.lastEligibleCount} 張 / 新增 ${scheduler.lastInsertedCount} 筆`],
+          ['Quota', scheduler.lastQuotaRemaining === null ? '待計算' : `剩 ${scheduler.lastQuotaRemaining} 次`],
+          ['輪詢策略', `每輪最多 ${scheduler.maxCardsPerTick} 張 / 間隔 ${scheduler.minIntervalMinutes} 分`],
+          ['本輪關鍵字', scheduler.lastScannedKeywords.length > 0 ? scheduler.lastScannedKeywords.join('、') : '本輪無需掃描'],
         ].map(([label, value]) => (
           <div key={label} className="border-2 border-asphalt bg-[#fffaf2] p-2">
             <p className="font-mono text-[0.65rem] uppercase tracking-[0.15em] text-signal">{label}</p>
