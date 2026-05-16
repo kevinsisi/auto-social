@@ -41,6 +41,7 @@ export async function performThreadsReply(db: AppDatabase, input: ThreadsReplyIn
   try {
     await page.goto(input.targetUrl, { waitUntil: 'domcontentloaded', timeout: REPLY_TIMEOUT_MS })
     await page.waitForTimeout(1_500)
+    await page.keyboard.press('Escape').catch(() => undefined)
 
     if (page.url().includes('/login')) {
       markSessionUnhealthy(db, 'Threads 要求重新登入。')
@@ -171,8 +172,22 @@ async function firstVisibleLocator(page: Page, selectors: string[]): Promise<Loc
 async function clickFirstVisible(page: Page, selectors: string[]) {
   const loc = await firstVisibleLocator(page, selectors)
   if (!loc) return false
-  await loc.click({ timeout: 5_000 })
+  await clickLocator(loc)
   return true
+}
+
+async function clickLocator(loc: Locator) {
+  await loc.scrollIntoViewIfNeeded({ timeout: 2_000 }).catch(() => undefined)
+  try {
+    await loc.click({ timeout: 2_000 })
+    return
+  } catch {
+    // Threads frequently leaves invisible overlay containers intercepting pointer
+    // events. DOM click is the fallback for already-visible controls.
+  }
+  await loc.evaluate((element) => {
+    if (element instanceof HTMLElement) element.click()
+  })
 }
 
 async function verifyReplyOnPage(page: Page, input: ThreadsReplyInput): Promise<{ replyUrl: string | null; domMatch: boolean }> {
