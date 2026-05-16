@@ -112,6 +112,7 @@
 - [x] 11.11 Radar is now labeled as a Threads sample radar instead of a precise official hot-keyword chart. Manual radar scans prefer monitored card keywords as sample queries, term scoring is engagement-weighted, and extra junk words are filtered so pure frequency is not presented as accurate trending. (1.2.39)
 - [x] 11.12 Radar trend reads exclude stale broad-query rows when monitored cards exist, so old `台灣/生活/AI/社群` samples do not pollute the monitored-keyword sample radar after an upgrade. (1.2.40)
 - [x] 11.13 Radar term scoring boosts exact monitored keywords found in sampled posts so CJK segmentation does not surface broken fragments such as `法拉` ahead of the actual card keyword `法拉利`. (1.2.41)
+- [x] 11.14 Radar no longer ranks user-configured monitored keywords as discovered terms. Monitored keywords are only seed queries; the cloud excludes exact seeds and CJK fragments of seeds so it surfaces related terms from sampled posts instead of echoing user input. (1.2.42)
 
 ## 11A. Settings Page
 

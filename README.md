@@ -8,7 +8,7 @@
 
 ## 目前狀態（2026-05-13）
 
-- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.2.41`
+- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.2.42`
 - ✅ MVP 0.1.0 可跑（舊版「遇見好車海巡台」），UI 已轉為「社群海巡工作站」
 - ✅ 已完成官方 API 可行性盤點（見 [`openspec/specs/mvp/spec.md`](openspec/specs/mvp/spec.md)）
 - ✅ OpenSpec change `add-keyword-patrol-cards`（舊版 MVP，已實作完成）
@@ -18,7 +18,7 @@
 - ✅ **Phase A2a（發文發想 MVP）** — Queue-backed `compose_post` 正式啟用：Dashboard 可手動觸發「生一篇發文靈感」，worker 會根據最近 24h 雷達詞與真實 Threads 候選生成一則原創貼文草稿，寫入 `post_drafts`，可直接複製貼文與查看圖片提示詞；仍維持 human-gated，不自動發布
 - ✅ **關鍵字自動海巡已補上** — server 啟動後會在 `Asia/Taipei` 以 `*/15 * * * *` 每 15 分鐘醒來，但採 quota-aware 輪詢：預設每輪最多 2 張、同一關鍵字至少間隔 120 分鐘，新關鍵字優先，並以 no-overlap guard 避免重疊執行；Dashboard 會顯示最近一次自動海巡狀態
 - ✅ **關鍵字品質提示** — 新增關鍵字時會即時提示太泛、太短、像 Threads UI 雜訊或像句子的輸入，提供可點擊的替代詞；品質差仍可加入，但按鈕會改成「仍然加入」
-- ✅ **雷達改為樣本雷達** — UI 明確標示不是 Threads 官方熱門榜；有監控卡時掃描與讀取都只用監控關鍵字關聯樣本，詞雲改用互動加權抽詞、監控詞 exact boost，並濾掉常見廢詞，避免把純詞頻誤認成精準熱門關鍵字
+- ✅ **雷達改為樣本雷達** — UI 明確標示不是 Threads 官方熱門榜；有監控卡時只用監控關鍵字取樣，但詞雲會排除使用者設定的 seed keywords 與其斷詞碎片，只顯示樣本貼文延伸出的互動加權相關詞
 - ✅ **觀察樣本新鮮度 + 建議詞** — Threads 搜尋與觀察站都會排除超過一年以前的已知貼文；觀察站會從目前樣本抽出建議關鍵詞，但只顯示 chip，點擊後才加入監控並出勤，不會自動擴張
 - ✅ **配額 fallback + 防連點回饋** — Threads Playwright search 每日 quota 用完時，keyword scan 會改走 Bing-first / Google-second 的 `site:threads.net OR site:threads.com` 備援；UI 按下海巡後會立即顯示「海巡中」並鎖住按鈕，避免手機連點重複送出
 - ✅ **Settings 導航 + Threads quota 操作** — Settings 頁面提供明確「回儀表板」入口；Threads 設定可查看 search quota 今日用量、調整每日上限、清除今日 search 用量，預設 search 上限為 2000/day，避免 200/day 卡死海巡
