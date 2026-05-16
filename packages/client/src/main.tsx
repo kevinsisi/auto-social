@@ -717,7 +717,7 @@ function RadarTab({ terms, loading, meta, scanBusy, onRefresh, onSelect }: {
             {meta && <p className="mt-1 font-mono text-xs text-asphalt/60">{meta}</p>}
           </div>
           <div className="space-y-2 text-sm">
-            <p>不是官方熱門榜；這裡顯示最近 Threads 樣本的互動加權抽詞。點詞會直接加入監控並出勤。</p>
+            <p>不是官方熱門榜；監控關鍵字只拿來取樣，這裡顯示樣本貼文延伸出的互動加權相關詞。點詞會直接加入監控並出勤。</p>
             <button type="button" onClick={onRefresh} disabled={loading} className="min-h-9 border-2 border-asphalt px-3 py-1 font-bold hover:bg-signal hover:text-white">
               {loading ? '掃描中' : '掃描 Threads 樣本'}
             </button>

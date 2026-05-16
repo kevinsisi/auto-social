@@ -298,11 +298,8 @@ function extractRadarTermsFromRows(rows: TrendCandidateRow[], sampleKeywords: st
     const weight = getEngagementWeight(row.engagement_json)
     const text = `${row.title ?? ''} ${sanitizeTrendText(row.text)}`
     for (const term of segmentText(text)) {
-      if (shouldSkipTerm(term)) continue
+      if (shouldSkipTerm(term) || isSeedTerm(term, sampleKeywords)) continue
       scores.set(term, (scores.get(term) ?? 0) + weight)
-    }
-    for (const keyword of sampleKeywords) {
-      if (keyword.length >= MIN_TERM_LENGTH && text.includes(keyword)) scores.set(keyword, (scores.get(keyword) ?? 0) + weight * 4)
     }
   }
   return [...scores.entries()]
@@ -327,6 +324,10 @@ function numberOrZero(value: unknown) {
 
 function shouldSkipTerm(term: string) {
   return term.length < MIN_TERM_LENGTH || stopWords.has(term)
+}
+
+function isSeedTerm(term: string, sampleKeywords: string[]) {
+  return sampleKeywords.some((keyword) => term === keyword || (keyword.includes(term) && term.length < keyword.length))
 }
 
 function segmentText(text: string) {
