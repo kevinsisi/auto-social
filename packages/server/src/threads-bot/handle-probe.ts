@@ -4,7 +4,7 @@ import { createThreadsContext } from './browser.js'
 const PROBE_TIMEOUT_MS = 15_000
 
 export type HandleProbeResult =
-  | { handle: string; source: 'redirect' | 'dom' | 'instagram_api' }
+  | { handle: string; source: 'redirect' | 'dom' | 'instagram_api' | 'instagram_user_info' }
   | { handle: null; reason: 'login_redirect' | 'no_anchor_found' | 'probe_failed' }
 
 export async function probeBoundHandle(db: AppDatabase): Promise<HandleProbeResult> {
@@ -20,6 +20,13 @@ export async function probeBoundHandle(db: AppDatabase): Promise<HandleProbeResu
       const handle = `@${fromInstagram}`
       persistHandle(db, handle)
       return { handle, source: 'instagram_api' }
+    }
+
+    const fromInstagramUserId = await probeInstagramUserInfo(context)
+    if (fromInstagramUserId) {
+      const handle = `@${fromInstagramUserId}`
+      persistHandle(db, handle)
+      return { handle, source: 'instagram_user_info' }
     }
 
     const page = await context.newPage()
@@ -78,6 +85,33 @@ export async function probeBoundHandle(db: AppDatabase): Promise<HandleProbeResu
   } finally {
     await context.close()
   }
+}
+
+async function probeInstagramUserInfo(context: Awaited<ReturnType<typeof createThreadsContext>>): Promise<string | null> {
+  const cookies = await context.cookies('https://www.instagram.com')
+  const userId = cookies.find((cookie) => cookie.name === 'ds_user_id')?.value
+  if (!userId || !/^\d+$/.test(userId)) return null
+  const endpoints = [
+    `https://i.instagram.com/api/v1/users/${userId}/info/`,
+    `https://www.instagram.com/api/v1/users/${userId}/info/`
+  ]
+  for (const endpoint of endpoints) {
+    try {
+      const response = await context.request.get(endpoint, {
+        timeout: PROBE_TIMEOUT_MS,
+        headers: {
+          'x-ig-app-id': '936619743392459',
+          'x-requested-with': 'XMLHttpRequest'
+        }
+      })
+      if (!response.ok()) continue
+      const username = extractInstagramUsername(await response.text())
+      if (username) return username
+    } catch {
+      // Try the next endpoint.
+    }
+  }
+  return null
 }
 
 async function probeInstagramCurrentUser(context: Awaited<ReturnType<typeof createThreadsContext>>): Promise<string | null> {
