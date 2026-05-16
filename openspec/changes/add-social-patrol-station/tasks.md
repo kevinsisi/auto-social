@@ -111,6 +111,7 @@
 - [x] 11.10 Frontend API errors now map transient proxy statuses `502`/`503`/`504` to a clear retry message for brief single-container deploy restarts instead of surfacing raw HTML/proxy text. (1.2.38)
 - [x] 11.11 Radar is now labeled as a Threads sample radar instead of a precise official hot-keyword chart. Manual radar scans prefer monitored card keywords as sample queries, term scoring is engagement-weighted, and extra junk words are filtered so pure frequency is not presented as accurate trending. (1.2.39)
 - [x] 11.12 Radar trend reads exclude stale broad-query rows when monitored cards exist, so old `台灣/生活/AI/社群` samples do not pollute the monitored-keyword sample radar after an upgrade. (1.2.40)
+- [x] 11.13 Radar term scoring boosts exact monitored keywords found in sampled posts so CJK segmentation does not surface broken fragments such as `法拉` ahead of the actual card keyword `法拉利`. (1.2.41)
 
 ## 11A. Settings Page
 
