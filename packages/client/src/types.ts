@@ -118,7 +118,7 @@ export type SponsoredSignal = 'none' | 'suspect' | 'likely'
 export type ScamSignal = 'none' | 'suspect' | 'likely'
 export type FeedbackDecision = 'like' | 'dislike' | 'rewrite'
 
-export type TaskType = 'pipeline' | 'compose_post' | 'image_gen'
+export type TaskType = 'pipeline' | 'compose_post' | 'image_gen' | 'threads_reply'
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export type AiTask = {
@@ -186,6 +186,27 @@ export type ObservedDraft = {
   length: number
 }
 
+export type ReplyAttemptStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'uncertain'
+
+export type ReplyAttempt = {
+  id: string
+  cardId: string
+  candidateId: string
+  taskId: string | null
+  targetUrl: string
+  replyText: string
+  boundHandle: string
+  status: ReplyAttemptStatus
+  verificationMethod: 'reply_url' | 'dom_match' | null
+  replyUrl: string | null
+  error: string | null
+  screenshotPath: string | null
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  updatedAt: string
+}
+
 export type ObservedPost = {
   id: string
   source: string
@@ -212,6 +233,7 @@ export type ObservedPost = {
   shouldDraft: boolean | null
   scoreReason: string | null
   draft: ObservedDraft | null
+  latestReplyAttempt: ReplyAttempt | null
 }
 
 export type KeywordObservation = {

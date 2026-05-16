@@ -1,5 +1,6 @@
 import type { AppDatabase } from './db.js'
 import { SENTIMENT_CLASSES, type ScamSignal, type Sentiment, type SponsoredSignal } from './ai/types.js'
+import { listLatestReplyAttempts, type ReplyAttempt } from './reply-attempts.js'
 import { cleanThreadsExcerptForDisplay, isKeywordRelevant, isRecentThreadsPost } from './threads-bot/search.js'
 
 const WINDOW_HOURS = 24
@@ -46,6 +47,7 @@ export type ObservedPost = {
   shouldDraft: boolean | null
   scoreReason: string | null
   draft: ObservedDraft | null
+  latestReplyAttempt: ReplyAttempt | null
 }
 
 export type KeywordObservation = {
@@ -107,10 +109,11 @@ export function getKeywordObservation(db: AppDatabase, cardId: string, now: Date
   const posts = rows
     .filter((row) => isKeywordRelevant(`${row.title ?? ''} ${row.text}`, card.keyword))
     .filter((row) => isRecentThreadsPost(row.published_at, now))
-    .map(toObservedPost)
-  const aggregate = aggregate24h(posts, since)
+  const latestReplyAttempts = listLatestReplyAttempts(db, posts.map((row) => row.id))
+  const observedPosts = posts.map((row) => toObservedPost(row, latestReplyAttempts.get(row.id) ?? null))
+  const aggregate = aggregate24h(observedPosts, since)
 
-  const byEngagement = [...posts].sort(byEngagementDesc)
+  const byEngagement = [...observedPosts].sort(byEngagementDesc)
   const highlightIds = new Set<string>()
   const highlights: ObservedPost[] = []
   for (const post of byEngagement) {
@@ -120,9 +123,9 @@ export function getKeywordObservation(db: AppDatabase, cardId: string, now: Date
     highlightIds.add(post.id)
   }
 
-  const tail = posts.filter((post) => !highlightIds.has(post.id)).sort(byRecencyDesc)
+  const tail = observedPosts.filter((post) => !highlightIds.has(post.id)).sort(byRecencyDesc)
 
-  return { card, aggregate, highlights, posts: tail, suggestedKeywords: extractSuggestedKeywords(posts, card.keyword) }
+  return { card, aggregate, highlights, posts: tail, suggestedKeywords: extractSuggestedKeywords(observedPosts, card.keyword) }
 }
 
 function extractSuggestedKeywords(posts: ObservedPost[], currentKeyword: string): string[] {
@@ -183,7 +186,7 @@ function byEngagementDesc(a: ObservedPost, b: ObservedPost): number {
   return (b.fetchedAt ?? '').localeCompare(a.fetchedAt ?? '')
 }
 
-function toObservedPost(row: CandidateRow): ObservedPost {
+function toObservedPost(row: CandidateRow, latestReplyAttempt: ReplyAttempt | null): ObservedPost {
   const classify = parseJson(row.classify_json) as { topic?: string; sentiment?: Sentiment; voiceFit?: number } | null
   const sponsored = parseJson(row.sponsored_json) as { sponsoredSignal?: SponsoredSignal; reasons?: string[] } | null
   const scam = parseJson(row.scam_json) as { scamSignal?: ScamSignal; reasons?: string[] } | null
@@ -227,7 +230,8 @@ function toObservedPost(row: CandidateRow): ObservedPost {
     scoreReason: score?.reason ?? null,
     draft: firstVariant
       ? { variantIdx: 0, angle: firstVariant.angle, text: firstVariant.text, length: firstVariant.length ?? firstVariant.text.length }
-      : null
+      : null,
+    latestReplyAttempt
   }
 }
 

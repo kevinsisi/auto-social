@@ -12,6 +12,7 @@ import { getKeywordObservation, saveVoiceFeedback } from './observe.js'
 import { repipelineCard, repipelineCandidate } from './repipeline.js'
 import { DEFAULT_GEMINI_MODEL } from './ai/gemini-client.js'
 import { enqueueComposePostDraft, listPostDrafts, regenerateImageForPostDraft } from './post-drafts.js'
+import { createConfirmedReplyAttempt, getReplyAttempt } from './reply-attempts.js'
 import { clearImageGenKey, DEFAULT_IMAGE_MODEL, getImageGenStatus, setImageGenKey } from './image-gen/settings.js'
 import { getRadarTrends, scanRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
 import { getQueueSnapshot } from './scheduler/task-queue.js'
@@ -42,6 +43,10 @@ const voiceFeedbackSchema = z.object({
   variantIdx: z.number().int().min(0).max(10).default(0),
   decision: z.enum(['like', 'dislike', 'rewrite']),
   comment: z.string().max(2000).optional()
+})
+const createReplyAttemptSchema = z.object({
+  text: z.string().min(1).max(500),
+  confirm: z.boolean().optional().default(false)
 })
 const adminLoginSchema = z.object({ token: z.string().min(1) })
 const imageGenKeySchema = z.object({
@@ -161,6 +166,27 @@ export function createApp(db: AppDatabase) {
     } catch (error) {
       sendError(res, error)
     }
+  })
+
+  app.post('/api/keywords/:cardId/candidates/:candidateId/replies', requireAdmin, (req, res) => {
+    try {
+      const body = createReplyAttemptSchema.parse(req.body)
+      const attempt = createConfirmedReplyAttempt(db, {
+        cardId: String(req.params.cardId),
+        candidateId: String(req.params.candidateId),
+        text: body.text,
+        confirm: body.confirm
+      })
+      res.status(202).json({ replyAttempt: attempt })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.get('/api/replies/:attemptId', (req, res) => {
+    const attempt = getReplyAttempt(db, String(req.params.attemptId))
+    if (!attempt) return res.status(404).json({ error: '找不到留言工作。' })
+    res.json({ replyAttempt: attempt })
   })
 
   app.post('/api/voice/feedback', (req, res) => {

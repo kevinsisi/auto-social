@@ -2,7 +2,7 @@ import { nanoid } from 'nanoid'
 import type { AppDatabase } from '../db.js'
 import { nowIso } from '../time.js'
 
-export type TaskType = 'pipeline' | 'compose_post' | 'image_gen'
+export type TaskType = 'pipeline' | 'compose_post' | 'image_gen' | 'threads_reply'
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
@@ -52,7 +52,8 @@ export type EnqueueOptions = {
 const DEFAULT_PRIORITY: Record<TaskType, number> = {
   pipeline: 5,
   compose_post: 4,
-  image_gen: 6
+  image_gen: 6,
+  threads_reply: 3
 }
 
 export function enqueueTask(db: AppDatabase, options: EnqueueOptions): string | null {
@@ -152,7 +153,8 @@ export function getQueueSnapshot(db: AppDatabase): QueueSnapshot {
   const countsByType: QueueSnapshot['countsByType'] = {
     pipeline: emptyStatusBucket(),
     compose_post: emptyStatusBucket(),
-    image_gen: emptyStatusBucket()
+    image_gen: emptyStatusBucket(),
+    threads_reply: emptyStatusBucket()
   }
   for (const row of counts) {
     if (!countsByType[row.type]) countsByType[row.type] = emptyStatusBucket()

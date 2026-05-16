@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import { evaluateKeywordQuality, type KeywordQuality } from './keyword-quality'
 import './styles.css'
-import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, PostDraft, QueueSnapshot, RadarTerm, ScamSignal, SchedulerStatus, Sentiment, SponsoredSignal, TaskStatus, TaskType, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
+import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, PostDraft, QueueSnapshot, RadarTerm, ReplyAttempt, ReplyAttemptStatus, ScamSignal, SchedulerStatus, Sentiment, SponsoredSignal, TaskStatus, TaskType, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
 import { APP_VERSION } from './version'
 
 const SENTIMENT_LABELS: Record<Sentiment, string> = {
@@ -55,7 +55,16 @@ const SCAM_TONE: Record<ScamSignal, string> = {
 const TASK_TYPE_LABELS: Record<TaskType, string> = {
   pipeline: '貼文判讀',
   compose_post: '發文發想',
-  image_gen: '生圖'
+  image_gen: '生圖',
+  threads_reply: 'Threads 留言'
+}
+
+const REPLY_STATUS_LABELS: Record<ReplyAttemptStatus, string> = {
+  pending: '留言中',
+  running: '留言中',
+  succeeded: '留言成功',
+  failed: '留言失敗',
+  uncertain: '可能已送出但無法確認'
 }
 
 type Page = 'dashboard' | 'settings'
@@ -909,7 +918,7 @@ function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanTh
             <p className="font-mono text-xs text-asphalt/60">讚 + 留言×3 計分，門檻 ≥ 50</p>
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
-            {highlights.map((post) => <ObservedPostCard key={post.id} post={post} onFeedback={onFeedback} onRepipelinePost={onRepipelinePost} highlight />)}
+            {highlights.map((post) => <ObservedPostCard key={post.id} cardId={card.id} post={post} onFeedback={onFeedback} onRepipelinePost={onRepipelinePost} highlight />)}
           </div>
         </section>
       )}
@@ -918,7 +927,7 @@ function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanTh
         <div className="space-y-2">
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">其它樣本（最新優先）</p>
           <div className="grid gap-4 xl:grid-cols-2">
-            {posts.map((post) => <ObservedPostCard key={post.id} post={post} onFeedback={onFeedback} onRepipelinePost={onRepipelinePost} />)}
+            {posts.map((post) => <ObservedPostCard key={post.id} cardId={card.id} post={post} onFeedback={onFeedback} onRepipelinePost={onRepipelinePost} />)}
           </div>
         </div>
       )}
@@ -963,16 +972,34 @@ function SentimentBar({ distribution, classifiedSamples }: { distribution: Recor
   )
 }
 
-function ObservedPostCard({ post, onFeedback, onRepipelinePost, highlight = false }: { post: ObservedPost; onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>; onRepipelinePost: (candidateId: string) => Promise<void>; highlight?: boolean }) {
+function ObservedPostCard({ cardId, post, onFeedback, onRepipelinePost, highlight = false }: { cardId: string; post: ObservedPost; onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>; onRepipelinePost: (candidateId: string) => Promise<void>; highlight?: boolean }) {
   const [expandedReasons, setExpandedReasons] = useState(false)
   const [rewriting, setRewriting] = useState(false)
   const [rewriteText, setRewriteText] = useState('')
   const [lastDecision, setLastDecision] = useState<FeedbackDecision | null>(null)
   const [scamExpanded, setScamExpanded] = useState(false)
   const [retrying, setRetrying] = useState(false)
+  const [replyAttempt, setReplyAttempt] = useState<ReplyAttempt | null>(post.latestReplyAttempt)
+  const [replyModalOpen, setReplyModalOpen] = useState(false)
   const sponsoredBadge = post.sponsoredSignal ?? null
   const scamBadge = post.scamSignal ?? null
   const engagementScore = (post.likes ?? 0) + (post.replyCount ?? 0) * 3 + (post.reposts ?? 0) * 5 + (post.shares ?? 0) * 2
+
+  useEffect(() => { setReplyAttempt(post.latestReplyAttempt) }, [post.latestReplyAttempt])
+
+  useEffect(() => {
+    if (!replyAttempt || !isReplyAttemptActive(replyAttempt.status)) return
+    const id = window.setInterval(async () => {
+      try { setReplyAttempt((await api.getReplyAttempt(replyAttempt.id)).replyAttempt) } catch { /* keep last state */ }
+    }, 2500)
+    return () => window.clearInterval(id)
+  }, [replyAttempt?.id, replyAttempt?.status])
+
+  async function confirmReply(text: string) {
+    const { replyAttempt: attempt } = await api.createReplyAttempt(cardId, post.id, text)
+    setReplyAttempt(attempt)
+    setReplyModalOpen(false)
+  }
 
   return (
     <article className={`p-4 ${highlight ? 'border-4 border-signal bg-white shadow-[8px_8px_0_#f97316]' : 'border-4 border-asphalt bg-[#fffaf2] shadow-[6px_6px_0_#171717]'}`}>
@@ -1040,6 +1067,7 @@ function ObservedPostCard({ post, onFeedback, onRepipelinePost, highlight = fals
             <p className="mt-1 whitespace-pre-line text-sm">{post.draft.text}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button onClick={() => copyText(post.draft!.text)} className="min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold hover:bg-asphalt hover:text-paper">複製</button>
+              <button onClick={() => setReplyModalOpen(true)} disabled={isReplyBlocked(replyAttempt)} className={`min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold ${isReplyBlocked(replyAttempt) ? 'cursor-not-allowed bg-asphalt/10 text-asphalt/50' : 'hover:bg-signal hover:text-white'}`}>用 Threads session 留言</button>
               <button onClick={() => { setLastDecision('like'); void onFeedback(post, 'like') }} className={`min-h-10 border-2 px-3 py-1 text-sm font-bold ${lastDecision === 'like' ? 'border-green-700 bg-green-100' : 'border-asphalt'}`}>👍 像我</button>
               <button onClick={() => { setLastDecision('dislike'); void onFeedback(post, 'dislike') }} className={`min-h-10 border-2 px-3 py-1 text-sm font-bold ${lastDecision === 'dislike' ? 'border-red-700 bg-red-100' : 'border-asphalt'}`}>👎 不像</button>
               <button onClick={() => setRewriting((v) => !v)} className={`min-h-10 border-2 px-3 py-1 text-sm font-bold ${rewriting ? 'border-signal bg-signal text-white' : 'border-asphalt'}`}>✏️ 改寫</button>
@@ -1050,6 +1078,8 @@ function ObservedPostCard({ post, onFeedback, onRepipelinePost, highlight = fals
                 <button type="submit" className="min-h-10 bg-asphalt px-3 py-1 text-sm font-bold text-paper">送出改寫建議</button>
               </form>
             )}
+            {replyAttempt && <ReplyAttemptStatusLine attempt={replyAttempt} />}
+            {replyModalOpen && <ReplyConfirmModal post={post} initialText={post.draft.text} onClose={() => setReplyModalOpen(false)} onConfirm={confirmReply} />}
           </>
         ) : (
           <p className="mt-1 text-sm text-asphalt/60">{post.scoreReason ? `沒有產 AI 草稿：${post.scoreReason}` : '草稿暫不可用'}</p>
@@ -1057,6 +1087,89 @@ function ObservedPostCard({ post, onFeedback, onRepipelinePost, highlight = fals
       </section>
     </article>
   )
+}
+
+function ReplyAttemptStatusLine({ attempt }: { attempt: ReplyAttempt }) {
+  const tone = attempt.status === 'succeeded'
+    ? 'border-green-700 bg-green-100 text-green-900'
+    : attempt.status === 'failed'
+      ? 'border-red-700 bg-red-100 text-red-900'
+      : attempt.status === 'uncertain'
+        ? 'border-orange-600 bg-orange-100 text-orange-900'
+        : 'border-blue-700 bg-blue-100 text-blue-900'
+  return (
+    <div className={`mt-3 border-2 p-2 text-sm ${tone}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-black">{REPLY_STATUS_LABELS[attempt.status]}</span>
+        {attempt.replyUrl && <a href={attempt.replyUrl} target="_blank" rel="noreferrer" className="underline font-bold">查看留言</a>}
+      </div>
+      {attempt.status === 'running' || attempt.status === 'pending' ? <p className="mt-1 text-xs">Threads session 正在送出並驗證留言。</p> : null}
+      {attempt.error && <p className="mt-1 text-xs">{attempt.error}</p>}
+    </div>
+  )
+}
+
+function ReplyConfirmModal({ post, initialText, onClose, onConfirm }: { post: ObservedPost; initialText: string; onClose: () => void; onConfirm: (text: string) => Promise<void> }) {
+  const [text, setText] = useState(initialText)
+  const [session, setSession] = useState<ThreadsSessionStatus | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    api.getThreadsSessionStatus()
+      .then((data) => { if (!cancelled) setSession(data.session) })
+      .catch((err) => { if (!cancelled) setError(getMessage(err)) })
+    return () => { cancelled = true }
+  }, [])
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    if (!text.trim() || busy) return
+    setBusy(true)
+    setError(null)
+    try { await onConfirm(text.trim()) }
+    catch (err) { setError(getMessage(err)); setBusy(false) }
+  }
+
+  const canSubmit = Boolean(text.trim()) && !busy
+  return (
+    <div className="fixed inset-0 z-20 flex items-center justify-center bg-asphalt/60 px-3 py-6">
+      <form onSubmit={submit} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto border-4 border-asphalt bg-paper p-4 shadow-[8px_8px_0_#171717] sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Confirm Threads Reply</p>
+            <h3 className="text-2xl font-black">確認送出留言</h3>
+          </div>
+          <button type="button" onClick={onClose} disabled={busy} className="border-2 border-asphalt px-2 py-1 font-bold hover:bg-asphalt hover:text-paper">關閉</button>
+        </div>
+        <div className="mt-3 space-y-2 border-2 border-asphalt bg-[#fffaf2] p-3 text-sm">
+          <p><span className="font-bold">目標作者：</span>{post.author ?? '未知'}</p>
+          <p className="break-all"><span className="font-bold">目標 URL：</span>{post.url}</p>
+          <p><span className="font-bold">登入帳號：</span>{session ? (session.boundHandle ?? '尚未確認') : '讀取中...'}</p>
+        </div>
+        <label className="mt-4 block font-bold">留言內容</label>
+        <textarea className="mt-2 min-h-36 w-full border-2 border-asphalt bg-white p-3 text-sm outline-none focus:bg-[#fffaf2]" value={text} onChange={(event) => setText(event.target.value)} maxLength={500} />
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-asphalt/60">
+          <span>逐則人工確認；送出後會用 Playwright session 實際在 Threads 留言。</span>
+          <span>{text.length}/500</span>
+        </div>
+        {error && <p className="mt-3 border-2 border-red-700 bg-red-50 p-2 text-sm text-red-900">{error}</p>}
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <button type="button" onClick={onClose} disabled={busy} className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold hover:bg-asphalt hover:text-paper">取消</button>
+          <button type="submit" disabled={!canSubmit} className={`min-h-11 px-4 py-2 font-black text-white ${canSubmit ? 'bg-signal hover:bg-asphalt' : 'cursor-not-allowed bg-asphalt/40'}`}>{busy ? '建立留言工作中...' : '確認送出留言'}</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function isReplyAttemptActive(status: ReplyAttemptStatus) {
+  return status === 'pending' || status === 'running'
+}
+
+function isReplyBlocked(attempt: ReplyAttempt | null) {
+  return Boolean(attempt && (isReplyAttemptActive(attempt.status) || attempt.status === 'succeeded'))
 }
 
 function ManualLinkImport({ onSubmit }: { onSubmit: (url: string, title: string, excerpt: string) => Promise<void> }) {
@@ -1088,7 +1201,7 @@ function ManualLinkImport({ onSubmit }: { onSubmit: (url: string, title: string,
 
 function AiQueuePanel({ queue }: { queue: QueueSnapshot | null }) {
   if (!queue) return <section className="border-2 border-dashed border-asphalt bg-paper p-4 font-mono text-xs">AI Worker · 連線中…</section>
-  const types: TaskType[] = ['pipeline', 'compose_post', 'image_gen']
+  const types: TaskType[] = ['pipeline', 'compose_post', 'image_gen', 'threads_reply']
   const totalPending = types.reduce((s, t) => s + (queue.countsByType[t]?.pending ?? 0), 0)
   const totalRunning = types.reduce((s, t) => s + (queue.countsByType[t]?.running ?? 0), 0)
   const totalFailed = types.reduce((s, t) => s + (queue.countsByType[t]?.failed ?? 0), 0)
