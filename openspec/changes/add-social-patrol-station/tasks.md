@@ -110,6 +110,7 @@
 - [x] 11.9 Add keyword quality hints to the add-keyword form. The UI flags broad, too-short, sentence-like, hashtag-heavy, and Threads UI-noise keywords (for example `轉發分享`), offers replacement chips, and still allows override via `仍然加入`. (1.2.37)
 - [x] 11.10 Frontend API errors now map transient proxy statuses `502`/`503`/`504` to a clear retry message for brief single-container deploy restarts instead of surfacing raw HTML/proxy text. (1.2.38)
 - [x] 11.11 Radar is now labeled as a Threads sample radar instead of a precise official hot-keyword chart. Manual radar scans prefer monitored card keywords as sample queries, term scoring is engagement-weighted, and extra junk words are filtered so pure frequency is not presented as accurate trending. (1.2.39)
+- [x] 11.12 Radar trend reads exclude stale broad-query rows when monitored cards exist, so old `台灣/生活/AI/社群` samples do not pollute the monitored-keyword sample radar after an upgrade. (1.2.40)
 
 ## 11A. Settings Page
 
