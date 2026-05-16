@@ -21,6 +21,7 @@ export async function probeBoundHandle(db: AppDatabase): Promise<HandleProbeResu
       await page.waitForTimeout(1_500)
 
       if (page.url().includes('/login')) {
+        persistHandle(db, null)
         return { handle: null, reason: 'login_redirect' }
       }
 
@@ -31,32 +32,22 @@ export async function probeBoundHandle(db: AppDatabase): Promise<HandleProbeResu
           return match?.[1] ?? null
         }
 
-        function scoreAnchor(anchor: HTMLAnchorElement): number {
+        const profileAnchors = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="/@"]'))
+        for (const anchor of profileAnchors) {
           const href = anchor.getAttribute('href') ?? anchor.href
-          if (/\/post\//i.test(href)) return 0
-          const text = `${anchor.getAttribute('aria-label') ?? ''} ${anchor.getAttribute('title') ?? ''} ${anchor.textContent ?? ''}`.toLowerCase()
-          let score = 1
-          if (text.includes('profile') || text.includes('個人') || text.includes('個人檔案')) score += 10
-          if (anchor.closest('nav,[role="navigation"],[aria-label*="導覽"],[aria-label*="Navigation"]')) score += 4
-          if (anchor.querySelector('img')) score += 2
-          return score
+          if (/\/post\//i.test(href)) continue
+          const label = `${anchor.getAttribute('aria-label') ?? ''} ${anchor.getAttribute('title') ?? ''}`.toLowerCase()
+          const looksLikeOwnProfile = label.includes('profile') || label.includes('個人') || label.includes('個人檔案')
+          if (!looksLikeOwnProfile) continue
+          const handle = extractHandle(href)
+          if (handle) return handle
         }
-
-        const metaHandle = extractHandle(document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href)
-          ?? extractHandle(document.querySelector<HTMLMetaElement>('meta[property="og:url"]')?.content)
-        if (metaHandle) return metaHandle
-
-        const anchors = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="/@"]'))
-          .map((anchor) => ({ handle: extractHandle(anchor.getAttribute('href') ?? anchor.href), score: scoreAnchor(anchor) }))
-          .filter((item): item is { handle: string; score: number } => Boolean(item.handle) && item.score > 0)
-          .sort((a, b) => b.score - a.score)
-        if (anchors[0]?.score >= 5) return anchors[0].handle
 
         const scripts = Array.from(document.querySelectorAll<HTMLScriptElement>('script[type="application/json"], script:not([src])'))
         for (const script of scripts) {
           const text = script.textContent ?? ''
-          const profileMatch = text.match(/"username"\s*:\s*"([A-Za-z0-9_.]+)"/)
-            ?? text.match(/"handle"\s*:\s*"([A-Za-z0-9_.]+)"/)
+          const profileMatch = text.match(/"viewer"[\s\S]{0,2000}"username"\s*:\s*"([A-Za-z0-9_.]+)"/)
+            ?? text.match(/"currentUser"[\s\S]{0,2000}"username"\s*:\s*"([A-Za-z0-9_.]+)"/)
           if (profileMatch?.[1]) return profileMatch[1]
         }
 
@@ -69,17 +60,19 @@ export async function probeBoundHandle(db: AppDatabase): Promise<HandleProbeResu
         return { handle, source: 'dom' }
       }
 
+      persistHandle(db, null)
       return { handle: null, reason: 'no_anchor_found' }
     } finally {
       await page.close()
     }
   } catch {
+    persistHandle(db, null)
     return { handle: null, reason: 'probe_failed' }
   } finally {
     await context.close()
   }
 }
 
-function persistHandle(db: AppDatabase, handle: string) {
+function persistHandle(db: AppDatabase, handle: string | null) {
   db.prepare('UPDATE threads_session SET bound_handle = ? WHERE id = 1').run(handle)
 }
