@@ -4,7 +4,7 @@
 
 - Domain: `https://social.sisihome.org`
 - Health check: `https://social.sisihome.org/api/health`
-- Current expected API version after the latest deployment: `1.2.44`
+- Current expected API version after the latest deployment: `1.2.45`
 
 ## Threads Login
 
@@ -82,6 +82,19 @@ Observation cards hide known Threads posts older than one year from `published_a
 
 Observation posts with `pipeline_status = pipeline_blocked` show a `重跑這則` button. It calls `POST /api/keywords/:cardId/candidates/:candidateId/repipeline`, resets only that candidate to `pending`, clears the pipeline error, and enqueues a single pipeline task.
 
+## Confirmed Threads Replies
+
+Observation posts with an AI draft show `用 Threads session 留言`. This is intentionally per-post only: the operator must review the target URL, author, bound Threads handle, and editable reply text, then click `確認送出留言` for each attempt.
+
+Runtime behavior:
+
+- `POST /api/keywords/:cardId/candidates/:candidateId/replies` requires `{ text, confirm: true }` and creates one `reply_attempts` row plus one `threads_reply` queue task.
+- The API rejects missing/unhealthy session, missing bound handle, non-Threads URLs, duplicate successful replies, kill switch, and exhausted `reply` quota before enqueueing.
+- The worker calls `gate('reply')` immediately before opening Playwright, so kill switch and reply quota are rechecked at write time.
+- UI status maps to persisted attempt status: `pending`/`running` → `留言中`, `succeeded` → `留言成功`, `failed` → `留言失敗`, `uncertain` → `可能已送出但無法確認`.
+- `留言成功` requires a verified reply URL or a DOM match containing the bound handle and exact reply text. If submit may have happened but verification fails, the attempt remains `uncertain` and should be manually reviewed on Threads.
+- Failed/uncertain browser attempts try to save a diagnostic screenshot under `data/threads-reply-screenshots/`.
+
 ## Keyword Quality
 
 The add-keyword form gives immediate quality hints for broad terms, UI-noise terms such as `轉發分享`, very short inputs, hashtag piles, and sentence-like inputs. The UI suggests replacement chips but does not block the operator; poor keywords change the submit label to `仍然加入`.
@@ -98,7 +111,7 @@ Known limitation: search providers can return challenge pages to server-side fet
 
 ## Threads Quota
 
-Settings → Threads shows today's `search` count and daily limit. The default Playwright search limit is `2000` per day. Use `儲存上限` to raise or lower it, and `清除今天 search 用量` to delete only today's `search` counter. The publish/reply counters remain Phase 1 safeguards.
+Settings → Threads shows today's `search`, `publish`, and `reply` counts and daily limits. The default Playwright search limit is `2000` per day and reply limit is `10` per day. Use `儲存上限` to raise or lower limits, and `清除今天 search 用量` to delete only today's `search` counter.
 
 ## Version Rule
 

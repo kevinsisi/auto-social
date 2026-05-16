@@ -233,6 +233,27 @@ export function migrate(db: AppDatabase) {
     );
     CREATE INDEX IF NOT EXISTS idx_ai_tasks_pickable ON ai_tasks(status, priority, enqueued_at);
     CREATE INDEX IF NOT EXISTS idx_ai_tasks_type ON ai_tasks(type, status);
+
+    CREATE TABLE IF NOT EXISTS reply_attempts (
+      id TEXT PRIMARY KEY,
+      card_id TEXT NOT NULL REFERENCES patrol_cards(id) ON DELETE CASCADE,
+      candidate_id TEXT NOT NULL REFERENCES trend_candidates(id) ON DELETE CASCADE,
+      task_id TEXT REFERENCES ai_tasks(id) ON DELETE SET NULL,
+      target_url TEXT NOT NULL,
+      reply_text TEXT NOT NULL,
+      bound_handle TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      verification_method TEXT,
+      reply_url TEXT,
+      error TEXT,
+      screenshot_path TEXT,
+      created_at TEXT NOT NULL,
+      started_at TEXT,
+      completed_at TEXT,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_reply_attempts_candidate_created ON reply_attempts(candidate_id, created_at DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_reply_attempts_one_success ON reply_attempts(candidate_id) WHERE status = 'succeeded';
   `)
 }
 

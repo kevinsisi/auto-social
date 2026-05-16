@@ -1,4 +1,4 @@
-import type { AdminSession, CandidateStatus, FeedbackDecision, KeyStatus, KeywordObservation, PatrolCard, PatrolCardDetail, PostDraft, QueueSnapshot, RadarTrend, SchedulerStatus, ThreadsLoginJob, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
+import type { AdminSession, CandidateStatus, FeedbackDecision, KeyStatus, KeywordObservation, PatrolCard, PatrolCardDetail, PostDraft, QueueSnapshot, RadarTrend, ReplyAttempt, SchedulerStatus, ThreadsLoginJob, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers)
@@ -221,6 +221,15 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({})
     })
+  },
+  async createReplyAttempt(cardId: string, candidateId: string, text: string) {
+    return request<{ replyAttempt: ReplyAttempt }>(`/api/keywords/${cardId}/candidates/${candidateId}/replies`, {
+      method: 'POST',
+      body: JSON.stringify({ text, confirm: true })
+    })
+  },
+  async getReplyAttempt(attemptId: string) {
+    return request<{ replyAttempt: ReplyAttempt }>(`/api/replies/${attemptId}`)
   },
   async submitVoiceFeedback(input: { draftId: string; variantIdx: number; decision: FeedbackDecision; comment?: string }) {
     return request<{ feedback: { id: string; createdAt: string } }>('/api/voice/feedback', {

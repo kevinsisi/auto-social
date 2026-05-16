@@ -8,7 +8,7 @@
 
 ## 目前狀態（2026-05-13）
 
-- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.2.44`
+- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.2.45`
 - ✅ MVP 0.1.0 可跑（舊版「遇見好車海巡台」），UI 已轉為「社群海巡工作站」
 - ✅ 已完成官方 API 可行性盤點（見 [`openspec/specs/mvp/spec.md`](openspec/specs/mvp/spec.md)）
 - ✅ OpenSpec change `add-keyword-patrol-cards`（舊版 MVP，已實作完成）
@@ -20,7 +20,7 @@
 - ✅ **關鍵字品質提示** — 新增關鍵字時會即時提示太泛、太短、像 Threads UI 雜訊或像句子的輸入，提供可點擊的替代詞；品質差仍可加入，但按鈕會改成「仍然加入」
 - ✅ **雷達改為樣本雷達** — UI 明確標示不是 Threads 官方熱門榜；有監控卡時只用監控關鍵字取樣，但詞雲會排除使用者設定的 seed keywords 與其斷詞碎片，只顯示樣本貼文延伸出的互動加權相關詞
 - ✅ **單篇 AI 重跑** — 觀察站每則 `AI 判讀失敗` 貼文可單獨按「重跑這則」重新排入 pipeline，不必整張關鍵字卡全部重跑
-- 📝 **已規劃 Threads session 留言** — OpenSpec change `add-confirmed-threads-replies` 定義人工逐則確認、kill switch / reply quota、安全驗證與「留言成功」可見狀態；尚未實作
+- ✅ **Threads session 留言（人工逐則確認）** — 觀察站每則有 AI 草稿的 Threads 貼文可按「用 Threads session 留言」，確認 target URL、登入帳號與可編輯留言後才排入 `threads_reply` queue；後端保存 `reply_attempts`，套用 kill switch / reply quota / session health gate，並在 UI 顯示 `留言中`、`留言成功`、`留言失敗` 或 `可能已送出但無法確認`
 - ✅ **觀察樣本新鮮度 + 建議詞** — Threads 搜尋與觀察站都會排除超過一年以前的已知貼文；觀察站會從目前樣本抽出建議關鍵詞，但只顯示 chip，點擊後才加入監控並出勤，不會自動擴張
 - ✅ **配額 fallback + 防連點回饋** — Threads Playwright search 每日 quota 用完時，keyword scan 會改走 Bing-first / Google-second 的 `site:threads.net OR site:threads.com` 備援；UI 按下海巡後會立即顯示「海巡中」並鎖住按鈕，避免手機連點重複送出
 - ✅ **Settings 導航 + Threads quota 操作** — Settings 頁面提供明確「回儀表板」入口；Threads 設定可查看 search quota 今日用量、調整每日上限、清除今日 search 用量，預設 search 上限為 2000/day，避免 200/day 卡死海巡
@@ -91,6 +91,7 @@ Threads Session / Playwright：
 - Settings → Threads Session 可貼上 Playwright `storageState` JSON；保存後 Playwright 搜尋會優先帶 session。
 - `Threads 出勤海巡`：先跑 Playwright 唯讀搜尋，失敗自動退回 `site:threads.net OR site:threads.com` 搜尋備援。
 - `GET /api/scheduler/status`：查看 keyword 自動海巡是否在跑、上次執行時間、最近一次掃了幾張卡與新增幾筆。
+- Threads 留言：觀察站貼文卡上的「用 Threads session 留言」只支援單則人工確認，不提供批次留言；成功必須由 Playwright 找到 reply URL 或 DOM match，否則會標為「可能已送出但無法確認」供人工複查。
 
 Docker 預覽：
 

@@ -174,6 +174,26 @@ describe('getKeywordObservation', () => {
     expect(draftedPosts[0]!.draft).toMatchObject({ variantIdx: 0, angle: '觀察家', text: 'AI 草稿' })
   })
 
+  it('exposes the latest reply attempt for each observed post', () => {
+    const db = openMemoryDatabase()
+    const { cardId, candidateIds } = seed(db)
+    const candidateId = candidateIds[0]!
+    db.prepare(`
+      INSERT INTO reply_attempts (id, card_id, candidate_id, target_url, reply_text, bound_handle, status, created_at, updated_at)
+      VALUES ('reply-old', ?, ?, 'https://www.threads.com/@u/post/old', 'old', '@kevin', 'failed', '2026-05-14T00:00:00.000Z', '2026-05-14T00:00:00.000Z')
+    `).run(cardId, candidateId)
+    db.prepare(`
+      INSERT INTO reply_attempts (id, card_id, candidate_id, target_url, reply_text, bound_handle, status, reply_url, created_at, updated_at)
+      VALUES ('reply-new', ?, ?, 'https://www.threads.com/@u/post/new', 'new', '@kevin', 'succeeded', 'https://www.threads.com/@kevin/post/reply', '2026-05-14T00:01:00.000Z', '2026-05-14T00:01:00.000Z')
+    `).run(cardId, candidateId)
+
+    const result = getKeywordObservation(db, cardId)
+    const allPosts = [...result!.highlights, ...result!.posts]
+    const post = allPosts.find((item) => item.id === candidateId)
+
+    expect(post?.latestReplyAttempt).toMatchObject({ id: 'reply-new', status: 'succeeded', replyUrl: 'https://www.threads.com/@kevin/post/reply' })
+  })
+
   it('splits high-engagement posts into highlights and sorts the rest by engagement', () => {
     const db = openMemoryDatabase()
     const repo = new PatrolRepository(db)
