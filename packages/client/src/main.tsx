@@ -357,6 +357,23 @@ function App() {
     } catch (err) { setError(getMessage(err)) }
   }
 
+  async function repipelinePost(candidateId: string) {
+    if (!selectedId) return
+    setError(null)
+    try {
+      const { repipeline } = await api.repipelineCandidate(selectedId, candidateId)
+      if (repipeline.queued) {
+        setNotice('已把這則樣本排入 AI 重新判讀；完成後會更新這張卡。')
+      } else if (repipeline.skippedReason === 'already_queued') {
+        setNotice('這則樣本已在 AI 判讀佇列中。')
+      } else {
+        setNotice('這則樣本已成功產出，沒有重跑。')
+      }
+      await loadObservation(selectedId)
+      await loadAiStatus()
+    } catch (err) { setError(getMessage(err)) }
+  }
+
   async function removeCard(card: PatrolCard) {
     if (!window.confirm(`確認刪除「${card.keyword}」？這會把該關鍵字的監控、候選樣本一起清掉。`)) return
     setError(null)
@@ -480,6 +497,7 @@ function App() {
                             scanBusyLabel={scanBusyLabel}
                             onScanThreads={scanThreads}
                             onRepipeline={repipelineKeyword}
+                            onRepipelinePost={repipelinePost}
                             onAddManualLink={addManualLink}
                             onFeedback={submitFeedback}
                             onSelectSuggestedKeyword={(term) => void monitorRadarTerm(term)}
@@ -501,6 +519,7 @@ function App() {
                           onBack={() => { navigate('dashboard'); setSelectedId(null); setObservation(null) }}
                           onScanThreads={scanThreads}
                           onRepipeline={repipelineKeyword}
+                          onRepipelinePost={repipelinePost}
                           onAddManualLink={addManualLink}
                           onFeedback={submitFeedback}
                           onSelectSuggestedKeyword={(term) => void monitorRadarTerm(term)}
@@ -766,7 +785,7 @@ function WorkstationTab({ drafts, queue, scheduler, onRunCompose, onRegenerateIm
 
 // ─── Keyword Detail Page ─────────────────────────────────────────────────────
 
-function KeywordDetailPage({ card, observation, loading, scanBusyLabel, onBack, onScanThreads, onRepipeline, onAddManualLink, onFeedback, onSelectSuggestedKeyword, onDeleteCard }: {
+function KeywordDetailPage({ card, observation, loading, scanBusyLabel, onBack, onScanThreads, onRepipeline, onRepipelinePost, onAddManualLink, onFeedback, onSelectSuggestedKeyword, onDeleteCard }: {
   card: PatrolCard | null
   observation: KeywordObservation | null
   loading: boolean
@@ -774,6 +793,7 @@ function KeywordDetailPage({ card, observation, loading, scanBusyLabel, onBack, 
   onBack: () => void
   onScanThreads: () => void
   onRepipeline: () => void
+  onRepipelinePost: (candidateId: string) => Promise<void>
   onAddManualLink: (url: string, title: string, excerpt: string) => Promise<void>
   onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>
   onSelectSuggestedKeyword: (term: string) => void
@@ -803,6 +823,7 @@ function KeywordDetailPage({ card, observation, loading, scanBusyLabel, onBack, 
         scanBusyLabel={scanBusyLabel}
         onScanThreads={onScanThreads}
         onRepipeline={onRepipeline}
+        onRepipelinePost={onRepipelinePost}
         onAddManualLink={onAddManualLink}
         onFeedback={onFeedback}
         onSelectSuggestedKeyword={onSelectSuggestedKeyword}
@@ -813,12 +834,13 @@ function KeywordDetailPage({ card, observation, loading, scanBusyLabel, onBack, 
 
 // ─── Existing panels (unchanged logic, kept as-is) ───────────────────────────
 
-function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanThreads, onRepipeline, onAddManualLink, onFeedback, onSelectSuggestedKeyword }: {
+function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanThreads, onRepipeline, onRepipelinePost, onAddManualLink, onFeedback, onSelectSuggestedKeyword }: {
   observation: KeywordObservation | null
   loading: boolean
   scanBusyLabel: string | null
   onScanThreads: () => void
   onRepipeline: () => void
+  onRepipelinePost: (candidateId: string) => Promise<void>
   onAddManualLink: (url: string, title: string, excerpt: string) => Promise<void>
   onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>
   onSelectSuggestedKeyword: (term: string) => void
@@ -887,7 +909,7 @@ function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanTh
             <p className="font-mono text-xs text-asphalt/60">讚 + 留言×3 計分，門檻 ≥ 50</p>
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
-            {highlights.map((post) => <ObservedPostCard key={post.id} post={post} onFeedback={onFeedback} highlight />)}
+            {highlights.map((post) => <ObservedPostCard key={post.id} post={post} onFeedback={onFeedback} onRepipelinePost={onRepipelinePost} highlight />)}
           </div>
         </section>
       )}
@@ -896,7 +918,7 @@ function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanTh
         <div className="space-y-2">
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">其它樣本（最新優先）</p>
           <div className="grid gap-4 xl:grid-cols-2">
-            {posts.map((post) => <ObservedPostCard key={post.id} post={post} onFeedback={onFeedback} />)}
+            {posts.map((post) => <ObservedPostCard key={post.id} post={post} onFeedback={onFeedback} onRepipelinePost={onRepipelinePost} />)}
           </div>
         </div>
       )}
@@ -941,12 +963,13 @@ function SentimentBar({ distribution, classifiedSamples }: { distribution: Recor
   )
 }
 
-function ObservedPostCard({ post, onFeedback, highlight = false }: { post: ObservedPost; onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>; highlight?: boolean }) {
+function ObservedPostCard({ post, onFeedback, onRepipelinePost, highlight = false }: { post: ObservedPost; onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>; onRepipelinePost: (candidateId: string) => Promise<void>; highlight?: boolean }) {
   const [expandedReasons, setExpandedReasons] = useState(false)
   const [rewriting, setRewriting] = useState(false)
   const [rewriteText, setRewriteText] = useState('')
   const [lastDecision, setLastDecision] = useState<FeedbackDecision | null>(null)
   const [scamExpanded, setScamExpanded] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const sponsoredBadge = post.sponsoredSignal ?? null
   const scamBadge = post.scamSignal ?? null
   const engagementScore = (post.likes ?? 0) + (post.replyCount ?? 0) * 3 + (post.reposts ?? 0) * 5 + (post.shares ?? 0) * 2
@@ -995,7 +1018,18 @@ function ObservedPostCard({ post, onFeedback, highlight = false }: { post: Obser
         {sponsoredBadge && <button type="button" onClick={() => setExpandedReasons((v) => !v)} className={`border-2 px-2 py-1 ${SPONSORED_TONE[sponsoredBadge]}`}>{SPONSORED_LABELS[sponsoredBadge]} {post.sponsoredReasons.length > 0 ? (expandedReasons ? '▲' : '▼') : ''}</button>}
         {scamBadge && scamBadge !== 'none' && <button type="button" onClick={() => setScamExpanded((v) => !v)} className={`border-2 px-2 py-1 ${SCAM_TONE[scamBadge]}`}>{SCAM_LABELS[scamBadge]} {post.scamReasons.length > 0 ? (scamExpanded ? '▲' : '▼') : ''}</button>}
         {post.pipelineStatus === 'pipeline_blocked' && <span className="border-2 border-red-600 bg-red-100 px-2 py-1 text-red-700">AI 判讀失敗</span>}
+        {post.pipelineStatus === 'pipeline_blocked' && (
+          <button
+            type="button"
+            disabled={retrying}
+            onClick={async () => { setRetrying(true); try { await onRepipelinePost(post.id) } finally { setRetrying(false) } }}
+            className={`border-2 border-asphalt px-2 py-1 ${retrying ? 'cursor-wait bg-asphalt/10 text-asphalt/50' : 'bg-paper hover:bg-asphalt hover:text-paper'}`}
+          >
+            {retrying ? '重排中...' : '重跑這則'}
+          </button>
+        )}
       </div>
+      {post.pipelineStatus === 'pipeline_blocked' && post.pipelineError && <p className="mt-2 border-2 border-red-600 bg-red-50 p-2 text-xs text-red-900">失敗原因：{post.pipelineError}</p>}
       {expandedReasons && post.sponsoredReasons.length > 0 && <ul className="mt-2 list-disc border-2 border-asphalt bg-paper p-3 pl-6 text-sm">{post.sponsoredReasons.map((r, i) => <li key={i}>{r}</li>)}</ul>}
       {scamExpanded && post.scamReasons.length > 0 && <ul className="mt-2 list-disc border-2 border-red-700 bg-red-50 p-3 pl-6 text-sm text-red-900">{post.scamReasons.map((r, i) => <li key={i}>{r}</li>)}</ul>}
 

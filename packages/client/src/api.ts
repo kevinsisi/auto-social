@@ -216,6 +216,12 @@ export const api = {
       body: JSON.stringify({})
     })
   },
+  async repipelineCandidate(cardId: string, candidateId: string) {
+    return request<{ repipeline: { cardId: string; candidateId: string; queued: boolean; skippedReason: 'already_drafted' | 'already_queued' | null } }>(`/api/keywords/${cardId}/candidates/${candidateId}/repipeline`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
+  },
   async submitVoiceFeedback(input: { draftId: string; variantIdx: number; decision: FeedbackDecision; comment?: string }) {
     return request<{ feedback: { id: string; createdAt: string } }>('/api/voice/feedback', {
       method: 'POST',

@@ -113,6 +113,7 @@
 - [x] 11.12 Radar trend reads exclude stale broad-query rows when monitored cards exist, so old `台灣/生活/AI/社群` samples do not pollute the monitored-keyword sample radar after an upgrade. (1.2.40)
 - [x] 11.13 Radar term scoring boosts exact monitored keywords found in sampled posts so CJK segmentation does not surface broken fragments such as `法拉` ahead of the actual card keyword `法拉利`. (1.2.41)
 - [x] 11.14 Radar no longer ranks user-configured monitored keywords as discovered terms. Monitored keywords are only seed queries; the cloud excludes exact seeds and CJK fragments of seeds so it surfaces related terms from sampled posts instead of echoing user input. (1.2.42)
+- [x] 11.15 Observation post cards with `pipeline_blocked` can be retried individually via `POST /api/keywords/:cardId/candidates/:candidateId/repipeline` and a `重跑這則` UI button, without requeueing the whole keyword card. (1.2.43)
 
 ## 11A. Settings Page
 

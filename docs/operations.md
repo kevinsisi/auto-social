@@ -4,7 +4,7 @@
 
 - Domain: `https://social.sisihome.org`
 - Health check: `https://social.sisihome.org/api/health`
-- Current expected API version after the latest deployment: `1.2.42`
+- Current expected API version after the latest deployment: `1.2.43`
 
 ## Threads Login
 
@@ -77,6 +77,10 @@ Key fields:
 ## Keyword Observation Freshness
 
 Observation cards hide known Threads posts older than one year from `published_at`. The same filter is applied during Playwright search before new candidates are accepted. Suggested keywords are operator-gated: the UI only adds a suggested term to monitoring after the user clicks its chip.
+
+## Per-Post AI Retry
+
+Observation posts with `pipeline_status = pipeline_blocked` show a `重跑這則` button. It calls `POST /api/keywords/:cardId/candidates/:candidateId/repipeline`, resets only that candidate to `pending`, clears the pipeline error, and enqueues a single pipeline task.
 
 ## Keyword Quality
 
