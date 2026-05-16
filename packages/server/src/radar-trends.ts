@@ -50,6 +50,11 @@ type TrendCandidateRow = {
   engagement_json: string | null
 }
 
+type RadarSampleQuery = {
+  keyword: string
+  cardId: string | null
+}
+
 const DEFAULT_RADAR_SAMPLE_QUERIES = ['台灣', '生活', 'AI', '社群']
 const MAX_RADAR_SAMPLE_QUERIES = 6
 const CANDIDATES_PER_QUERY = 6
@@ -73,13 +78,14 @@ const stopWords = new Set([
 
 export function getRadarTrends(db: AppDatabase): RadarTrendResult {
   const since = new Date(Date.now() - RADAR_WINDOW_MS).toISOString()
+  const hasMonitoredCards = getRadarSampleQueries(db).some((query) => query.cardId)
   const rows = db.prepare(`
     SELECT source, title, text, engagement_json
     FROM trend_candidates
-    WHERE is_trending = 1 AND fetched_at >= ?
+    WHERE is_trending = 1 AND fetched_at >= ? AND (? = 0 OR card_id IS NOT NULL)
     ORDER BY fetched_at DESC
     LIMIT 250
-  `).all(since) as TrendCandidateRow[]
+  `).all(since, hasMonitoredCards ? 1 : 0) as TrendCandidateRow[]
   const sourceCounts = new Map<'threads_playwright' | 'threads_search', number>()
   for (const row of rows) {
     sourceCounts.set(row.source, (sourceCounts.get(row.source) ?? 0) + 1)
@@ -103,20 +109,19 @@ export async function scanRadarTrends(db: AppDatabase): Promise<RadarScanResult>
     VALUES (?, ?, 'running', 'manual_radar', ?, ?)
   `).run(scanId, startedAt, JSON.stringify({ queries }), JSON.stringify([]))
 
-  const batches = await Promise.allSettled(queries.map((query) => fetchRadarCandidates(db, query)))
+  const batches = await Promise.allSettled(queries.map((query) => fetchRadarCandidates(db, query.keyword)))
   const errors: string[] = []
   const newCandidateIds: string[] = []
 
   for (const [index, batch] of batches.entries()) {
-    const query = queries[index] ?? 'unknown'
+    const query = queries[index]
     if (batch.status === 'rejected') {
       errors.push(batch.reason instanceof Error ? batch.reason.message : 'Threads 雷達抓取失敗')
       continue
     }
     for (const candidate of batch.value) {
-      const result = upsertTrendCandidate(db, candidate, { isTrending: true })
+      const result = upsertTrendCandidate(db, candidate, { cardId: query?.cardId ?? null, isTrending: true })
       if (result.inserted && result.id) newCandidateIds.push(result.id)
-      void query
     }
   }
 
@@ -154,15 +159,22 @@ async function fetchRadarCandidates(db: AppDatabase, query: string): Promise<Rad
   }
 }
 
-function getRadarSampleQueries(db: AppDatabase) {
+function getRadarSampleQueries(db: AppDatabase): RadarSampleQuery[] {
   const rows = db.prepare(`
-    SELECT keyword
+    SELECT id, keyword
     FROM patrol_cards
     ORDER BY updated_at DESC
     LIMIT ?
-  `).all(MAX_RADAR_SAMPLE_QUERIES) as Array<{ keyword: string }>
-  const monitored = rows.map((row) => row.keyword.trim()).filter(Boolean)
-  return monitored.length > 0 ? [...new Set(monitored)] : DEFAULT_RADAR_SAMPLE_QUERIES
+  `).all(MAX_RADAR_SAMPLE_QUERIES) as Array<{ id: string; keyword: string }>
+  const monitored: RadarSampleQuery[] = []
+  const seen = new Set<string>()
+  for (const row of rows) {
+    const keyword = row.keyword.trim()
+    if (!keyword || seen.has(keyword)) continue
+    seen.add(keyword)
+    monitored.push({ keyword, cardId: row.id })
+  }
+  return monitored.length > 0 ? monitored : DEFAULT_RADAR_SAMPLE_QUERIES.map((keyword) => ({ keyword, cardId: null }))
 }
 
 function insertTrendCandidate(db: AppDatabase, _query: string, candidate: RadarCandidate) {

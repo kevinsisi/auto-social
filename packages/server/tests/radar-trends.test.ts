@@ -90,4 +90,21 @@ describe('getRadarTrends', () => {
     expect(radar.terms[0]?.word).toBe('豪車')
     expect(radar.terms.some((term) => ['一下', '有人', '東西'].includes(term.word))).toBe(false)
   })
+
+  it('uses monitored-card samples instead of stale broad radar rows when cards exist', () => {
+    const db = openMemoryDatabase()
+    const now = new Date().toISOString()
+    db.prepare('INSERT INTO patrol_cards (id, keyword, created_at, updated_at) VALUES (?, ?, ?, ?)').run('card-1', '法拉利', now, now)
+    db.prepare(`
+      INSERT INTO trend_candidates (id, source, external_id, fingerprint, card_id, is_trending, url, title, text, fetched_at, pipeline_status)
+      VALUES
+        ('broad', 'threads_playwright', 'broad', 'fp-broad', NULL, 1, 'https://threads.net/@a/post/broad', '台灣生活', '台灣 生活 生活', ?, 'pending'),
+        ('monitored', 'threads_playwright', 'monitored', 'fp-monitored', 'card-1', 1, 'https://threads.net/@a/post/monitored', '法拉利交車', '法拉利 交車', ?, 'pending')
+    `).run(now, now)
+
+    const radar = getRadarTrends(db)
+
+    expect(radar.terms.map((term) => term.word)).toContain('法拉利')
+    expect(radar.terms.map((term) => term.word)).not.toContain('台灣')
+  })
 })
