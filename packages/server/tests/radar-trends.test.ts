@@ -104,6 +104,7 @@ describe('getRadarTrends', () => {
 
     const radar = getRadarTrends(db)
 
+    expect(radar.terms[0]?.word).toBe('法拉利')
     expect(radar.terms.map((term) => term.word)).toContain('法拉利')
     expect(radar.terms.map((term) => term.word)).not.toContain('台灣')
   })

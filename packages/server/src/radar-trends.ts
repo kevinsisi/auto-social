@@ -78,7 +78,8 @@ const stopWords = new Set([
 
 export function getRadarTrends(db: AppDatabase): RadarTrendResult {
   const since = new Date(Date.now() - RADAR_WINDOW_MS).toISOString()
-  const hasMonitoredCards = getRadarSampleQueries(db).some((query) => query.cardId)
+  const sampleQueries = getRadarSampleQueries(db)
+  const hasMonitoredCards = sampleQueries.some((query) => query.cardId)
   const rows = db.prepare(`
     SELECT source, title, text, engagement_json
     FROM trend_candidates
@@ -92,9 +93,9 @@ export function getRadarTrends(db: AppDatabase): RadarTrendResult {
   }
   const sources = [...sourceCounts.keys()]
   return {
-    terms: extractRadarTermsFromRows(rows).slice(0, MAX_TERMS),
+    terms: extractRadarTermsFromRows(rows, sampleQueries.filter((query) => query.cardId).map((query) => query.keyword)).slice(0, MAX_TERMS),
     source: sources.length > 1 ? 'mixed' : sources[0] ?? 'threads_search',
-    sampledQueries: getRadarSampleQueries(db).length,
+    sampledQueries: sampleQueries.length,
     sampledCandidates: rows.length,
     errors: getLatestScanErrors(db)
   }
@@ -291,7 +292,7 @@ export function extractRadarTerms(text: string): RadarTerm[] {
     .map(([word, count]) => ({ word, count }))
 }
 
-function extractRadarTermsFromRows(rows: TrendCandidateRow[]): RadarTerm[] {
+function extractRadarTermsFromRows(rows: TrendCandidateRow[], sampleKeywords: string[]): RadarTerm[] {
   const scores = new Map<string, number>()
   for (const row of rows) {
     const weight = getEngagementWeight(row.engagement_json)
@@ -299,6 +300,9 @@ function extractRadarTermsFromRows(rows: TrendCandidateRow[]): RadarTerm[] {
     for (const term of segmentText(text)) {
       if (shouldSkipTerm(term)) continue
       scores.set(term, (scores.get(term) ?? 0) + weight)
+    }
+    for (const keyword of sampleKeywords) {
+      if (keyword.length >= MIN_TERM_LENGTH && text.includes(keyword)) scores.set(keyword, (scores.get(keyword) ?? 0) + weight * 4)
     }
   }
   return [...scores.entries()]
