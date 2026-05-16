@@ -4,14 +4,14 @@ import { openMemoryDatabase } from '../src/db.js'
 import { KeyPoolRepository } from '../src/key-pool/key-pool.js'
 import { runPipelineOnCandidate } from '../src/scheduler/pipeline-runner.js'
 import { nowIso } from '../src/time.js'
-import type { TextGenerator } from '../src/ai/types.js'
+import type { ImageAnalyzer, TextGenerator } from '../src/ai/types.js'
 
-function seedCandidate(db: ReturnType<typeof openMemoryDatabase>) {
+function seedCandidate(db: ReturnType<typeof openMemoryDatabase>, images: string[] = []) {
   const id = nanoid()
   db.prepare(`
-    INSERT INTO trend_candidates (id, source, external_id, fingerprint, is_trending, url, title, text, fetched_at, pipeline_status)
-    VALUES (?, 'threads_playwright', ?, ?, 0, ?, '測試貼文', '我覺得這家手搖飲真的爛，又難喝又貴', ?, 'pending')
-  `).run(id, `cand-${id}`, `fp-${id}`, `https://www.threads.com/@user/post/${id}`, nowIso())
+    INSERT INTO trend_candidates (id, source, external_id, fingerprint, is_trending, url, title, text, images_json, fetched_at, pipeline_status)
+    VALUES (?, 'threads_playwright', ?, ?, 0, ?, '測試貼文', '我覺得這家手搖飲真的爛，又難喝又貴', ?, ?, 'pending')
+  `).run(id, `cand-${id}`, `fp-${id}`, `https://www.threads.com/@user/post/${id}`, JSON.stringify(images), nowIso())
   return id
 }
 
@@ -33,6 +33,17 @@ function fixtures(overrides: Partial<Record<string, string>> = {}): TextGenerato
 
 function seedKeyPool(db: ReturnType<typeof openMemoryDatabase>) {
   new KeyPoolRepository(db).importKeys('AIzaValidKey1111111111111111\nAIzaValidKey2222222222222222\nAIzaValidKey3333333333333333\nAIzaValidKey4444444444444444\nAIzaValidKey5555555555555555')
+}
+
+function imageAnalyzer(summary = '圖片是一台紅色跑車停在路邊'): ImageAnalyzer {
+  return async ({ imageUrls }) => ({
+    status: 'success',
+    summary,
+    images: imageUrls.map((url) => ({ url, description: summary, textDetected: null, notableObjects: ['紅色跑車'] })),
+    error: null,
+    model: 'test-vision',
+    analyzedAt: nowIso()
+  })
 }
 
 describe('runPipelineOnCandidate', () => {
@@ -89,5 +100,42 @@ describe('runPipelineOnCandidate', () => {
     const outcome = await runPipelineOnCandidate(db, 'no-such-id', { generator: fixtures() })
 
     expect(outcome.status).toBe('skipped')
+  })
+
+  it('persists image analysis and passes visual context into prompts', async () => {
+    const db = openMemoryDatabase()
+    seedKeyPool(db)
+    const id = seedCandidate(db, ['https://cdn.example.com/car.jpg'])
+    const calls: Array<{ stepId: string; prompt: string }> = []
+    const generator: TextGenerator = async (input) => {
+      calls.push({ stepId: input.stepId, prompt: input.prompt })
+      return fixtures()(input)
+    }
+
+    const outcome = await runPipelineOnCandidate(db, id, { generator, imageAnalyzer: imageAnalyzer() })
+
+    expect(outcome.status).toBe('drafted')
+    const row = db.prepare('SELECT image_analysis_json FROM trend_candidates WHERE id = ?').get(id) as { image_analysis_json: string }
+    const analysis = JSON.parse(row.image_analysis_json)
+    expect(analysis.status).toBe('success')
+    expect(analysis.summary).toContain('紅色跑車')
+    expect(calls.find((call) => call.stepId === 'classify')?.prompt).toContain('visualSummary')
+    expect(calls.find((call) => call.stepId === 'draft')?.prompt).toContain('紅色跑車')
+  })
+
+  it('continues text pipeline when image analysis fails', async () => {
+    const db = openMemoryDatabase()
+    seedKeyPool(db)
+    const id = seedCandidate(db, ['https://cdn.example.com/missing.jpg'])
+    const generator = fixtures()
+    const failingAnalyzer: ImageAnalyzer = async () => { throw new Error('image timeout') }
+
+    const outcome = await runPipelineOnCandidate(db, id, { generator, imageAnalyzer: failingAnalyzer })
+
+    const row = db.prepare('SELECT pipeline_status, image_analysis_json FROM trend_candidates WHERE id = ?').get(id) as { pipeline_status: string; image_analysis_json: string }
+
+    expect(outcome.status).toBe('drafted')
+    expect(row.pipeline_status).toBe('drafted')
+    expect(JSON.parse(row.image_analysis_json)).toMatchObject({ status: 'failed', error: 'image timeout' })
   })
 })

@@ -6,6 +6,26 @@ export type SourceCandidateInput = {
   text: string
   author?: string | null
   engagement?: Record<string, unknown> | null
+  imageUrls?: string[]
+  imageAnalysis?: ImageAnalysisResult | null
+}
+
+export type ImageAnalysisStatus = 'none' | 'success' | 'partial' | 'failed'
+
+export type ImageAnalysisImage = {
+  url: string
+  description: string
+  textDetected: string | null
+  notableObjects: string[]
+}
+
+export type ImageAnalysisResult = {
+  status: ImageAnalysisStatus
+  summary: string | null
+  images: ImageAnalysisImage[]
+  error: string | null
+  model: string | null
+  analyzedAt: string
 }
 
 export type VoiceProfile = {
@@ -91,6 +111,8 @@ export type SocialPipelineOptions = {
 }
 
 export type TextGenerator = (input: { stepId: string; systemInstruction: string; prompt: string; preferredKey: string | null }) => Promise<string>
+
+export type ImageAnalyzer = (input: { candidate: SourceCandidateInput; imageUrls: string[]; preferredKey: string | null }) => Promise<ImageAnalysisResult>
 
 // 來源：docs/threads-voice-persona.md（2026-05-15 採集，50 題情境答題反推）。
 // 細節 + few-shot 範例：packages/server/src/ai/voice-fixtures.json

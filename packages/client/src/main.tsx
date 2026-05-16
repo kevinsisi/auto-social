@@ -67,6 +67,13 @@ const REPLY_STATUS_LABELS: Record<ReplyAttemptStatus, string> = {
   uncertain: '可能已送出但無法確認'
 }
 
+const IMAGE_ANALYSIS_LABELS: Record<'none' | 'success' | 'partial' | 'failed', string> = {
+  none: '無附圖',
+  success: '圖片已辨識',
+  partial: '圖片部分辨識',
+  failed: '圖片辨識失敗'
+}
+
 type Page = 'dashboard' | 'settings'
 type DashTab = 'overview' | 'radar' | 'workstation'
 type SettingsSection = 'admin' | 'keys' | 'threads' | 'pipeline' | 'about'
@@ -1037,6 +1044,8 @@ function ObservedPostCard({ cardId, post, onFeedback, onRepipelinePost, highligh
         </div>
       )}
 
+      {post.imageAnalysis && post.imageAnalysis.status !== 'none' && <ImageAnalysisBox analysis={post.imageAnalysis} />}
+
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold">
         {post.sentiment ? <span className="border-2 border-asphalt px-2 py-1 text-white" style={{ background: SENTIMENT_COLORS[post.sentiment] }}>{SENTIMENT_LABELS[post.sentiment]}</span>
           : post.pipelineStatus === 'pipeline_blocked' ? null
@@ -1086,6 +1095,36 @@ function ObservedPostCard({ cardId, post, onFeedback, onRepipelinePost, highligh
         )}
       </section>
     </article>
+  )
+}
+
+function ImageAnalysisBox({ analysis }: { analysis: NonNullable<ObservedPost['imageAnalysis']> }) {
+  const tone = analysis.status === 'failed'
+    ? 'border-red-700 bg-red-50 text-red-900'
+    : analysis.status === 'partial'
+      ? 'border-orange-600 bg-orange-50 text-orange-900'
+      : 'border-green-700 bg-green-50 text-green-900'
+  return (
+    <section className={`mt-3 border-2 p-3 text-sm ${tone}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-mono text-xs uppercase tracking-[0.2em]">Image Recognition</p>
+        <span className="border border-current px-2 py-0.5 text-xs font-black">{IMAGE_ANALYSIS_LABELS[analysis.status]}</span>
+      </div>
+      {analysis.summary && <p className="mt-2 font-bold">{analysis.summary}</p>}
+      {analysis.images.length > 0 && (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-xs font-bold underline">看每張圖描述</summary>
+          <ul className="mt-2 space-y-1 text-xs">
+            {analysis.images.map((image, index) => (
+              <li key={`${image.url}-${index}`}>
+                圖{index + 1}：{image.description}{image.textDetected ? `；文字：${image.textDetected}` : ''}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {analysis.error && <p className="mt-2 text-xs">{analysis.error}</p>}
+    </section>
   )
 }
 

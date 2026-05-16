@@ -4,7 +4,7 @@
 
 - Domain: `https://social.sisihome.org`
 - Health check: `https://social.sisihome.org/api/health`
-- Current expected API version after the latest deployment: `1.2.51`
+- Current expected API version after the latest deployment: `1.2.52`
 
 ## Threads Login
 
@@ -81,6 +81,17 @@ Observation cards hide known Threads posts older than one year from `published_a
 ## Per-Post AI Retry
 
 Observation posts with `pipeline_status = pipeline_blocked` show a `重跑這則` button. It calls `POST /api/keywords/:cardId/candidates/:candidateId/repipeline`, resets only that candidate to `pending`, clears the pipeline error, and enqueues a single pipeline task.
+
+## Observation Image Recognition
+
+Pipeline runs analyze up to the first 3 image URLs from `trend_candidates.images_json` before text AI steps. Results are stored in `trend_candidates.image_analysis_json` with status `none`, `success`, `partial`, or `failed`.
+
+Operational notes:
+
+- Successful or partial summaries are added to downstream classify, sponsored/scam detection, score, and draft prompts as `visualSummary`.
+- Image recognition failures are non-blocking; the text pipeline continues and the UI shows the image-analysis error separately from `pipeline_status`.
+- Fetch guards reject non-image responses, images over 6 MB, and slow image downloads.
+- `GEMINI_VISION_MODEL` can override the model; otherwise it follows the default Gemini model setting.
 
 ## Confirmed Threads Replies
 
