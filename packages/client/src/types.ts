@@ -152,7 +152,12 @@ export type SchedulerStatus = {
   lastSkippedAt: string | null
   lastError: string | null
   lastCardCount: number
+  lastEligibleCount: number
   lastInsertedCount: number
+  lastQuotaRemaining: number | null
+  lastScannedKeywords: string[]
+  maxCardsPerTick: number
+  minIntervalMinutes: number
 }
 
 export type PostDraft = {
