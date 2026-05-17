@@ -148,6 +148,7 @@ export function extractThreadsLinks(html: string, keyword: string): ThreadsSearc
     const url = canonicalisePostUrl(result.url)
     if (!url) continue
     if (!result.title && !result.excerpt) continue
+    if (!isRelevantSearchResult(result, keyword)) continue
     if (seen.has(url)) continue
     seen.set(url, {
       url,
@@ -157,6 +158,24 @@ export function extractThreadsLinks(html: string, keyword: string): ThreadsSearc
     })
   }
   return [...seen.values()]
+}
+
+function isRelevantSearchResult(result: { title: string; excerpt: string }, keyword: string): boolean {
+  const text = `${result.title} ${result.excerpt}`.trim()
+  if (isThreadsLandingPageText(text)) return false
+  const trimmed = keyword.trim()
+  if (!trimmed) return true
+  if (/[\p{Script=Han}]/u.test(trimmed)) return text.includes(trimmed)
+  return new RegExp(`\\b${escapeRegExp(trimmed)}\\b`, 'i').test(text)
+}
+
+function isThreadsLandingPageText(text: string): boolean {
+  const lowered = text.toLowerCase()
+  return lowered.includes('join threads') || (text.includes('加入 Threads') && text.includes('Instagram'))
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function isProviderBlockPage(provider: ThreadsFallbackProvider, html: string, finalUrl: string) {
@@ -170,7 +189,7 @@ function extractSearchResults(html: string): Array<{ url: string; title: string;
   const values = extractSearchUrlValues(html)
   for (const value of values) {
     const index = findSearchValueIndex(html, value)
-    const block = index >= 0 ? html.slice(Math.max(0, index - 1200), Math.min(html.length, index + 1800)) : ''
+    const block = index >= 0 ? extractResultBlock(html, index) : ''
     results.push({
       url: value,
       title: extractTitle(block),
@@ -178,6 +197,21 @@ function extractSearchResults(html: string): Array<{ url: string; title: string;
     })
   }
   return results
+}
+
+function extractResultBlock(html: string, index: number): string {
+  const liStart = html.lastIndexOf('<li', index)
+  const divStart = html.lastIndexOf('<div', index)
+  const containerStart = Math.max(liStart, divStart)
+  if (containerStart >= 0 && index - containerStart <= 1200) {
+    const tag = liStart > divStart ? 'li' : 'div'
+    const close = html.indexOf(`</${tag}>`, index)
+    if (close >= 0) return html.slice(containerStart, close + tag.length + 3)
+  }
+  const anchorStart = html.lastIndexOf('<a', index)
+  const anchorEnd = html.indexOf('</a>', index)
+  if (anchorStart >= 0 && anchorEnd >= 0) return html.slice(anchorStart, anchorEnd + 4)
+  return html.slice(Math.max(0, index - 1200), Math.min(html.length, index + 1800))
 }
 
 function findSearchValueIndex(html: string, value: string): number {

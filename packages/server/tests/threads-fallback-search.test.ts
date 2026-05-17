@@ -9,8 +9,8 @@ import {
 
 describe('extractThreadsLinks', () => {
   it('extracts Threads URLs embedded in Google /url?q= wrappers and direct hrefs', () => {
-    const html = '<a href="/url?q=https://www.threads.net/@someone/post/abc&sa=U">result</a>' +
-      '<a href="https://threads.net/@other/post/def">direct</a>'
+    const html = '<a href="/url?q=https://www.threads.net/@someone/post/abc&sa=U">可麗餅 result</a>' +
+      '<a href="https://threads.net/@other/post/def">可麗餅 direct</a>'
 
     const results = extractThreadsLinks(html, '可麗餅')
 
@@ -23,7 +23,7 @@ describe('extractThreadsLinks', () => {
   it('extracts Threads URLs from Bing /ck/a u=a1 redirect wrappers', () => {
     const target = 'https://www.threads.com/@cars/post/BING123'
     const encoded = Buffer.from(target, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
-    const html = `<a href="/ck/a?!&&p=abc&u=a1${encoded}&ntb=1">result</a>`
+    const html = `<a href="/ck/a?!&&p=abc&u=a1${encoded}&ntb=1">Urus result</a>`
 
     const results = extractThreadsLinks(html, 'Urus')
 
@@ -55,7 +55,7 @@ describe('extractThreadsLinks', () => {
   })
 
   it('deduplicates the same Threads URL appearing in different result blocks', () => {
-    const html = '<a href="https://www.threads.net/@a/post/x">1</a>' +
+    const html = '<a href="https://www.threads.net/@a/post/x">test 1</a>' +
       '<cite>https://www.threads.net/@a/post/x</cite>'
 
     const results = extractThreadsLinks(html, 'test')
@@ -66,7 +66,7 @@ describe('extractThreadsLinks', () => {
 
   it('ignores non-post Threads URLs (search, login, profile)', () => {
     const html = '<a href="https://www.threads.net/search?q=foo">search</a>' +
-      '<a href="https://www.threads.net/@some/post/abc">post</a>'
+      '<a href="https://www.threads.net/@some/post/abc">foo post</a>'
 
     const results = extractThreadsLinks(html, 'foo')
 
@@ -79,6 +79,16 @@ describe('extractThreadsLinks', () => {
     const results = extractThreadsLinks(html, 'foo')
 
     expect(results).toEqual([])
+  })
+
+  it('skips Threads landing pages and keyword-irrelevant results', () => {
+    const html = '<a href="https://www.threads.net/@login/post/abc">加入 Threads 即可分享想法、提問問題、使用你的 Instagram 登入。</a>' +
+      '<a href="https://www.threads.net/@music/post/def">最近大家推薦的播放清單</a>' +
+      '<a href="https://www.threads.net/@cars/post/ghi">法拉利交車心得</a>'
+
+    const results = extractThreadsLinks(html, '法拉利')
+
+    expect(results.map((item) => item.url)).toEqual(['https://www.threads.net/@cars/post/ghi'])
   })
 })
 
@@ -158,8 +168,8 @@ describe('fetchThreadsFallbackOutcome', () => {
   it('returns ok with Bing when Bing has Threads results', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
       ...duckEmpty,
-      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>'),
-      fetchBing: okResponse('<a href="https://www.threads.net/@b/post/b1">y</a>')
+      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">foo x</a>'),
+      fetchBing: okResponse('<a href="https://www.threads.net/@b/post/b1">foo y</a>')
     })
 
     expect(outcome.status).toBe('ok')
@@ -172,7 +182,7 @@ describe('fetchThreadsFallbackOutcome', () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
       ...duckEmpty,
       fetchBing: okResponse('<html>Verify you are human</html>'),
-      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>')
+      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">foo x</a>')
     })
 
     expect(outcome.status).toBe('ok')
@@ -185,7 +195,7 @@ describe('fetchThreadsFallbackOutcome', () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
       ...duckEmpty,
       fetchBing: okResponse('<html>no results here</html>'),
-      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>')
+      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">foo x</a>')
     })
 
     expect(outcome.status).toBe('ok')
@@ -195,9 +205,9 @@ describe('fetchThreadsFallbackOutcome', () => {
   it('falls back to DuckDuckGo before Google', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
       fetchBing: okResponse('<html>no results here</html>'),
-      fetchDuckDuckGo: okResponse('<a href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.threads.net%2F%40d%2Fpost%2Fddg1">d</a>'),
+      fetchDuckDuckGo: okResponse('<a href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.threads.net%2F%40d%2Fpost%2Fddg1">foo d</a>'),
       fetchDuckDuckGoLite: okResponse('<html/>'),
-      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>')
+      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">foo x</a>')
     })
 
     expect(outcome.status).toBe('ok')
@@ -209,7 +219,7 @@ describe('fetchThreadsFallbackOutcome', () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
       fetchBing: okResponse('<html>no results here</html>'),
       fetchDuckDuckGo: okResponse('<html>Unfortunately, bots use DuckDuckGo too</html>'),
-      fetchDuckDuckGoLite: okResponse('<a href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.threads.net%2F%40l%2Fpost%2Flite1">l</a>'),
+      fetchDuckDuckGoLite: okResponse('<a href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.threads.net%2F%40l%2Fpost%2Flite1">foo l</a>'),
       fetchGoogle: okResponse('<html/>')
     })
 
@@ -247,7 +257,7 @@ describe('fetchThreadsFallbackOutcome', () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
       ...duckEmpty,
       fetchBing: okResponse('whatever', 'https://www.bing.com', 429),
-      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>')
+      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">foo x</a>')
     })
 
     expect(outcome.status).toBe('ok')
@@ -259,7 +269,7 @@ describe('fetchThreadsFallbackOutcome', () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
       ...duckEmpty,
       fetchBing: async () => { throw new Error('timeout') },
-      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>')
+      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">foo x</a>')
     })
 
     expect(outcome.status).toBe('ok')
@@ -268,9 +278,9 @@ describe('fetchThreadsFallbackOutcome', () => {
   })
 
   it('honours limit when Bing returns more candidates than asked for', async () => {
-    const html = '<a href="https://www.threads.net/@a/post/1">a</a>' +
-      '<a href="https://www.threads.net/@a/post/2">b</a>' +
-      '<a href="https://www.threads.net/@a/post/3">c</a>'
+    const html = '<a href="https://www.threads.net/@a/post/1">foo a</a>' +
+      '<a href="https://www.threads.net/@a/post/2">foo b</a>' +
+      '<a href="https://www.threads.net/@a/post/3">foo c</a>'
 
     const outcome = await fetchThreadsFallbackOutcome('foo', {
       ...duckEmpty,
