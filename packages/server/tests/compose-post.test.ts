@@ -75,6 +75,13 @@ describe('compose-post step', () => {
     expect(isSafeComposePostText('作為AI我只能說這真的很台灣')).toBe(false)
   })
 
+  it('schema rejects mojibake compose text', () => {
+    expect(() => parseComposePost(JSON.stringify({
+      seedKeyword: '豪車', seedTopic: '車圈觀察', angle: '吐槽',
+      text: '�}�������A�A���|���D�L�̫���쪺�C', imagePrompt: '夜晚停車場裡的豪車和旁人的目光。'
+    }))).toThrow()
+  })
+
   it('schema rejects text containing 不得不說 / 老實說 / 我覺得', () => {
     expect(() => parseComposePost(JSON.stringify({
       seedKeyword: '台灣', seedTopic: 't', angle: '吐槽',
