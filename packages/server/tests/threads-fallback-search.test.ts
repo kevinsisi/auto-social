@@ -72,6 +72,14 @@ describe('extractThreadsLinks', () => {
 
     expect(results.map((item) => item.url)).toEqual(['https://www.threads.net/@some/post/abc'])
   })
+
+  it('skips context-free redirect URLs so generic samples do not reach the pipeline', () => {
+    const html = '<script>var u="https://www.threads.net/@some/post/no-context"</script>'
+
+    const results = extractThreadsLinks(html, 'foo')
+
+    expect(results).toEqual([])
+  })
 })
 
 describe('isGoogleBlockPage', () => {
