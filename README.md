@@ -8,7 +8,7 @@
 
 ## 目前狀態（2026-05-13）
 
-- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.2.53`
+- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.2.54`
 - ✅ MVP 0.1.0 可跑（舊版「遇見好車海巡台」），UI 已轉為「社群海巡工作站」
 - ✅ 已完成官方 API 可行性盤點（見 [`openspec/specs/mvp/spec.md`](openspec/specs/mvp/spec.md)）
 - ✅ OpenSpec change `add-keyword-patrol-cards`（舊版 MVP，已實作完成）
@@ -90,7 +90,7 @@ Threads Session / Playwright：
 - `KEY_MANAGER_URL`：選填；不設定時 `從 key-manager 同步` 會停用，但 Settings 仍可手動貼 Gemini keys。
 - 本機登入：執行 `npm run threads:login`，完成 Instagram / Threads 驗證並進入 Threads 頁面後，工具會輸出 `data/threads-storage-state.json`。
 - Settings → Threads Session 可貼上 Playwright `storageState` JSON；保存後 Playwright 搜尋會優先帶 session。
-- `Threads 出勤海巡`：先跑 Playwright 唯讀搜尋，失敗自動退回 `site:threads.net OR site:threads.com` 搜尋備援。
+- `Threads 出勤海巡`：只使用 Bing-first / Google-second 的 `site:threads.net OR site:threads.com` 搜尋，不使用登入 Threads session，也不開 Threads Playwright 搜尋頁。
 - `GET /api/scheduler/status`：查看 keyword 自動海巡是否在跑、上次執行時間、最近一次掃了幾張卡與新增幾筆。
 - 圖片辨識：觀察站有附圖的 Threads 樣本會在 AI 判讀前分析最多前 3 張圖；成功或部分成功的視覺摘要會顯示在貼文卡，也會進入留言草稿 prompt。若圖片過大、逾時或 Gemini vision 失敗，文字 pipeline 仍會繼續。
 - Threads 留言：預設停用；必須設定 `AUTO_SOCIAL_THREADS_REPLY_ENABLED=1` 才能啟用。啟用後觀察站貼文卡上的「用 Threads session 留言」仍只支援單則人工確認，不提供批次留言；成功必須由 Playwright 找到 reply URL 或 DOM match，否則會標為「可能已送出但無法確認」供人工複查。

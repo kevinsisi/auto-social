@@ -2,8 +2,6 @@ import type { AppDatabase } from './db.js'
 import { PatrolRepository } from './repository.js'
 import { getRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
 import { fetchThreadsSearchOutcome } from './sources/threads-search.js'
-import { searchThreadsWithPlaywright } from './threads-bot/search.js'
-import { KillSwitchActiveError } from './threads-bot/throttle.js'
 
 export type ScanProgressEvent =
   | { stage: 'searching' }
@@ -52,37 +50,26 @@ export async function scanKeywordCard(
   onProgress?.({ stage: 'searching' })
 
   let items: ScanCandidate[] = []
-  let outcomeKind: KeywordScanOutcomeKind = 'playwright_ok'
+  let outcomeKind: KeywordScanOutcomeKind = 'fallback_ok'
   let providerUsed: 'threads_playwright' | 'google' | 'bing' | null = null
   let blockedProviders: Array<'google' | 'bing'> = []
-  let primaryError: Error | null = null
 
-  try {
-    items = await searchThreadsWithPlaywright(db, card.keyword)
-    providerUsed = items.length > 0 ? 'threads_playwright' : null
-  } catch (error) {
-    if (error instanceof KillSwitchActiveError) throw error
-    primaryError = error instanceof Error ? error : new Error(String(error))
-  }
-
-  if (providerUsed === null) {
-    const fallback = await fetchThreadsSearchOutcome(card.keyword)
-    blockedProviders = fallback.blockedProviders
-    if (fallback.status === 'ok' && fallback.providerUsed) {
-      onProgress?.({ stage: 'fallback', provider: fallback.providerUsed })
-      items = fallback.candidates
-      providerUsed = fallback.providerUsed
-      outcomeKind = 'fallback_ok'
-    } else if (fallback.status === 'blocked') {
-      outcomeKind = 'search_provider_blocked'
-    } else {
-      outcomeKind = 'no_matching_threads_results'
-    }
+  const fallback = await fetchThreadsSearchOutcome(card.keyword)
+  blockedProviders = fallback.blockedProviders
+  if (fallback.status === 'ok' && fallback.providerUsed) {
+    onProgress?.({ stage: 'fallback', provider: fallback.providerUsed })
+    items = fallback.candidates
+    providerUsed = fallback.providerUsed
+    outcomeKind = 'fallback_ok'
+  } else if (fallback.status === 'blocked') {
+    outcomeKind = 'search_provider_blocked'
+  } else {
+    outcomeKind = 'no_matching_threads_results'
   }
 
   onProgress?.({ stage: 'done', found: items.length })
   persistAndSchedule(db, cardId, items)
-  const run = repo.createThreadsSearchRun(cardId, items, { outcomeKind, providerUsed, blockedProviders, primaryError })
+  const run = repo.createThreadsSearchRun(cardId, items, { outcomeKind, providerUsed, blockedProviders })
   return { ...run, outcomeKind, providerUsed, blockedProviders }
 }
 
