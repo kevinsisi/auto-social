@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildComposePostPrompt, parseComposePost } from '../src/ai/steps/compose-post.js'
+import { buildComposePostPrompt, isSafeComposePostText, parseComposePost } from '../src/ai/steps/compose-post.js'
 
 describe('compose-post step', () => {
   it('builds a prompt with radar terms and sampled posts', () => {
@@ -65,6 +65,14 @@ describe('compose-post step', () => {
       seedKeyword: '台灣', seedTopic: 't', angle: '吐槽',
       text: '身為 AI 我覺得這件事真的有點 cringe 啦。', imagePrompt: ''
     }))).toThrow()
+  })
+
+  it('schema rejects compact AI self-disclosure phrases without spaces', () => {
+    expect(() => parseComposePost(JSON.stringify({
+      seedKeyword: '台灣', seedTopic: 't', angle: '吐槽',
+      text: '身為AI，台灣人的群組通知真的多到像鬧鐘。', imagePrompt: ''
+    }))).toThrow()
+    expect(isSafeComposePostText('作為AI我只能說這真的很台灣')).toBe(false)
   })
 
   it('schema rejects text containing 不得不說 / 老實說 / 我覺得', () => {
