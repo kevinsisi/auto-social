@@ -43,11 +43,15 @@ describe('extractThreadsLinks', () => {
 
   it('extracts Threads URLs from DuckDuckGo uddg redirect wrappers', () => {
     const target = 'https://www.threads.net/@duck/post/DDG123'
-    const html = `<a class="result__a" href="//duckduckgo.com/l/?uddg=${encodeURIComponent(target)}">Threads 討論</a>`
+    const html = `<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=${encodeURIComponent(target)}">Urus 車主討論</a><a class="result__snippet">大家在 Threads 上討論 Urus 保養和日常用車。</a></div>`
 
     const results = extractThreadsLinks(html, 'Threads')
 
     expect(results.map((item) => item.url)).toEqual([target])
+    expect(results[0]).toMatchObject({
+      title: 'Urus 車主討論',
+      excerpt: '大家在 Threads 上討論 Urus 保養和日常用車。'
+    })
   })
 
   it('deduplicates the same Threads URL appearing in different result blocks', () => {

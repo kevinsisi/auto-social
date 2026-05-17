@@ -168,7 +168,7 @@ function extractSearchResults(html: string): Array<{ url: string; title: string;
   const results: Array<{ url: string; title: string; excerpt: string }> = []
   const values = extractSearchUrlValues(html)
   for (const value of values) {
-    const index = html.indexOf(value)
+    const index = findSearchValueIndex(html, value)
     const block = index >= 0 ? html.slice(Math.max(0, index - 1200), Math.min(html.length, index + 1800)) : ''
     results.push({
       url: value,
@@ -177,6 +177,15 @@ function extractSearchResults(html: string): Array<{ url: string; title: string;
     })
   }
   return results
+}
+
+function findSearchValueIndex(html: string, value: string): number {
+  const direct = html.indexOf(value)
+  if (direct >= 0) return direct
+  const encoded = encodeURIComponent(value)
+  const encodedIndex = html.indexOf(encoded)
+  if (encodedIndex >= 0) return encodedIndex
+  return html.indexOf(encoded.replace(/%20/g, '+'))
 }
 
 function extractTitle(block: string): string {
@@ -188,6 +197,7 @@ function extractTitle(block: string): string {
 function extractSnippet(block: string): string {
   const selectors = [
     /<p[^>]*>([\s\S]*?)<\/p>/i,
+    /<a[^>]+class="[^"]*(?:result__snippet|snippet)[^"]*"[^>]*>([\s\S]*?)<\/a>/i,
     /<div[^>]+class="[^"]*(?:VwiC3b|b_caption|snippet)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
     /<span[^>]+class="[^"]*(?:aCOpRe|st)[^"]*"[^>]*>([\s\S]*?)<\/span>/i
   ]
@@ -209,7 +219,8 @@ function cleanSearchText(value: string): string {
 
 function extractSearchUrlValues(html: string): string[] {
   const values = new Set<string>()
-  addDecodedVariants(values, html)
+  const htmlDecoded = decodeHtmlEntities(html).replace(/\\\//g, '/')
+  for (const match of htmlDecoded.matchAll(THREADS_URL_PATTERN)) values.add(match[0] ?? '')
   for (const match of html.matchAll(HREF_PATTERN)) {
     addDecodedVariants(values, match[1] ?? match[2] ?? match[3] ?? '')
   }
@@ -219,10 +230,10 @@ function extractSearchUrlValues(html: string): string[] {
 function addDecodedVariants(values: Set<string>, raw: string) {
   if (!raw) return
   const htmlDecoded = decodeHtmlEntities(raw).replace(/\\\//g, '/')
-  values.add(htmlDecoded)
   const uriDecoded = decodeUriRepeated(htmlDecoded)
-  values.add(uriDecoded)
   for (const nested of extractUrlParams(uriDecoded)) values.add(nested)
+  values.add(htmlDecoded)
+  values.add(uriDecoded)
 }
 
 function extractUrlParams(raw: string): string[] {
