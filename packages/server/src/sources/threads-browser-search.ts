@@ -95,10 +95,18 @@ export function normaliseBrowserResults(results: RawBrowserResult[], keyword: st
 
 async function isBlocked(page: Page) {
   const url = page.url()
-  if (/duckduckgo\.com\/anomaly/i.test(url)) return true
+  const title = await page.title().catch(() => '')
   const text = await page.locator('body').innerText({ timeout: 2_000 }).catch(() => '')
+  return isDuckDuckGoBrowserBlock(url, title, text)
+}
+
+export function isDuckDuckGoBrowserBlock(url: string, title: string, text: string) {
+  if (/duckduckgo\.com\/(?:anomaly|static-pages\/418)/i.test(url)) return true
+  if (/duckduckgo\s*-\s*protection/i.test(title)) return true
   const lowered = text.toLowerCase()
-  return lowered.includes('unfortunately, bots use duckduckgo too') || lowered.includes('please complete the following challenge')
+  return lowered.includes('unfortunately, bots use duckduckgo too') ||
+    lowered.includes('please complete the following challenge') ||
+    lowered.includes('error getting results')
 }
 
 function cleanText(value: string) {

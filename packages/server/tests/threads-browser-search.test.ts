@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normaliseBrowserResults } from '../src/sources/threads-browser-search.js'
+import { isDuckDuckGoBrowserBlock, normaliseBrowserResults } from '../src/sources/threads-browser-search.js'
 
 describe('normaliseBrowserResults', () => {
   it('keeps keyword-matching Threads post results from browser search', () => {
@@ -20,5 +20,15 @@ describe('normaliseBrowserResults', () => {
     ], '法拉利')
 
     expect(candidates.map((candidate) => candidate.url)).toEqual(['https://www.threads.net/@cars/post/c'])
+  })
+})
+
+describe('isDuckDuckGoBrowserBlock', () => {
+  it('flags DuckDuckGo static 418 protection pages', () => {
+    expect(isDuckDuckGoBrowserBlock(
+      'https://duckduckgo.com/static-pages/418.html?bno=84f2',
+      'DuckDuckGo - Protection. Privacy. Peace of mind.',
+      'email us error getting results'
+    )).toBe(true)
   })
 })
