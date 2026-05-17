@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid'
 import type { AppDatabase } from './db.js'
 import { generateAnalysis } from './humor.js'
 import { nowIso } from './time.js'
+import type { ThreadsFallbackProvider } from './sources/threads-search.js'
 import type { CandidateAnalysis, CandidateStatus, CandidateWithAnalysis, PatrolCard, PatrolCardDetail } from './types.js'
 
 type CardRow = { id: string; keyword: string; created_at: string; updated_at: string; recent_sample_count: number; last_scan_at: string | null }
@@ -101,8 +102,8 @@ export class PatrolRepository {
     items: PatrolSourceCandidate[],
     outcome: {
       outcomeKind?: 'playwright_ok' | 'fallback_ok' | 'no_matching_threads_results' | 'search_provider_blocked'
-      providerUsed?: 'threads_playwright' | 'google' | 'bing' | null
-      blockedProviders?: Array<'google' | 'bing'>
+      providerUsed?: 'threads_playwright' | ThreadsFallbackProvider | null
+      blockedProviders?: ThreadsFallbackProvider[]
       primaryError?: Error | null
     } = {}
   ) {
@@ -207,19 +208,19 @@ function mapCard(row: CardRow): PatrolCard {
 
 type ThreadsRunOutcomeMeta = {
   outcomeKind?: 'playwright_ok' | 'fallback_ok' | 'no_matching_threads_results' | 'search_provider_blocked'
-  providerUsed?: 'threads_playwright' | 'google' | 'bing' | null
-  blockedProviders?: Array<'google' | 'bing'>
+  providerUsed?: 'threads_playwright' | ThreadsFallbackProvider | null
+  blockedProviders?: ThreadsFallbackProvider[]
   primaryError?: Error | null
 }
 
 function buildThreadsRunMessage(keyword: string, insertedCount: number, outcome: ThreadsRunOutcomeMeta): string {
   const { outcomeKind, providerUsed, blockedProviders } = outcome
   if (outcomeKind === 'fallback_ok' && insertedCount > 0) {
-    const providerLabel = providerUsed === 'bing' ? 'Bing' : 'Google'
+    const providerLabel = formatSearchProvider(providerUsed)
     return `已使用 ${providerLabel} site:threads.net/site:threads.com 搜尋，找到 ${insertedCount} 筆候選。`
   }
   if (outcomeKind === 'search_provider_blocked') {
-    const blockedList = (blockedProviders ?? []).map((p) => p === 'bing' ? 'Bing' : 'Google').join('、')
+    const blockedList = (blockedProviders ?? []).map(formatSearchProvider).join('、')
     return blockedList
       ? `Threads 搜尋（${blockedList}）被阻擋或無法使用，請稍後再試。`
       : 'Threads 搜尋無法使用，請稍後再試。'
@@ -231,6 +232,14 @@ function buildThreadsRunMessage(keyword: string, insertedCount: number, outcome:
     return `Threads 海巡完成，但沒有找到「${keyword}」新的相關結果。`
   }
   return `Threads 海巡完成，找到 ${insertedCount} 筆候選。`
+}
+
+function formatSearchProvider(provider: ThreadsRunOutcomeMeta['providerUsed']) {
+  if (provider === 'bing') return 'Bing'
+  if (provider === 'google') return 'Google'
+  if (provider === 'duckduckgo') return 'DuckDuckGo'
+  if (provider === 'duckduckgo_lite') return 'DuckDuckGo Lite'
+  return '搜尋引擎'
 }
 
 function mapCandidate(row: CandidateRow): CandidateWithAnalysis {

@@ -2,10 +2,11 @@ import type { AppDatabase } from './db.js'
 import { PatrolRepository } from './repository.js'
 import { getRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
 import { fetchThreadsSearchOutcome } from './sources/threads-search.js'
+import type { ThreadsFallbackProvider } from './sources/threads-search.js'
 
 export type ScanProgressEvent =
   | { stage: 'searching' }
-  | { stage: 'fallback'; provider: 'google' | 'bing' }
+  | { stage: 'fallback'; provider: ThreadsFallbackProvider }
   | { stage: 'done'; found: number }
 
 type ScanCandidate = {
@@ -34,8 +35,8 @@ export type KeywordScanRun = {
   completedAt: string
   inserted: unknown[]
   outcomeKind: KeywordScanOutcomeKind
-  providerUsed: 'threads_playwright' | 'google' | 'bing' | null
-  blockedProviders: Array<'google' | 'bing'>
+  providerUsed: 'threads_playwright' | ThreadsFallbackProvider | null
+  blockedProviders: ThreadsFallbackProvider[]
 }
 
 export async function scanKeywordCard(
@@ -51,8 +52,8 @@ export async function scanKeywordCard(
 
   let items: ScanCandidate[] = []
   let outcomeKind: KeywordScanOutcomeKind = 'fallback_ok'
-  let providerUsed: 'threads_playwright' | 'google' | 'bing' | null = null
-  let blockedProviders: Array<'google' | 'bing'> = []
+  let providerUsed: 'threads_playwright' | ThreadsFallbackProvider | null = null
+  let blockedProviders: ThreadsFallbackProvider[] = []
 
   const fallback = await fetchThreadsSearchOutcome(card.keyword)
   blockedProviders = fallback.blockedProviders

@@ -5,7 +5,7 @@ export type ThreadsSearchCandidate = {
   source: 'threads_search'
 }
 
-export type ThreadsFallbackProvider = 'google' | 'bing'
+export type ThreadsFallbackProvider = 'google' | 'bing' | 'duckduckgo' | 'duckduckgo_lite'
 
 export type ThreadsFallbackStatus = 'ok' | 'no_results' | 'blocked'
 
@@ -28,6 +28,8 @@ type Options = {
   limit?: number
   fetchGoogle?: FetchProvider
   fetchBing?: FetchProvider
+  fetchDuckDuckGo?: FetchProvider
+  fetchDuckDuckGoLite?: FetchProvider
 }
 
 const REQUEST_TIMEOUT_MS = 15_000
@@ -47,7 +49,23 @@ export async function fetchThreadsFallbackOutcome(keyword: string, options: Opti
   }
   if (bingResult.blocked) blockedProviders.push('bing')
 
-  // 2. Google remains the second fallback when Bing is blocked or empty.
+  // 2. DuckDuckGo HTML often stays available when Bing/Google CAPTCHA server-side fetches.
+  const duckResult = await runProvider('duckduckgo', () => (options.fetchDuckDuckGo ?? fetchDuckDuckGoHtml)(keyword), keyword)
+  probes.push(duckResult)
+  if (duckResult.candidates.length > 0) {
+    return ok(duckResult.candidates.slice(0, limit), 'duckduckgo', blockedProviders)
+  }
+  if (duckResult.blocked) blockedProviders.push('duckduckgo')
+
+  // 3. DuckDuckGo Lite has simpler markup and is a useful no-API fallback.
+  const duckLiteResult = await runProvider('duckduckgo_lite', () => (options.fetchDuckDuckGoLite ?? fetchDuckDuckGoLiteHtml)(keyword), keyword)
+  probes.push(duckLiteResult)
+  if (duckLiteResult.candidates.length > 0) {
+    return ok(duckLiteResult.candidates.slice(0, limit), 'duckduckgo_lite', blockedProviders)
+  }
+  if (duckLiteResult.blocked) blockedProviders.push('duckduckgo_lite')
+
+  // 4. Google remains the final fallback when the other public endpoints are empty.
   const googleResult = await runProvider('google', () => (options.fetchGoogle ?? fetchGoogleHtml)(keyword), keyword)
   probes.push(googleResult)
   if (googleResult.candidates.length > 0) {
@@ -55,7 +73,7 @@ export async function fetchThreadsFallbackOutcome(keyword: string, options: Opti
   }
   if (googleResult.blocked) blockedProviders.push('google')
 
-  // 3. Neither provider returned candidates.
+  // 5. No public search provider returned candidates.
   const everyoneBlocked = probes.every((p) => p.blocked)
   return {
     candidates: [],
@@ -79,9 +97,7 @@ async function runProvider(
     if (status >= 500 || status === 429) {
       return { provider, candidates: [], blocked: true }
     }
-    const blocked = provider === 'google'
-      ? isGoogleBlockPage(html, finalUrl)
-      : isBingBlockPage(html, finalUrl)
+    const blocked = isProviderBlockPage(provider, html, finalUrl)
     if (blocked) return { provider, candidates: [], blocked: true }
     const candidates = extractThreadsLinks(html, keyword)
     return { provider, candidates, blocked: false }
@@ -106,6 +122,22 @@ async function fetchBingHtml(keyword: string): Promise<{ html: string; finalUrl:
   return { html, finalUrl: response.url, status: response.status }
 }
 
+async function fetchDuckDuckGoHtml(keyword: string): Promise<{ html: string; finalUrl: string; status: number }> {
+  const query = `${keyword.trim()} (site:threads.net OR site:threads.com)`
+  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=tw-tzh`
+  const response = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
+  const html = await response.text()
+  return { html, finalUrl: response.url, status: response.status }
+}
+
+async function fetchDuckDuckGoLiteHtml(keyword: string): Promise<{ html: string; finalUrl: string; status: number }> {
+  const query = `${keyword.trim()} (site:threads.net OR site:threads.com)`
+  const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}&kl=tw-tzh`
+  const response = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
+  const html = await response.text()
+  return { html, finalUrl: response.url, status: response.status }
+}
+
 const THREADS_URL_PATTERN = /https:\/\/(?:www\.)?threads\.(?:net|com)\/@[A-Za-z0-9_.]+\/post\/[A-Za-z0-9_-]+/g
 const THREADS_URL_CANONICAL_PATTERN = /https:\/\/(?:www\.)?threads\.(?:net|com)\/@[A-Za-z0-9_.]+\/post\/[A-Za-z0-9_-]+/
 const HREF_PATTERN = /href=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/gi
@@ -124,6 +156,12 @@ export function extractThreadsLinks(html: string, keyword: string): ThreadsSearc
     })
   }
   return [...seen.values()]
+}
+
+function isProviderBlockPage(provider: ThreadsFallbackProvider, html: string, finalUrl: string) {
+  if (provider === 'google') return isGoogleBlockPage(html, finalUrl)
+  if (provider === 'bing') return isBingBlockPage(html, finalUrl)
+  return isDuckDuckGoBlockPage(html, finalUrl)
 }
 
 function extractSearchResults(html: string): Array<{ url: string; title: string; excerpt: string }> {
@@ -191,14 +229,14 @@ function extractUrlParams(raw: string): string[] {
   const out: string[] = []
   try {
     const parsed = new URL(raw, 'https://www.bing.com')
-    for (const key of ['url', 'q', 'u', 'target']) {
+    for (const key of ['url', 'q', 'u', 'uddg', 'target']) {
       const value = parsed.searchParams.get(key)
       if (!value) continue
       const decoded = decodeBingUParam(value) ?? decodeUriRepeated(value)
       out.push(decoded)
     }
   } catch {
-    for (const match of raw.matchAll(/[?&](?:url|q|u|target)=([^&]+)/gi)) {
+    for (const match of raw.matchAll(/[?&](?:url|q|u|uddg|target)=([^&]+)/gi)) {
       const value = match[1] ?? ''
       const decoded = decodeBingUParam(value) ?? decodeUriRepeated(value)
       out.push(decoded)
@@ -280,4 +318,20 @@ export function isBingBlockPage(html: string, finalUrl: string): boolean {
   if (/bing\.com\/.*ck\/captcha/i.test(finalUrl)) return true
   const lowered = html.toLowerCase()
   return BING_BLOCK_HINTS.some((hint) => lowered.includes(hint.toLowerCase()))
+}
+
+const DUCKDUCKGO_BLOCK_HINTS = [
+  'anomaly-modal',
+  'Unfortunately, bots use DuckDuckGo too',
+  'please complete the following challenge',
+  'please prove you are a human',
+  'duckduckgo.com/anomaly',
+  '請完成以下挑戰',
+  '請證明你是真人'
+]
+
+export function isDuckDuckGoBlockPage(html: string, finalUrl: string): boolean {
+  if (/duckduckgo\.com\/anomaly/i.test(finalUrl)) return true
+  const lowered = html.toLowerCase()
+  return DUCKDUCKGO_BLOCK_HINTS.some((hint) => lowered.includes(hint.toLowerCase()))
 }

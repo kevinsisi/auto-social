@@ -3,6 +3,7 @@ import {
   extractThreadsLinks,
   fetchThreadsFallbackOutcome,
   isBingBlockPage,
+  isDuckDuckGoBlockPage,
   isGoogleBlockPage
 } from '../src/sources/threads-fallback-search.js'
 
@@ -38,6 +39,15 @@ describe('extractThreadsLinks', () => {
       title: '法拉利新車討論',
       excerpt: '大家在 Threads 上討論法拉利交車與保養成本。'
     })
+  })
+
+  it('extracts Threads URLs from DuckDuckGo uddg redirect wrappers', () => {
+    const target = 'https://www.threads.net/@duck/post/DDG123'
+    const html = `<a class="result__a" href="//duckduckgo.com/l/?uddg=${encodeURIComponent(target)}">Threads 討論</a>`
+
+    const results = extractThreadsLinks(html, 'Threads')
+
+    expect(results.map((item) => item.url)).toEqual([target])
   })
 
   it('deduplicates the same Threads URL appearing in different result blocks', () => {
@@ -108,11 +118,34 @@ describe('isBingBlockPage', () => {
   })
 })
 
+describe('isDuckDuckGoBlockPage', () => {
+  it('flags DuckDuckGo anomaly pages', () => {
+    expect(isDuckDuckGoBlockPage('<html/>', 'https://duckduckgo.com/anomaly.js?sv=html')).toBe(true)
+  })
+
+  it('flags DuckDuckGo challenge HTML', () => {
+    const html = '<html><body>Unfortunately, bots use DuckDuckGo too. Please complete the following challenge.</body></html>'
+
+    expect(isDuckDuckGoBlockPage(html, 'https://html.duckduckgo.com/html/?q=foo')).toBe(true)
+  })
+
+  it('does not flag a normal DuckDuckGo result page', () => {
+    const html = '<html><body><a href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.threads.net%2F%40a%2Fpost%2Fb">result</a></body></html>'
+
+    expect(isDuckDuckGoBlockPage(html, 'https://html.duckduckgo.com/html/?q=foo')).toBe(false)
+  })
+})
+
 describe('fetchThreadsFallbackOutcome', () => {
   const okResponse = (html: string, finalUrl = 'https://example.com', status = 200) => async () => ({ html, finalUrl, status })
+  const duckEmpty = {
+    fetchDuckDuckGo: okResponse('<html/>'),
+    fetchDuckDuckGoLite: okResponse('<html/>')
+  }
 
   it('returns ok with Bing when Bing has Threads results', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
+      ...duckEmpty,
       fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>'),
       fetchBing: okResponse('<a href="https://www.threads.net/@b/post/b1">y</a>')
     })
@@ -125,6 +158,7 @@ describe('fetchThreadsFallbackOutcome', () => {
 
   it('falls back to Google when Bing is blocked', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
+      ...duckEmpty,
       fetchBing: okResponse('<html>Verify you are human</html>'),
       fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>')
     })
@@ -137,6 +171,7 @@ describe('fetchThreadsFallbackOutcome', () => {
 
   it('falls back to Google when Bing returns no extractable Threads URLs', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
+      ...duckEmpty,
       fetchBing: okResponse('<html>no results here</html>'),
       fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>')
     })
@@ -145,19 +180,48 @@ describe('fetchThreadsFallbackOutcome', () => {
     expect(outcome.providerUsed).toBe('google')
   })
 
+  it('falls back to DuckDuckGo before Google', async () => {
+    const outcome = await fetchThreadsFallbackOutcome('foo', {
+      fetchBing: okResponse('<html>no results here</html>'),
+      fetchDuckDuckGo: okResponse('<a href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.threads.net%2F%40d%2Fpost%2Fddg1">d</a>'),
+      fetchDuckDuckGoLite: okResponse('<html/>'),
+      fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>')
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.providerUsed).toBe('duckduckgo')
+    expect(outcome.candidates.map((c) => c.url)).toEqual(['https://www.threads.net/@d/post/ddg1'])
+  })
+
+  it('falls back to DuckDuckGo Lite when regular DuckDuckGo is blocked', async () => {
+    const outcome = await fetchThreadsFallbackOutcome('foo', {
+      fetchBing: okResponse('<html>no results here</html>'),
+      fetchDuckDuckGo: okResponse('<html>Unfortunately, bots use DuckDuckGo too</html>'),
+      fetchDuckDuckGoLite: okResponse('<a href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.threads.net%2F%40l%2Fpost%2Flite1">l</a>'),
+      fetchGoogle: okResponse('<html/>')
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.providerUsed).toBe('duckduckgo_lite')
+    expect(outcome.blockedProviders).toEqual(['duckduckgo'])
+  })
+
   it('reports blocked when both providers are blocked', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
       fetchBing: okResponse('<html>Verify you are human</html>'),
+      fetchDuckDuckGo: okResponse('<html>Unfortunately, bots use DuckDuckGo too</html>'),
+      fetchDuckDuckGoLite: okResponse('<html>Please complete the following challenge</html>'),
       fetchGoogle: okResponse('<html>httpservice/retry/enablejs</html>')
     })
 
     expect(outcome.status).toBe('blocked')
     expect(outcome.providerUsed).toBeNull()
-    expect(outcome.blockedProviders).toEqual(['bing', 'google'])
+    expect(outcome.blockedProviders).toEqual(['bing', 'duckduckgo', 'duckduckgo_lite', 'google'])
   })
 
   it('reports no_results when both providers respond normally but find nothing', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
+      ...duckEmpty,
       fetchBing: okResponse('<html>also nothing</html>'),
       fetchGoogle: okResponse('<html>no threads here</html>')
     })
@@ -169,6 +233,7 @@ describe('fetchThreadsFallbackOutcome', () => {
 
   it('treats 429 / 5xx as blocked for the provider that returned the status', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
+      ...duckEmpty,
       fetchBing: okResponse('whatever', 'https://www.bing.com', 429),
       fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>')
     })
@@ -180,6 +245,7 @@ describe('fetchThreadsFallbackOutcome', () => {
 
   it('treats a thrown fetch error (timeout, DNS) as blocked', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
+      ...duckEmpty,
       fetchBing: async () => { throw new Error('timeout') },
       fetchGoogle: okResponse('<a href="https://www.threads.net/@a/post/g1">x</a>')
     })
@@ -195,6 +261,7 @@ describe('fetchThreadsFallbackOutcome', () => {
       '<a href="https://www.threads.net/@a/post/3">c</a>'
 
     const outcome = await fetchThreadsFallbackOutcome('foo', {
+      ...duckEmpty,
       limit: 2,
       fetchBing: okResponse(html),
       fetchGoogle: okResponse('<html/>')
