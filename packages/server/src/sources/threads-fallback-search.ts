@@ -147,11 +147,12 @@ export function extractThreadsLinks(html: string, keyword: string): ThreadsSearc
   for (const result of extractSearchResults(html)) {
     const url = canonicalisePostUrl(result.url)
     if (!url) continue
+    if (!result.title && !result.excerpt) continue
     if (seen.has(url)) continue
     seen.set(url, {
       url,
       title: result.title || `Threads 搜尋結果：${keyword}`,
-      excerpt: result.excerpt || '備援搜尋找到的 Threads 連結；開頁確認原文後再互動。',
+      excerpt: result.excerpt || result.title,
       source: 'threads_search'
     })
   }
@@ -185,7 +186,15 @@ function findSearchValueIndex(html: string, value: string): number {
   const encoded = encodeURIComponent(value)
   const encodedIndex = html.indexOf(encoded)
   if (encodedIndex >= 0) return encodedIndex
-  return html.indexOf(encoded.replace(/%20/g, '+'))
+  const plusEncodedIndex = html.indexOf(encoded.replace(/%20/g, '+'))
+  if (plusEncodedIndex >= 0) return plusEncodedIndex
+  const bingA1Index = html.indexOf(encodeBingA1Param(value))
+  return bingA1Index
+}
+
+function encodeBingA1Param(value: string): string {
+  const encoded = Buffer.from(value, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+  return `a1${encoded}`
 }
 
 function extractTitle(block: string): string {
