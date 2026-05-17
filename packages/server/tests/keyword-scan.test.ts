@@ -103,4 +103,24 @@ describe('scanKeywordCard', () => {
 
     expect(fetchThreadsSearchOutcomeMock).toHaveBeenCalledWith('Urus', undefined, db)
   })
+
+  it('reports browser search provider when public browser search succeeds', async () => {
+    const db = openMemoryDatabase()
+    const repo = new PatrolRepository(db)
+    const card = repo.createCard('Urus')
+    fetchThreadsSearchOutcomeMock.mockResolvedValue({
+      candidates: [
+        { source: 'threads_search', url: 'https://www.threads.com/@cars/post/browser1', title: 'Urus Threads 討論', excerpt: 'Urus 車主在 Threads 上分享保養心得' }
+      ],
+      status: 'ok',
+      providerUsed: 'duckduckgo_browser',
+      blockedProviders: []
+    })
+
+    const run = await scanKeywordCard(db, card.id)
+
+    expect(run.outcomeKind).toBe('fallback_ok')
+    expect(run.providerUsed).toBe('duckduckgo_browser')
+    expect(run.message).toContain('DuckDuckGo Browser')
+  })
 })

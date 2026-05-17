@@ -26,6 +26,41 @@ describe('threads search cache and cooldown', () => {
     expect(second.candidates.map((candidate) => candidate.url)).toEqual(['https://www.threads.net/@cars/post/1'])
   })
 
+  it('tries public browser search before raw HTML providers', async () => {
+    const db = openMemoryDatabase()
+
+    const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      useBrowser: true,
+      browserSearch: async () => ({
+        candidates: [{ source: 'threads_search', url: 'https://www.threads.net/@cars/post/browser', title: 'Urus Threads 討論', excerpt: 'Urus 車主分享保養心得' }],
+        status: 'ok',
+        providerUsed: 'duckduckgo_browser',
+        blockedProviders: []
+      }),
+      fetchBing: async () => { throw new Error('raw provider should not run') }
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.providerUsed).toBe('duckduckgo_browser')
+  })
+
+  it('falls back to raw HTML providers when browser search finds no results', async () => {
+    const db = openMemoryDatabase()
+
+    const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      useBrowser: true,
+      browserSearch: async () => ({ candidates: [], status: 'no_results', providerUsed: null, blockedProviders: [] }),
+      fetchBing: okResponse('<a href="https://www.threads.net/@cars/post/raw">Urus raw result</a>'),
+      fetchDuckDuckGo: okResponse('<html/>'),
+      fetchDuckDuckGoLite: okResponse('<html/>'),
+      fetchGoogle: okResponse('<html/>')
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.providerUsed).toBe('bing')
+    expect(outcome.candidates.map((candidate) => candidate.url)).toEqual(['https://www.threads.net/@cars/post/raw'])
+  })
+
   it('skips a provider after it was blocked once', async () => {
     const db = openMemoryDatabase()
     await fetchThreadsSearchOutcome('法拉利', 10, db, {

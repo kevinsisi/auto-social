@@ -21,6 +21,17 @@ export async function createThreadsContext(db: AppDatabase): Promise<BrowserCont
   })
 }
 
+export async function createPublicSearchContext(): Promise<BrowserContext> {
+  const browser = await getBrowser()
+  return browser.newContext({
+    locale: 'zh-TW',
+    timezoneId: 'Asia/Taipei',
+    viewport: { width: 1280, height: 800 },
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36',
+    ignoreHTTPSErrors: isInsecureTlsEnabled()
+  })
+}
+
 export async function closeThreadsBrowser() {
   const browser = await browserPromise
   browserPromise = null

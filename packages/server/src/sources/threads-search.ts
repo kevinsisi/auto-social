@@ -1,5 +1,6 @@
 import type { AppDatabase } from '../db.js'
 import { extractThreadsLinks, fetchThreadsFallbackOutcome, type ThreadsFallbackOptions, type ThreadsFallbackOutcome, type ThreadsFallbackProvider, type ThreadsSearchCandidate } from './threads-fallback-search.js'
+import { fetchThreadsBrowserSearchOutcome } from './threads-browser-search.js'
 
 export type { ThreadsSearchCandidate, ThreadsFallbackOutcome, ThreadsFallbackProvider }
 export { extractThreadsLinks }
@@ -8,25 +9,40 @@ const MAX_RESULTS = 10
 const FRESH_CACHE_MS = 30 * 60 * 1000
 const STALE_CACHE_MS = 24 * 60 * 60 * 1000
 const PROVIDER_COOLDOWN_MS: Record<ThreadsFallbackProvider, number> = {
+  duckduckgo_browser: 20 * 60 * 1000,
   bing: 3 * 60 * 60 * 1000,
   google: 6 * 60 * 60 * 1000,
   duckduckgo: 20 * 60 * 1000,
   duckduckgo_lite: 20 * 60 * 1000
 }
+type BrowserSearchProvider = (keyword: string, limit: number) => Promise<ThreadsFallbackOutcome>
+type ThreadsSearchOptions = ThreadsFallbackOptions & {
+  browserSearch?: BrowserSearchProvider
+  useBrowser?: boolean
+}
 
-export async function fetchThreadsSearchCandidates(keyword: string, limit = MAX_RESULTS, db?: AppDatabase, options: ThreadsFallbackOptions = {}): Promise<ThreadsSearchCandidate[]> {
+export async function fetchThreadsSearchCandidates(keyword: string, limit = MAX_RESULTS, db?: AppDatabase, options: ThreadsSearchOptions = {}): Promise<ThreadsSearchCandidate[]> {
   const outcome = await fetchThreadsSearchOutcome(keyword, limit, db, options)
   return outcome.candidates
 }
 
-export async function fetchThreadsSearchOutcome(keyword: string, limit = MAX_RESULTS, db?: AppDatabase, options: ThreadsFallbackOptions = {}): Promise<ThreadsFallbackOutcome> {
+export async function fetchThreadsSearchOutcome(keyword: string, limit = MAX_RESULTS, db?: AppDatabase, options: ThreadsSearchOptions = {}): Promise<ThreadsFallbackOutcome> {
   if (!db) return fetchThreadsFallbackOutcome(keyword, { ...options, limit })
 
   const fresh = getCachedOutcome(db, keyword, FRESH_CACHE_MS)
   if (fresh) return limitOutcome(fresh, limit)
 
   const skipProviders = getCoolingProviders(db)
-  const outcome = await fetchThreadsFallbackOutcome(keyword, { ...options, limit, skipProviders })
+  const browserOutcome = await maybeRunBrowserSearch(keyword, limit, skipProviders, options)
+  recordBlockedProviders(db, browserOutcome.blockedProviders)
+  if (browserOutcome.status === 'ok') {
+    storeCachedOutcome(db, keyword, browserOutcome)
+    return browserOutcome
+  }
+
+  const rawSkipProviders = skipProviders.filter((provider) => provider !== 'duckduckgo_browser')
+  const outcome = await fetchThreadsFallbackOutcome(keyword, { ...options, limit, skipProviders: rawSkipProviders })
+  outcome.blockedProviders = uniqueProviders([...browserOutcome.blockedProviders, ...outcome.blockedProviders])
   recordBlockedProviders(db, outcome.blockedProviders)
   if (outcome.status === 'ok') {
     storeCachedOutcome(db, keyword, outcome)
@@ -50,6 +66,15 @@ function getCachedOutcome(db: AppDatabase, keyword: string, maxAgeMs: number): T
   } catch {
     return null
   }
+}
+
+async function maybeRunBrowserSearch(keyword: string, limit: number, skipProviders: ThreadsFallbackProvider[], options: ThreadsSearchOptions): Promise<ThreadsFallbackOutcome> {
+  const hasRawFetchOverride = Boolean(options.fetchBing || options.fetchDuckDuckGo || options.fetchDuckDuckGoLite || options.fetchGoogle)
+  const useBrowser = options.useBrowser ?? !hasRawFetchOverride
+  if (!useBrowser || skipProviders.includes('duckduckgo_browser')) {
+    return { candidates: [], status: 'no_results', providerUsed: null, blockedProviders: [] }
+  }
+  return (options.browserSearch ?? fetchThreadsBrowserSearchOutcome)(keyword, limit)
 }
 
 function storeCachedOutcome(db: AppDatabase, keyword: string, outcome: ThreadsFallbackOutcome) {
@@ -82,5 +107,9 @@ function limitOutcome(outcome: ThreadsFallbackOutcome, limit: number): ThreadsFa
 }
 
 function isThreadsFallbackProvider(value: string): value is ThreadsFallbackProvider {
-  return value === 'bing' || value === 'google' || value === 'duckduckgo' || value === 'duckduckgo_lite'
+  return value === 'duckduckgo_browser' || value === 'bing' || value === 'google' || value === 'duckduckgo' || value === 'duckduckgo_lite'
+}
+
+function uniqueProviders(providers: ThreadsFallbackProvider[]) {
+  return [...new Set(providers)]
 }

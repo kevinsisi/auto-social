@@ -5,7 +5,7 @@ export type ThreadsSearchCandidate = {
   source: 'threads_search'
 }
 
-export type ThreadsFallbackProvider = 'google' | 'bing' | 'duckduckgo' | 'duckduckgo_lite'
+export type ThreadsFallbackProvider = 'duckduckgo_browser' | 'google' | 'bing' | 'duckduckgo' | 'duckduckgo_lite'
 
 export type ThreadsFallbackStatus = 'ok' | 'no_results' | 'blocked'
 
