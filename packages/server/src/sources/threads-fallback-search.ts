@@ -112,18 +112,61 @@ const HREF_PATTERN = /href=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/gi
 
 export function extractThreadsLinks(html: string, keyword: string): ThreadsSearchCandidate[] {
   const seen = new Map<string, ThreadsSearchCandidate>()
-  for (const value of extractSearchUrlValues(html)) {
-    const url = canonicalisePostUrl(value)
+  for (const result of extractSearchResults(html)) {
+    const url = canonicalisePostUrl(result.url)
     if (!url) continue
     if (seen.has(url)) continue
     seen.set(url, {
       url,
-      title: `Threads 搜尋結果：${keyword}`,
-      excerpt: '備援搜尋找到的 Threads 連結；開頁確認原文後再互動。',
+      title: result.title || `Threads 搜尋結果：${keyword}`,
+      excerpt: result.excerpt || '備援搜尋找到的 Threads 連結；開頁確認原文後再互動。',
       source: 'threads_search'
     })
   }
   return [...seen.values()]
+}
+
+function extractSearchResults(html: string): Array<{ url: string; title: string; excerpt: string }> {
+  const results: Array<{ url: string; title: string; excerpt: string }> = []
+  const values = extractSearchUrlValues(html)
+  for (const value of values) {
+    const index = html.indexOf(value)
+    const block = index >= 0 ? html.slice(Math.max(0, index - 1200), Math.min(html.length, index + 1800)) : ''
+    results.push({
+      url: value,
+      title: extractTitle(block),
+      excerpt: extractSnippet(block)
+    })
+  }
+  return results
+}
+
+function extractTitle(block: string): string {
+  const h3 = block.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i)?.[1]
+  const anchor = block.match(/<a\b[^>]*>([\s\S]*?)<\/a>/i)?.[1]
+  return cleanSearchText(h3 ?? anchor ?? '').slice(0, 100)
+}
+
+function extractSnippet(block: string): string {
+  const selectors = [
+    /<p[^>]*>([\s\S]*?)<\/p>/i,
+    /<div[^>]+class="[^"]*(?:VwiC3b|b_caption|snippet)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<span[^>]+class="[^"]*(?:aCOpRe|st)[^"]*"[^>]*>([\s\S]*?)<\/span>/i
+  ]
+  for (const pattern of selectors) {
+    const text = cleanSearchText(block.match(pattern)?.[1] ?? '')
+    if (text.length >= 12) return text.slice(0, 240)
+  }
+  return ''
+}
+
+function cleanSearchText(value: string): string {
+  return decodeHtmlEntities(value)
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function extractSearchUrlValues(html: string): string[] {

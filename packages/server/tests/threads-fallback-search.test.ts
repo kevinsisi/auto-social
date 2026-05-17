@@ -29,6 +29,17 @@ describe('extractThreadsLinks', () => {
     expect(results.map((item) => item.url)).toEqual([target])
   })
 
+  it('extracts readable title and snippet from search result blocks', () => {
+    const html = '<li class="b_algo"><h2><a href="https://www.threads.net/@a/post/b">法拉利新車討論</a></h2><div class="b_caption"><p>大家在 Threads 上討論法拉利交車與保養成本。</p></div></li>'
+
+    const results = extractThreadsLinks(html, '法拉利')
+
+    expect(results[0]).toMatchObject({
+      title: '法拉利新車討論',
+      excerpt: '大家在 Threads 上討論法拉利交車與保養成本。'
+    })
+  })
+
   it('deduplicates the same Threads URL appearing in different result blocks', () => {
     const html = '<a href="https://www.threads.net/@a/post/x">1</a>' +
       '<cite>https://www.threads.net/@a/post/x</cite>'

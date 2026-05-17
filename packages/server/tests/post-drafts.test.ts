@@ -86,6 +86,17 @@ describe('post draft composer', () => {
 
     expect(listPostDrafts(db).map((draft) => draft.id)).not.toContain('bad-draft')
   })
+
+  it('does not compose from mojibake legacy trend rows', () => {
+    const db = openMemoryDatabase()
+    const now = new Date().toISOString()
+    db.prepare(`
+      INSERT INTO trend_candidates (id, source, external_id, fingerprint, is_trending, url, author, title, text, fetched_at, pipeline_status)
+      VALUES ('bad-cand', 'threads_playwright', 'bad', 'fp-bad', 1, 'https://www.threads.com/@u/post/bad', '@u', '���|', '���| �G�N �ܦh', ?, 'drafted')
+    `).run(now)
+
+    expect(() => enqueueComposePostDraft(db)).toThrow('足夠的雷達樣本')
+  })
 })
 
 function seedTrend(db: ReturnType<typeof openMemoryDatabase>) {
