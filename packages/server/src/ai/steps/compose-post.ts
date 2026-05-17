@@ -18,12 +18,17 @@ export type ComposePostInput = {
 // them, especially `先說結論` and `身為 AI`. The schema-level refine forces
 // the output to be regenerated instead of persisting AI-flavoured drafts.
 const BANNED_OPENERS = [
-  '身為 AI', '作為 AI', '我是 AI', '我只是個語言模型', '語言模型',
+  '身為AI', '作為AI', '我是AI', '身為 AI', '作為 AI', '我是 AI', '我只是個語言模型', '語言模型',
   '我會盡力', '希望對你有幫助', '希望這個',
   '以下是', '綜合以上', '總而言之', '先說結論',
   '不得不說', '老實說', '個人認為', '我覺得', '值得一提'
 ]
 const BANNED_OPENERS_RE = new RegExp(BANNED_OPENERS.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'))
+
+export function isSafeComposePostText(text: string) {
+  const compact = text.replace(/\s+/g, '')
+  return !BANNED_OPENERS_RE.test(text) && !BANNED_OPENERS_RE.test(compact)
+}
 
 export const composePostSchema = z.object({
   seedKeyword: z.string().min(1).max(40),
@@ -32,7 +37,7 @@ export const composePostSchema = z.object({
   text: z.string()
     .min(12)
     .max(120)
-    .refine((text) => !BANNED_OPENERS_RE.test(text), { message: 'text 含被禁的 AI 自我揭露 / 客氣話術，請重寫' }),
+    .refine(isSafeComposePostText, { message: 'text 含被禁的 AI 自我揭露 / 客氣話術，請重寫' }),
   imagePrompt: z.string().max(240)
 })
 

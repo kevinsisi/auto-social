@@ -3,7 +3,7 @@ import { StepRunner } from '@kevinsisi/ai-core/step-orchestration'
 import type { AppDatabase } from './db.js'
 import { createGeminiTextGenerator } from './ai/gemini-client.js'
 import { buildSystemInstruction } from './ai/prompt-builder.js'
-import { buildComposePostPrompt, parseComposePost, type ComposePostInput } from './ai/steps/compose-post.js'
+import { buildComposePostPrompt, isSafeComposePostText, parseComposePost, type ComposePostInput } from './ai/steps/compose-post.js'
 import { DEFAULT_VOICE_PROFILE, type TextGenerator } from './ai/types.js'
 import { createKeyPool } from './key-pool/key-pool.js'
 import { generateImageForDraft, ImageGenNotConfiguredError } from './image-gen/gemini-image.js'
@@ -58,7 +58,7 @@ export function listPostDrafts(db: AppDatabase, limit = 12): PostDraft[] {
     ORDER BY created_at DESC
     LIMIT ?
   `).all(limit) as RawPostDraftRow[]
-  return rows.map(mapPostDraft)
+  return rows.map(mapPostDraft).filter((draft) => isSafeComposePostText(draft.text))
 }
 
 export function enqueueComposePostDraft(db: AppDatabase) {

@@ -76,6 +76,16 @@ describe('post draft composer', () => {
 
     vi.unstubAllGlobals()
   })
+
+  it('hides unsafe legacy compose drafts from the list', () => {
+    const db = openMemoryDatabase()
+    db.prepare(`
+      INSERT INTO post_drafts (id, text, status, created_at)
+      VALUES ('bad-draft', '身為AI，我觀察到台灣人的通知很多。', 'pending', '2026-05-17T00:00:00.000Z')
+    `).run()
+
+    expect(listPostDrafts(db).map((draft) => draft.id)).not.toContain('bad-draft')
+  })
 })
 
 function seedTrend(db: ReturnType<typeof openMemoryDatabase>) {
