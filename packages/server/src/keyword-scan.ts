@@ -55,7 +55,7 @@ export async function scanKeywordCard(
   let providerUsed: 'threads_playwright' | ThreadsFallbackProvider | null = null
   let blockedProviders: ThreadsFallbackProvider[] = []
 
-  const fallback = await fetchThreadsSearchOutcome(card.keyword)
+  const fallback = await fetchThreadsSearchOutcome(card.keyword, undefined, db)
   blockedProviders = fallback.blockedProviders
   if (fallback.status === 'ok' && fallback.providerUsed) {
     onProgress?.({ stage: 'fallback', provider: fallback.providerUsed })

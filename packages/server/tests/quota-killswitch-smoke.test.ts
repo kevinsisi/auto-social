@@ -66,7 +66,7 @@ describe('kill-switch smoke (12.7)', () => {
     const run = await scanKeywordCard(db, card.id)
 
     expect(run.outcomeKind).toBe('no_matching_threads_results')
-    expect(fetchThreadsSearchOutcomeMock).toHaveBeenCalledWith('foo')
+    expect(fetchThreadsSearchOutcomeMock).toHaveBeenCalledWith('foo', undefined, db)
   })
 
   it('disengaging kill switch lets a normal scan proceed', async () => {

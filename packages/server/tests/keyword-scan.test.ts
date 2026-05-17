@@ -101,6 +101,6 @@ describe('scanKeywordCard', () => {
 
     await scanKeywordCard(db, card.id)
 
-    expect(fetchThreadsSearchOutcomeMock).toHaveBeenCalledWith('Urus')
+    expect(fetchThreadsSearchOutcomeMock).toHaveBeenCalledWith('Urus', undefined, db)
   })
 })

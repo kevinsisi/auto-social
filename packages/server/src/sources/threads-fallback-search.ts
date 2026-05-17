@@ -24,57 +24,75 @@ type ProviderProbe = {
 
 type FetchProvider = (keyword: string) => Promise<{ html: string; finalUrl: string; status: number }>
 
-type Options = {
+export type ThreadsFallbackOptions = {
   limit?: number
   fetchGoogle?: FetchProvider
   fetchBing?: FetchProvider
   fetchDuckDuckGo?: FetchProvider
   fetchDuckDuckGoLite?: FetchProvider
+  skipProviders?: ThreadsFallbackProvider[]
 }
 
 const REQUEST_TIMEOUT_MS = 15_000
 const DEFAULT_LIMIT = 10
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36'
 
-export async function fetchThreadsFallbackOutcome(keyword: string, options: Options = {}): Promise<ThreadsFallbackOutcome> {
+export async function fetchThreadsFallbackOutcome(keyword: string, options: ThreadsFallbackOptions = {}): Promise<ThreadsFallbackOutcome> {
   const limit = options.limit ?? DEFAULT_LIMIT
   const probes: ProviderProbe[] = []
   const blockedProviders: ThreadsFallbackProvider[] = []
+  const skipProviders = new Set(options.skipProviders ?? [])
 
   // 1. Bing first: Google often returns JS retry pages to server-side fetches.
-  const bingResult = await runProvider('bing', () => (options.fetchBing ?? fetchBingHtml)(keyword), keyword)
-  probes.push(bingResult)
-  if (bingResult.candidates.length > 0) {
-    return ok(bingResult.candidates.slice(0, limit), 'bing', blockedProviders)
+  if (skipProviders.has('bing')) {
+    blockedProviders.push('bing')
+  } else {
+    const bingResult = await runProvider('bing', () => (options.fetchBing ?? fetchBingHtml)(keyword), keyword)
+    probes.push(bingResult)
+    if (bingResult.candidates.length > 0) {
+      return ok(bingResult.candidates.slice(0, limit), 'bing', blockedProviders)
+    }
+    if (bingResult.blocked) blockedProviders.push('bing')
   }
-  if (bingResult.blocked) blockedProviders.push('bing')
 
   // 2. DuckDuckGo HTML often stays available when Bing/Google CAPTCHA server-side fetches.
-  const duckResult = await runProvider('duckduckgo', () => (options.fetchDuckDuckGo ?? fetchDuckDuckGoHtml)(keyword), keyword)
-  probes.push(duckResult)
-  if (duckResult.candidates.length > 0) {
-    return ok(duckResult.candidates.slice(0, limit), 'duckduckgo', blockedProviders)
+  if (skipProviders.has('duckduckgo')) {
+    blockedProviders.push('duckduckgo')
+  } else {
+    const duckResult = await runProvider('duckduckgo', () => (options.fetchDuckDuckGo ?? fetchDuckDuckGoHtml)(keyword), keyword)
+    probes.push(duckResult)
+    if (duckResult.candidates.length > 0) {
+      return ok(duckResult.candidates.slice(0, limit), 'duckduckgo', blockedProviders)
+    }
+    if (duckResult.blocked) blockedProviders.push('duckduckgo')
   }
-  if (duckResult.blocked) blockedProviders.push('duckduckgo')
 
   // 3. DuckDuckGo Lite has simpler markup and is a useful no-API fallback.
-  const duckLiteResult = await runProvider('duckduckgo_lite', () => (options.fetchDuckDuckGoLite ?? fetchDuckDuckGoLiteHtml)(keyword), keyword)
-  probes.push(duckLiteResult)
-  if (duckLiteResult.candidates.length > 0) {
-    return ok(duckLiteResult.candidates.slice(0, limit), 'duckduckgo_lite', blockedProviders)
+  if (skipProviders.has('duckduckgo_lite')) {
+    blockedProviders.push('duckduckgo_lite')
+  } else {
+    const duckLiteResult = await runProvider('duckduckgo_lite', () => (options.fetchDuckDuckGoLite ?? fetchDuckDuckGoLiteHtml)(keyword), keyword)
+    probes.push(duckLiteResult)
+    if (duckLiteResult.candidates.length > 0) {
+      return ok(duckLiteResult.candidates.slice(0, limit), 'duckduckgo_lite', blockedProviders)
+    }
+    if (duckLiteResult.blocked) blockedProviders.push('duckduckgo_lite')
   }
-  if (duckLiteResult.blocked) blockedProviders.push('duckduckgo_lite')
 
   // 4. Google remains the final fallback when the other public endpoints are empty.
-  const googleResult = await runProvider('google', () => (options.fetchGoogle ?? fetchGoogleHtml)(keyword), keyword)
-  probes.push(googleResult)
-  if (googleResult.candidates.length > 0) {
-    return ok(googleResult.candidates.slice(0, limit), 'google', blockedProviders)
+  if (skipProviders.has('google')) {
+    blockedProviders.push('google')
+  } else {
+    const googleResult = await runProvider('google', () => (options.fetchGoogle ?? fetchGoogleHtml)(keyword), keyword)
+    probes.push(googleResult)
+    if (googleResult.candidates.length > 0) {
+      return ok(googleResult.candidates.slice(0, limit), 'google', blockedProviders)
+    }
+    if (googleResult.blocked) blockedProviders.push('google')
   }
-  if (googleResult.blocked) blockedProviders.push('google')
 
   // 5. No public search provider returned candidates.
-  const everyoneBlocked = probes.every((p) => p.blocked)
+  const everyoneBlocked = probes.length === 0 || probes.every((p) => p.blocked)
   return {
     candidates: [],
     status: everyoneBlocked ? 'blocked' : 'no_results',
