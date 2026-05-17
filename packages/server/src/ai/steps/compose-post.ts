@@ -27,7 +27,7 @@ const BANNED_OPENERS_RE = new RegExp(BANNED_OPENERS.map((p) => p.replace(/[.*+?^
 
 export function isSafeComposePostText(text: string) {
   const compact = text.replace(/\s+/g, '')
-  return !BANNED_OPENERS_RE.test(text) && !BANNED_OPENERS_RE.test(compact)
+  return !text.includes('�') && !BANNED_OPENERS_RE.test(text) && !BANNED_OPENERS_RE.test(compact)
 }
 
 export const composePostSchema = z.object({

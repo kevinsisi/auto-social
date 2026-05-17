@@ -87,6 +87,16 @@ describe('post draft composer', () => {
     expect(listPostDrafts(db).map((draft) => draft.id)).not.toContain('bad-draft')
   })
 
+  it('hides mojibake legacy compose drafts from the list', () => {
+    const db = openMemoryDatabase()
+    db.prepare(`
+      INSERT INTO post_drafts (id, text, status, created_at)
+      VALUES ('mojibake-draft', '�}�������A�A���|���D�L�̫���쪺�C', 'pending', '2026-05-17T00:00:00.000Z')
+    `).run()
+
+    expect(listPostDrafts(db).map((draft) => draft.id)).not.toContain('mojibake-draft')
+  })
+
   it('does not compose from mojibake legacy trend rows', () => {
     const db = openMemoryDatabase()
     const now = new Date().toISOString()
