@@ -30,15 +30,15 @@ The system SHALL ship a `dcard` source adapter that uses the public Dcard popula
 - **THEN** the adapter backs off exponentially within the scan window, and if it cannot succeed before the per-source timeout it returns an empty result with `errors[].source = 'dcard'`
 
 ### Requirement: Threads adapter ships in Phase 0
-The system SHALL ship a `threads` source adapter that delegates to `threads-automation` `search(keyword)` (which uses the user's logged-in Playwright session) and respects the daily-search quota.
+The system SHALL ship a `threads` source adapter that returns only Threads post URLs. Keyword-card discovery SHALL use Threads-targeted search providers without loading a logged-in Threads session; if `BRAVE_SEARCH_API_KEY` is configured, Brave Search API SHALL be attempted before unauthenticated browser/raw search fallbacks.
 
 #### Scenario: Threads search succeeds
-- **WHEN** the adapter runs with keyword `中古車` and the Threads session is healthy
-- **THEN** it returns up to N parsed candidates with `source = 'threads'`, `author`, `url`, `text`, and any visible engagement counts
+- **WHEN** the adapter runs with keyword `中古車` and a search provider returns matching Threads post URLs
+- **THEN** it returns up to N parsed candidates with `source = 'threads_search'`, `url`, `title`, `excerpt`, and the provider used for diagnostics
 
-#### Scenario: Threads search blocked / login expired / quota exceeded
-- **WHEN** Playwright reports the session is logged out, Threads layout changed, or daily search quota is exceeded
-- **THEN** the adapter returns an empty result and records the reason in `scan_runs.errors_json[].source = 'threads'`; it does not invent candidates
+#### Scenario: Threads search provider blocked / API key missing
+- **WHEN** Brave Search API is unconfigured or a browser/raw provider is blocked by CAPTCHA / protection pages
+- **THEN** the adapter skips or cools down that provider, continues to the next configured provider, and returns `search_provider_blocked` only when every attempted provider is unusable; it does not invent candidates
 
 ### Requirement: Adapter health is observable
 The system SHALL track per-adapter recent success / failure counts and expose them at `/api/sources` so the dashboard can show which adapters are healthy.

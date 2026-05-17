@@ -44,6 +44,51 @@ describe('threads search cache and cooldown', () => {
     expect(outcome.providerUsed).toBe('duckduckgo_browser')
   })
 
+  it('tries Brave Search API before browser and raw providers', async () => {
+    const db = openMemoryDatabase()
+
+    const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      useBrave: true,
+      braveSearchApiKey: 'test-key',
+      braveSearch: async () => ({
+        web: {
+          results: [
+            { url: 'https://www.threads.net/@cars/post/brave', title: 'Urus Brave result', description: 'Threads 上的 Urus 討論' }
+          ]
+        }
+      }),
+      useBrowser: true,
+      browserSearch: async () => { throw new Error('browser provider should not run') },
+      fetchBing: async () => { throw new Error('raw provider should not run') }
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.providerUsed).toBe('brave')
+    expect(outcome.candidates.map((candidate) => candidate.url)).toEqual(['https://www.threads.net/@cars/post/brave'])
+  })
+
+  it('falls back to browser search when Brave Search API is blocked', async () => {
+    const db = openMemoryDatabase()
+
+    const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      useBrave: true,
+      braveSearchApiKey: 'test-key',
+      braveSearch: async () => { throw new Error('Brave rate limit') },
+      useBrowser: true,
+      browserSearch: async () => ({
+        candidates: [{ source: 'threads_search', url: 'https://www.threads.net/@cars/post/browser-after-brave', title: 'Urus Threads 討論', excerpt: 'Urus 車主分享保養心得' }],
+        status: 'ok',
+        providerUsed: 'duckduckgo_browser',
+        blockedProviders: []
+      }),
+      fetchBing: async () => { throw new Error('raw provider should not run') }
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.providerUsed).toBe('duckduckgo_browser')
+    expect(outcome.blockedProviders).toEqual(['brave'])
+  })
+
   it('falls back to raw HTML providers when browser search finds no results', async () => {
     const db = openMemoryDatabase()
 

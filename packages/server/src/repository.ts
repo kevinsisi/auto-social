@@ -235,6 +235,7 @@ function buildThreadsRunMessage(keyword: string, insertedCount: number, outcome:
 }
 
 function formatSearchProvider(provider: ThreadsRunOutcomeMeta['providerUsed']) {
+  if (provider === 'brave') return 'Brave Search API'
   if (provider === 'duckduckgo_browser') return 'DuckDuckGo Browser'
   if (provider === 'bing') return 'Bing'
   if (provider === 'google') return 'Google'
