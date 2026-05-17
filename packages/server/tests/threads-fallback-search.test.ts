@@ -253,6 +253,20 @@ describe('fetchThreadsFallbackOutcome', () => {
     expect(outcome.blockedProviders).toEqual([])
   })
 
+  it('skips providers that are already cooling down', async () => {
+    const outcome = await fetchThreadsFallbackOutcome('foo', {
+      skipProviders: ['bing', 'google'],
+      fetchBing: async () => { throw new Error('should not call Bing') },
+      fetchDuckDuckGo: okResponse('<a href="https://www.threads.net/@d/post/1">foo d</a>'),
+      fetchDuckDuckGoLite: okResponse('<html/>'),
+      fetchGoogle: async () => { throw new Error('should not call Google') }
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.providerUsed).toBe('duckduckgo')
+    expect(outcome.blockedProviders).toEqual(['bing'])
+  })
+
   it('treats 429 / 5xx as blocked for the provider that returned the status', async () => {
     const outcome = await fetchThreadsFallbackOutcome('foo', {
       ...duckEmpty,

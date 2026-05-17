@@ -150,8 +150,7 @@ export function schedulePipelineForCandidates(db: AppDatabase, candidateIds: str
 }
 
 async function fetchRadarCandidates(db: AppDatabase, query: string): Promise<RadarCandidate[]> {
-  void db
-  return await fetchThreadsSearchCandidates(query, CANDIDATES_PER_QUERY)
+  return await fetchThreadsSearchCandidates(query, CANDIDATES_PER_QUERY, db)
 }
 
 function getRadarSampleQueries(db: AppDatabase): RadarSampleQuery[] {

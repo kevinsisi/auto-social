@@ -255,6 +255,18 @@ export function migrate(db: AppDatabase) {
     );
     CREATE INDEX IF NOT EXISTS idx_reply_attempts_candidate_created ON reply_attempts(candidate_id, created_at DESC);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_reply_attempts_one_success ON reply_attempts(candidate_id) WHERE status = 'succeeded';
+
+    CREATE TABLE IF NOT EXISTS threads_search_cache (
+      keyword TEXT PRIMARY KEY,
+      outcome_json TEXT NOT NULL,
+      cached_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS threads_search_provider_cooldowns (
+      provider TEXT PRIMARY KEY,
+      blocked_until TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `)
 }
 
