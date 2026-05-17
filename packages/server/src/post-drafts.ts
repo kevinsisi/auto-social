@@ -143,6 +143,7 @@ function buildComposePostInput(db: AppDatabase): ComposePostInput | null {
   `).all() as ComposeSeedRow[]
   if (rows.length === 0) return null
   const posts = rows
+    .filter((row) => isUsableSeedText(`${row.text} ${row.classify_json ?? ''}`))
     .map((row) => ({
       author: row.author,
       topic: parseTopic(row.classify_json),
@@ -155,6 +156,14 @@ function buildComposePostInput(db: AppDatabase): ComposePostInput | null {
     radarTerms,
     posts
   }
+}
+
+function isUsableSeedText(text: string) {
+  const replacementChars = (text.match(/�/g) ?? []).length
+  if (replacementChars > 0) return false
+  const cjk = (text.match(/[\p{Script=Han}]/gu) ?? []).length
+  const mojibake = (text.match(/[�]/gu) ?? []).length
+  return mojibake === 0 && (cjk > 0 || /[A-Za-z]{12,}/.test(text))
 }
 
 function parseTopic(classifyJson: string | null) {
