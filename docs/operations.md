@@ -4,7 +4,7 @@
 
 - Domain: `https://social.sisihome.org`
 - Health check: `https://social.sisihome.org/api/health`
-- Current expected API version after the latest deployment: `1.2.53`
+- Current expected API version after the latest deployment: `1.2.54`
 
 ## Threads Login
 
@@ -44,7 +44,7 @@ Then inspect:
 curl https://social.sisihome.org/api/radar/trends
 ```
 
-Expected healthy shape: `source:"threads_playwright"`, `sampledCandidates > 0`, and no canned/filler terms. The Radar UI is intentionally labeled as a sample radar, not an official Threads trending chart. When monitored cards exist, scans use those keywords and trend reads ignore stale broad-query rows without a card association. Seed keywords and their CJK segmentation fragments are excluded from the cloud; term scores should represent engagement-weighted related terms discovered inside sampled posts.
+Expected healthy shape: `source:"threads_search"`, `sampledCandidates > 0`, and no canned/filler terms. The Radar UI is intentionally labeled as a sample radar, not an official Threads trending chart. When monitored cards exist, scans use those keywords and trend reads ignore stale broad-query rows without a card association. Seed keywords and their CJK segmentation fragments are excluded from the cloud; term scores should represent engagement-weighted related terms discovered inside sampled posts.
 
 ## Keyword Auto Scan
 
@@ -114,7 +114,7 @@ The add-keyword form gives immediate quality hints for broad terms, UI-noise ter
 
 ## Search Fallback
 
-When direct Threads Playwright search exhausts the daily `search` quota, keyword scans fall back to Bing-first / Google-second `site:threads.net OR site:threads.com` discovery and clearly label the run message as fallback. The kill switch still stops all Threads-targeted discovery; it is not bypassed by fallback search.
+Keyword scans use Bing-first / Google-second `site:threads.net OR site:threads.com` discovery only. They do not use a logged-in Threads session and do not open Threads with Playwright.
 
 ## Transient 502s
 

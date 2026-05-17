@@ -3,8 +3,6 @@ import { nanoid } from 'nanoid'
 import type { AppDatabase } from './db.js'
 import { enqueueTask } from './scheduler/task-queue.js'
 import { fetchThreadsSearchCandidates } from './sources/threads-search.js'
-import { searchThreadsWithPlaywright } from './threads-bot/search.js'
-import { DailyQuotaExceededError, KillSwitchActiveError } from './threads-bot/throttle.js'
 import { nowIso } from './time.js'
 
 export type RadarTerm = {
@@ -152,12 +150,8 @@ export function schedulePipelineForCandidates(db: AppDatabase, candidateIds: str
 }
 
 async function fetchRadarCandidates(db: AppDatabase, query: string): Promise<RadarCandidate[]> {
-  try {
-    return await searchThreadsWithPlaywright(db, query, CANDIDATES_PER_QUERY)
-  } catch (error) {
-    if (error instanceof KillSwitchActiveError) throw error
-    return await fetchThreadsSearchCandidates(query, CANDIDATES_PER_QUERY)
-  }
+  void db
+  return await fetchThreadsSearchCandidates(query, CANDIDATES_PER_QUERY)
 }
 
 function getRadarSampleQueries(db: AppDatabase): RadarSampleQuery[] {

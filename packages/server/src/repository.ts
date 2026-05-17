@@ -216,13 +216,13 @@ function buildThreadsRunMessage(keyword: string, insertedCount: number, outcome:
   const { outcomeKind, providerUsed, blockedProviders } = outcome
   if (outcomeKind === 'fallback_ok' && insertedCount > 0) {
     const providerLabel = providerUsed === 'bing' ? 'Bing' : 'Google'
-    return `Threads 直接搜尋暫不可用，已改用 ${providerLabel} site:threads.net/site:threads.com 備援，找到 ${insertedCount} 筆候選。`
+    return `已使用 ${providerLabel} site:threads.net/site:threads.com 搜尋，找到 ${insertedCount} 筆候選。`
   }
   if (outcomeKind === 'search_provider_blocked') {
     const blockedList = (blockedProviders ?? []).map((p) => p === 'bing' ? 'Bing' : 'Google').join('、')
     return blockedList
-      ? `Threads 直接搜尋暫不可用，備援搜尋（${blockedList}）被阻擋或無法使用，請稍後再試。`
-      : 'Threads 直接搜尋暫不可用，備援搜尋無法使用，請稍後再試。'
+      ? `Threads 搜尋（${blockedList}）被阻擋或無法使用，請稍後再試。`
+      : 'Threads 搜尋無法使用，請稍後再試。'
   }
   if (outcomeKind === 'no_matching_threads_results') {
     return `Threads 海巡完成，備援搜尋未找到「${keyword}」相關的 Threads 貼文。`
