@@ -66,9 +66,11 @@ export type ThreadsReplyTaskPayload = {
 }
 
 const MAX_REPLY_TEXT_LENGTH = 500
+const REPLY_AUTOMATION_ENABLED = '1'
 
 export function createConfirmedReplyAttempt(db: AppDatabase, input: CreateReplyAttemptInput): ReplyAttempt {
   const replyText = input.text.trim()
+  assertThreadsReplyAutomationEnabled()
   if (!input.confirm) throw new Error('必須逐則確認後才能送出 Threads 留言。')
   if (!replyText) throw new Error('留言內容不可為空。')
   if (replyText.length > MAX_REPLY_TEXT_LENGTH) throw new Error(`留言內容不可超過 ${MAX_REPLY_TEXT_LENGTH} 字。`)
@@ -184,6 +186,7 @@ export async function threadsReplyTaskHandler(db: AppDatabase, payload: ThreadsR
   markReplyAttemptRunning(db, attempt.id)
   let result: ThreadsReplyAutomationResult
   try {
+    assertThreadsReplyAutomationEnabled()
     result = await performThreadsReply(db, {
       attemptId: attempt.id,
       targetUrl: attempt.targetUrl,
@@ -194,6 +197,12 @@ export async function threadsReplyTaskHandler(db: AppDatabase, payload: ThreadsR
     result = { status: 'failed', error: error instanceof Error ? error.message : String(error) }
   }
   return completeReplyAttempt(db, attempt.id, result)
+}
+
+function assertThreadsReplyAutomationEnabled() {
+  if (process.env.AUTO_SOCIAL_THREADS_REPLY_ENABLED !== REPLY_AUTOMATION_ENABLED) {
+    throw new Error('Threads 留言自動化目前已停用。需設定 AUTO_SOCIAL_THREADS_REPLY_ENABLED=1 才能啟用。')
+  }
 }
 
 function getCandidateForReply(db: AppDatabase, cardId: string, candidateId: string): CandidateForReply | null {

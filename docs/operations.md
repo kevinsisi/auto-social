@@ -4,7 +4,7 @@
 
 - Domain: `https://social.sisihome.org`
 - Health check: `https://social.sisihome.org/api/health`
-- Current expected API version after the latest deployment: `1.2.52`
+- Current expected API version after the latest deployment: `1.2.53`
 
 ## Threads Login
 
@@ -94,6 +94,8 @@ Operational notes:
 - `GEMINI_VISION_MODEL` can override the model; otherwise it follows the default Gemini model setting.
 
 ## Confirmed Threads Replies
+
+Threads reply automation is disabled by default. Set `AUTO_SOCIAL_THREADS_REPLY_ENABLED=1` only when the account-risk tradeoff is acceptable, then import a Threads session and keep kill switch/quota controls conservative.
 
 Observation posts with an AI draft show `用 Threads session 留言`. This is intentionally per-post only: the operator must review the target URL, author, bound Threads handle, and editable reply text, then click `確認送出留言` for each attempt.
 

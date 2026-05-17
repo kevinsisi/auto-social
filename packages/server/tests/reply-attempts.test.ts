@@ -7,13 +7,16 @@ import { setDailyLimits, setKillSwitch } from '../src/threads-bot/throttle.js'
 import { nowIso } from '../src/time.js'
 
 const originalSessionKey = process.env.AUTO_SOCIAL_SESSION_KEY
+const originalReplyEnabled = process.env.AUTO_SOCIAL_THREADS_REPLY_ENABLED
 
 afterEach(() => {
   process.env.AUTO_SOCIAL_SESSION_KEY = originalSessionKey
+  process.env.AUTO_SOCIAL_THREADS_REPLY_ENABLED = originalReplyEnabled
 })
 
 function freshDb() {
   process.env.AUTO_SOCIAL_SESSION_KEY = 'd'.repeat(64)
+  process.env.AUTO_SOCIAL_THREADS_REPLY_ENABLED = '1'
   const db = openMemoryDatabase()
   saveThreadsStorageState(db, JSON.stringify({ cookies: [], origins: [] }), '@kevin')
   return db
@@ -28,6 +31,17 @@ function seedCandidate(db: ReturnType<typeof openMemoryDatabase>, cardId: string
 }
 
 describe('createConfirmedReplyAttempt', () => {
+  it('rejects by default unless reply automation is explicitly enabled', () => {
+    process.env.AUTO_SOCIAL_SESSION_KEY = 'd'.repeat(64)
+    delete process.env.AUTO_SOCIAL_THREADS_REPLY_ENABLED
+    const db = openMemoryDatabase()
+    saveThreadsStorageState(db, JSON.stringify({ cookies: [], origins: [] }), '@kevin')
+    const card = new PatrolRepository(db).createCard('Urus')
+    const candidateId = seedCandidate(db, card.id)
+
+    expect(() => createConfirmedReplyAttempt(db, { cardId: card.id, candidateId, text: 'hi', confirm: true })).toThrow('留言自動化目前已停用')
+  })
+
   it('creates a persisted pending attempt and one queue task after explicit confirmation', () => {
     const db = freshDb()
     const card = new PatrolRepository(db).createCard('Urus')
