@@ -1,6 +1,6 @@
-import { extractThreadsLinks, fetchThreadsFallbackOutcome, type ThreadsFallbackOutcome, type ThreadsSearchCandidate } from './threads-fallback-search.js'
+import { extractThreadsLinks, fetchThreadsFallbackOutcome, type ThreadsFallbackOutcome, type ThreadsFallbackProvider, type ThreadsSearchCandidate } from './threads-fallback-search.js'
 
-export type { ThreadsSearchCandidate, ThreadsFallbackOutcome }
+export type { ThreadsSearchCandidate, ThreadsFallbackOutcome, ThreadsFallbackProvider }
 export { extractThreadsLinks }
 
 const MAX_RESULTS = 10
