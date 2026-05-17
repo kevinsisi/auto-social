@@ -4,7 +4,7 @@
 
 - Domain: `https://social.sisihome.org`
 - Health check: `https://social.sisihome.org/api/health`
-- Current expected API version after the latest deployment: `1.2.64`
+- Current expected API version after the latest deployment: `1.2.65`
 
 ## Threads Login
 
@@ -114,13 +114,15 @@ The add-keyword form gives immediate quality hints for broad terms, UI-noise ter
 
 ## Search Fallback
 
-Keyword scans use Bing-first / Google-second `site:threads.net OR site:threads.com` discovery only. They do not use a logged-in Threads session and do not open Threads with Playwright.
+Keyword scans use Threads-targeted discovery only. With `BRAVE_SEARCH_API_KEY` configured, the order is fresh cache -> Brave Search API -> unauthenticated DuckDuckGo browser -> raw Bing / DuckDuckGo / DuckDuckGo Lite / Google `site:threads.net OR site:threads.com` fallback. Without the Brave key, the API provider is skipped and the unauthenticated browser/raw fallbacks remain.
+
+Do not paste the Brave key in chat. Put it in the production `.env` as `BRAVE_SEARCH_API_KEY=...` through the normal secret/config path, then let CI/CD redeploy or restart the service.
 
 ## Transient 502s
 
 The single-container homelab deployment can briefly return `502` while Docker recreates the service during CI/CD deploys. The frontend maps `502`/`503`/`504` API responses to a short retry message instead of showing a raw proxy or HTML error.
 
-Known limitation: search providers can return challenge pages to server-side fetches. The fallback layer detects Google retry pages and Bing CAPTCHA / Cloudflare Turnstile challenges separately from true no-result pages, so empty scans should be read as either `search_provider_blocked` or `no_matching_threads_results` rather than a generic success.
+Known limitation: browser/raw search providers can return challenge pages to server-side fetches. The fallback layer detects Google retry pages, Bing CAPTCHA / Cloudflare Turnstile challenges, and DuckDuckGo protection pages separately from true no-result pages, so empty scans should be read as either `search_provider_blocked` or `no_matching_threads_results` rather than a generic success.
 
 ## Threads Quota
 

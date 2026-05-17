@@ -5,7 +5,7 @@ export type ThreadsSearchCandidate = {
   source: 'threads_search'
 }
 
-export type ThreadsFallbackProvider = 'duckduckgo_browser' | 'google' | 'bing' | 'duckduckgo' | 'duckduckgo_lite'
+export type ThreadsFallbackProvider = 'brave' | 'duckduckgo_browser' | 'google' | 'bing' | 'duckduckgo' | 'duckduckgo_lite'
 
 export type ThreadsFallbackStatus = 'ok' | 'no_results' | 'blocked'
 
@@ -22,6 +22,8 @@ type ProviderProbe = {
   blocked: boolean
 }
 
+type HtmlSearchProvider = Exclude<ThreadsFallbackProvider, 'brave' | 'duckduckgo_browser'>
+type SearchResult = { url: string; title: string; excerpt: string }
 type FetchProvider = (keyword: string) => Promise<{ html: string; finalUrl: string; status: number }>
 
 export type ThreadsFallbackOptions = {
@@ -106,7 +108,7 @@ function ok(candidates: ThreadsSearchCandidate[], providerUsed: ThreadsFallbackP
 }
 
 async function runProvider(
-  provider: ThreadsFallbackProvider,
+  provider: HtmlSearchProvider,
   fetcher: () => Promise<{ html: string; finalUrl: string; status: number }>,
   keyword: string
 ): Promise<ProviderProbe> {
@@ -161,8 +163,12 @@ const THREADS_URL_CANONICAL_PATTERN = /https:\/\/(?:www\.)?threads\.(?:net|com)\
 const HREF_PATTERN = /href=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/gi
 
 export function extractThreadsLinks(html: string, keyword: string): ThreadsSearchCandidate[] {
+  return normaliseSearchResults(extractSearchResults(html), keyword)
+}
+
+export function normaliseSearchResults(results: SearchResult[], keyword: string): ThreadsSearchCandidate[] {
   const seen = new Map<string, ThreadsSearchCandidate>()
-  for (const result of extractSearchResults(html)) {
+  for (const result of results) {
     const url = canonicalisePostUrl(result.url)
     if (!url) continue
     if (!result.title && !result.excerpt) continue
@@ -196,7 +202,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function isProviderBlockPage(provider: ThreadsFallbackProvider, html: string, finalUrl: string) {
+function isProviderBlockPage(provider: HtmlSearchProvider, html: string, finalUrl: string) {
   if (provider === 'google') return isGoogleBlockPage(html, finalUrl)
   if (provider === 'bing') return isBingBlockPage(html, finalUrl)
   return isDuckDuckGoBlockPage(html, finalUrl)

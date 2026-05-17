@@ -1,6 +1,7 @@
 import type { AppDatabase } from '../db.js'
 import { extractThreadsLinks, fetchThreadsFallbackOutcome, type ThreadsFallbackOptions, type ThreadsFallbackOutcome, type ThreadsFallbackProvider, type ThreadsSearchCandidate } from './threads-fallback-search.js'
 import { fetchThreadsBrowserSearchOutcome } from './threads-browser-search.js'
+import { fetchThreadsBraveSearchOutcome, type BraveSearchProvider } from './threads-brave-search.js'
 
 export type { ThreadsSearchCandidate, ThreadsFallbackOutcome, ThreadsFallbackProvider }
 export { extractThreadsLinks }
@@ -9,6 +10,7 @@ const MAX_RESULTS = 10
 const FRESH_CACHE_MS = 30 * 60 * 1000
 const STALE_CACHE_MS = 24 * 60 * 60 * 1000
 const PROVIDER_COOLDOWN_MS: Record<ThreadsFallbackProvider, number> = {
+  brave: 60 * 60 * 1000,
   duckduckgo_browser: 20 * 60 * 1000,
   bing: 3 * 60 * 60 * 1000,
   google: 6 * 60 * 60 * 1000,
@@ -17,7 +19,10 @@ const PROVIDER_COOLDOWN_MS: Record<ThreadsFallbackProvider, number> = {
 }
 type BrowserSearchProvider = (keyword: string, limit: number) => Promise<ThreadsFallbackOutcome>
 type ThreadsSearchOptions = ThreadsFallbackOptions & {
+  braveSearch?: BraveSearchProvider
+  braveSearchApiKey?: string
   browserSearch?: BrowserSearchProvider
+  useBrave?: boolean
   useBrowser?: boolean
 }
 
@@ -33,16 +38,25 @@ export async function fetchThreadsSearchOutcome(keyword: string, limit = MAX_RES
   if (fresh) return limitOutcome(fresh, limit)
 
   const skipProviders = getCoolingProviders(db)
-  const browserOutcome = await maybeRunBrowserSearch(keyword, limit, skipProviders, options)
-  recordBlockedProviders(db, browserOutcome.blockedProviders)
-  if (browserOutcome.status === 'ok') {
-    storeCachedOutcome(db, keyword, browserOutcome)
-    return browserOutcome
+  const braveOutcome = await maybeRunBraveSearch(keyword, limit, skipProviders, options)
+  recordBlockedProviders(db, braveOutcome.blockedProviders)
+  if (braveOutcome.status === 'ok') {
+    storeCachedOutcome(db, keyword, braveOutcome)
+    return braveOutcome
   }
 
-  const rawSkipProviders = skipProviders.filter((provider) => provider !== 'duckduckgo_browser')
+  const browserSkipProviders = uniqueProviders([...skipProviders, ...braveOutcome.blockedProviders])
+  const browserOutcome = await maybeRunBrowserSearch(keyword, limit, browserSkipProviders, options)
+  recordBlockedProviders(db, browserOutcome.blockedProviders)
+  if (browserOutcome.status === 'ok') {
+    const outcome = { ...browserOutcome, blockedProviders: uniqueProviders([...braveOutcome.blockedProviders, ...browserOutcome.blockedProviders]) }
+    storeCachedOutcome(db, keyword, outcome)
+    return outcome
+  }
+
+  const rawSkipProviders = browserSkipProviders.filter((provider) => provider !== 'duckduckgo_browser')
   const outcome = await fetchThreadsFallbackOutcome(keyword, { ...options, limit, skipProviders: rawSkipProviders })
-  outcome.blockedProviders = uniqueProviders([...browserOutcome.blockedProviders, ...outcome.blockedProviders])
+  outcome.blockedProviders = uniqueProviders([...braveOutcome.blockedProviders, ...browserOutcome.blockedProviders, ...outcome.blockedProviders])
   recordBlockedProviders(db, outcome.blockedProviders)
   if (outcome.status === 'ok') {
     storeCachedOutcome(db, keyword, outcome)
@@ -77,6 +91,15 @@ async function maybeRunBrowserSearch(keyword: string, limit: number, skipProvide
   return (options.browserSearch ?? fetchThreadsBrowserSearchOutcome)(keyword, limit)
 }
 
+async function maybeRunBraveSearch(keyword: string, limit: number, skipProviders: ThreadsFallbackProvider[], options: ThreadsSearchOptions): Promise<ThreadsFallbackOutcome> {
+  const hasRawFetchOverride = Boolean(options.fetchBing || options.fetchDuckDuckGo || options.fetchDuckDuckGoLite || options.fetchGoogle)
+  const useBrave = options.useBrave ?? !hasRawFetchOverride
+  if (!useBrave || skipProviders.includes('brave')) {
+    return { candidates: [], status: 'no_results', providerUsed: null, blockedProviders: [] }
+  }
+  return fetchThreadsBraveSearchOutcome(keyword, limit, { apiKey: options.braveSearchApiKey, fetchBrave: options.braveSearch })
+}
+
 function storeCachedOutcome(db: AppDatabase, keyword: string, outcome: ThreadsFallbackOutcome) {
   db.prepare(`
     INSERT INTO threads_search_cache (keyword, outcome_json, cached_at)
@@ -107,7 +130,7 @@ function limitOutcome(outcome: ThreadsFallbackOutcome, limit: number): ThreadsFa
 }
 
 function isThreadsFallbackProvider(value: string): value is ThreadsFallbackProvider {
-  return value === 'duckduckgo_browser' || value === 'bing' || value === 'google' || value === 'duckduckgo' || value === 'duckduckgo_lite'
+  return value === 'brave' || value === 'duckduckgo_browser' || value === 'bing' || value === 'google' || value === 'duckduckgo' || value === 'duckduckgo_lite'
 }
 
 function uniqueProviders(providers: ThreadsFallbackProvider[]) {

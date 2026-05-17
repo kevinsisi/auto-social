@@ -8,7 +8,7 @@
 
 ## 目前狀態（2026-05-13）
 
-- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.2.64`
+- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.2.65`
 - ✅ MVP 0.1.0 可跑（舊版「遇見好車海巡台」），UI 已轉為「社群海巡工作站」
 - ✅ 已完成官方 API 可行性盤點（見 [`openspec/specs/mvp/spec.md`](openspec/specs/mvp/spec.md)）
 - ✅ OpenSpec change `add-keyword-patrol-cards`（舊版 MVP，已實作完成）
@@ -23,9 +23,10 @@
 - ✅ **Threads session 留言（人工逐則確認）** — 觀察站每則有 AI 草稿的 Threads 貼文可按「用 Threads session 留言」，確認 target URL、登入帳號與可編輯留言後才排入 `threads_reply` queue；後端保存 `reply_attempts`，套用 kill switch / reply quota / session health gate，並在 UI 顯示 `留言中`、`留言成功`、`留言失敗` 或 `可能已送出但無法確認`
 - ✅ **觀察站圖片辨識** — 有附圖的 Threads 樣本會先跑 Gemini vision 產生 `image_analysis_json`，再把圖片摘要餵進 classify / 葉配 / 詐騙 / score / draft；圖片下載或辨識失敗只顯示「圖片辨識失敗」，不阻斷原本文字 AI 判讀
 - ✅ **觀察樣本新鮮度 + 建議詞** — Threads 搜尋與觀察站都會排除超過一年以前的已知貼文；觀察站會從目前樣本抽出建議關鍵詞，但只顯示 chip，點擊後才加入監控並出勤，不會自動擴張
-- ✅ **配額 fallback + 防連點回饋** — Threads Playwright search 每日 quota 用完時，keyword scan 會改走 Bing-first / Google-second 的 `site:threads.net OR site:threads.com` 備援；UI 按下海巡後會立即顯示「海巡中」並鎖住按鈕，避免手機連點重複送出
+- ✅ **配額 fallback + 防連點回饋** — keyword scan 走 Threads-targeted search provider chain；UI 按下海巡後會立即顯示「海巡中」並鎖住按鈕，避免手機連點重複送出
 - ✅ **Settings 導航 + Threads quota 操作** — Settings 頁面提供明確「回儀表板」入口；Threads 設定可查看 search quota 今日用量、調整每日上限、清除今日 search 用量，預設 search 上限為 2000/day，避免 200/day 卡死海巡
 - ✅ **fallback 搜尋可靠度強化** — fallback 已改成 Bing 優先、Google 次要；可解析 Bing `/ck/a?...&u=a1...` redirect，並區分搜尋源被 Bing/Google challenge 擋住與真的沒結果
+- ✅ **Brave Search API 支援** — 若設定 `BRAVE_SEARCH_API_KEY`，Threads 出勤會先用 Brave Search API 查 `site:threads.net OR site:threads.com`，只保留 Threads post URL；未設定 key 時會安靜略過，改走未登入 browser/raw fallback
 - ✅ Phase 0 Batch 1+2 基礎：`@kevinsisi/ai-core` + `playwright` + `node-cron`、KeyPool admin API、5 步 AI pipeline（classify + sponsored + scam + score + draft）、Threads Playwright 唯讀搜尋優先 + `site:threads.net OR site:threads.com` fallback、Settings 路由
 - 🚧 Phase A2 待辦：發文發想 composer（4h cron 從熱門關鍵字產文 → Gemini 生圖 → 半自動發布）、進貼文內頁抓留言、留言情緒、Voice Studio 整頁、voice profile 從 feedback 進化
 - ✅ Threads session 已支援電腦本機登入 helper：`npm run threads:login` 產生 `data/threads-storage-state.json`，Settings 可上傳並加密保存
@@ -54,7 +55,7 @@
 - **Threads**：不送 Meta App Review；Phase 0 = Playwright 唯讀（search + trending feed），Phase 1 才開 publish/reply
 - **排程**：node-cron 每 15 分鐘掃一輪
 
-重要限制：產品核心目標是 Threads。其他平台不能替代 Threads 海巡；目前 `Threads 出勤海巡` 會先嘗試 Playwright 開 Threads 搜尋頁，失敗時才退回 `site:threads.net OR site:threads.com` fallback，用來確保仍只收 Threads 連結。
+重要限制：產品核心目標是 Threads。其他平台不能替代 Threads 海巡；目前 `Threads 出勤海巡` 使用 cache → Brave Search API（有 `BRAVE_SEARCH_API_KEY` 時）→ 未登入 DuckDuckGo browser → raw Bing / DuckDuckGo / DuckDuckGo Lite / Google 的 `site:threads.net OR site:threads.com` fallback，用來確保仍只收 Threads post 連結，且不使用登入 Threads session。
 
 ## 本機開發
 
@@ -89,8 +90,8 @@ Threads Session / Playwright：
 - `AUTO_SOCIAL_SESSION_KEY`：選填但建議設定；用於 AES-256-GCM 加密保存 Threads `storageState`，可用 `openssl rand -hex 32` 產生。
 - `KEY_MANAGER_URL`：選填；不設定時 `從 key-manager 同步` 會停用，但 Settings 仍可手動貼 Gemini keys。
 - 本機登入：執行 `npm run threads:login`，完成 Instagram / Threads 驗證並進入 Threads 頁面後，工具會輸出 `data/threads-storage-state.json`。
-- Settings → Threads Session 可貼上 Playwright `storageState` JSON；保存後 Playwright 搜尋會優先帶 session。
-- `Threads 出勤海巡`：只使用 Bing-first / Google-second 的 `site:threads.net OR site:threads.com` 搜尋，不使用登入 Threads session，也不開 Threads Playwright 搜尋頁。
+- Settings → Threads Session 可貼上 Playwright `storageState` JSON；目前只保留給明確 opt-in 的人工逐則留言流程，關鍵字海巡不載入這個 session。
+- `Threads 出勤海巡`：若設定 `BRAVE_SEARCH_API_KEY` 會先使用 Brave Search API；否則或 API 無結果時，才使用未登入 browser/raw 搜尋引擎 fallback。整條路徑只收 Threads post URL，不使用登入 Threads session，也不開 Threads Playwright 搜尋頁。
 - `GET /api/scheduler/status`：查看 keyword 自動海巡是否在跑、上次執行時間、最近一次掃了幾張卡與新增幾筆。
 - 圖片辨識：觀察站有附圖的 Threads 樣本會在 AI 判讀前分析最多前 3 張圖；成功或部分成功的視覺摘要會顯示在貼文卡，也會進入留言草稿 prompt。若圖片過大、逾時或 Gemini vision 失敗，文字 pipeline 仍會繼續。
 - Threads 留言：預設停用；必須設定 `AUTO_SOCIAL_THREADS_REPLY_ENABLED=1` 才能啟用。啟用後觀察站貼文卡上的「用 Threads session 留言」仍只支援單則人工確認，不提供批次留言；成功必須由 Playwright 找到 reply URL 或 DOM match，否則會標為「可能已送出但無法確認」供人工複查。
@@ -176,6 +177,7 @@ CORS_ORIGIN=https://social.sisihome.org
 ADMIN_TOKEN=change-me
 KEY_MANAGER_URL=
 AUTO_SOCIAL_SESSION_KEY=change-me-with-openssl-rand-hex-32
+BRAVE_SEARCH_API_KEY=
 ```
 
 健康檢查：`http://<DEPLOY_SERVER_IP>:4323/api/health`。
