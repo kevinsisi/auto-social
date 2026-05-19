@@ -4,7 +4,7 @@
 
 - Domain: `https://social.sisihome.org`
 - Health check: `https://social.sisihome.org/api/health`
-- Current expected API version after the latest deployment: `1.2.66`
+- Current expected API version after the latest deployment: `1.2.67`
 
 ## Threads Login
 
@@ -114,9 +114,11 @@ The add-keyword form gives immediate quality hints for broad terms, UI-noise ter
 
 ## Search Fallback
 
-Keyword scans use Threads-targeted discovery only. With `BRAVE_SEARCH_API_KEY` configured, the order is fresh cache -> Brave Search API -> unauthenticated DuckDuckGo browser -> raw Bing / DuckDuckGo / DuckDuckGo Lite / Google `site:threads.net OR site:threads.com` fallback. Without the Brave key, the API provider is skipped and the unauthenticated browser/raw fallbacks remain.
+Keyword scans use Threads-targeted discovery only. With API providers configured, the order is fresh cache -> Brave Search API -> Google Programmable Search JSON API -> unauthenticated DuckDuckGo browser -> raw Bing / DuckDuckGo / DuckDuckGo Lite / Google `site:threads.net OR site:threads.com` fallback. Missing API provider config is skipped and the unauthenticated browser/raw fallbacks remain.
 
 Do not paste the Brave key in chat. Preferred setup is Settings → Threads → Brave Search API, where the key is saved into the server SQLite `settings` table and used immediately. `BRAVE_SEARCH_API_KEY=...` in production `.env` is still supported as a deploy-time fallback.
+
+For Google Programmable Search, use Settings → Threads → Google Programmable Search and save both values: Google API key and Search Engine ID (`cx`). Env fallbacks are `GOOGLE_SEARCH_API_KEY` and `GOOGLE_SEARCH_CX`.
 
 ## Transient 502s
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { openMemoryDatabase } from '../src/db.js'
 import { fetchThreadsSearchOutcome } from '../src/sources/threads-search.js'
-import { setBraveSearchApiKey } from '../src/sources/search-settings.js'
+import { setBraveSearchApiKey, setGoogleCseConfig } from '../src/sources/search-settings.js'
 
 describe('threads search cache and cooldown', () => {
   const okResponse = (html: string, finalUrl = 'https://example.com', status = 200) => async () => ({ html, finalUrl, status })
@@ -92,6 +92,52 @@ describe('threads search cache and cooldown', () => {
     expect(outcome.candidates.map((candidate) => candidate.url)).toEqual(['https://www.threads.net/@cars/post/dbbrave'])
   })
 
+  it('uses Google Programmable Search before browser and raw providers', async () => {
+    const db = openMemoryDatabase()
+    setGoogleCseConfig(db, { apiKey: 'google-key', cx: 'search-engine-id' })
+
+    const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      useGoogleCse: true,
+      googleCseSearch: async (_keyword, _limit, config) => {
+        expect(config).toEqual({ apiKey: 'google-key', cx: 'search-engine-id' })
+        return {
+          items: [
+            { link: 'https://www.threads.net/@cars/post/googlecse', title: 'Urus Google CSE result', snippet: 'Threads 上的 Urus 討論' }
+          ]
+        }
+      },
+      useBrowser: true,
+      browserSearch: async () => { throw new Error('browser provider should not run') },
+      fetchBing: async () => { throw new Error('raw provider should not run') }
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.providerUsed).toBe('google_cse')
+    expect(outcome.candidates.map((candidate) => candidate.url)).toEqual(['https://www.threads.net/@cars/post/googlecse'])
+  })
+
+  it('falls back to Google Programmable Search when Brave Search API is blocked', async () => {
+    const db = openMemoryDatabase()
+    setGoogleCseConfig(db, { apiKey: 'google-key', cx: 'search-engine-id' })
+
+    const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      useBrave: true,
+      braveSearchApiKey: 'test-key',
+      braveSearch: async () => { throw new Error('Brave rate limit') },
+      googleCseSearch: async () => ({
+        items: [
+          { link: 'https://www.threads.net/@cars/post/google-after-brave', title: 'Urus Google CSE result', snippet: 'Threads 上的 Urus 討論' }
+        ]
+      }),
+      useBrowser: true,
+      browserSearch: async () => { throw new Error('browser provider should not run') }
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.providerUsed).toBe('google_cse')
+    expect(outcome.blockedProviders).toEqual(['brave'])
+  })
+
   it('falls back to browser search when Brave Search API is blocked', async () => {
     const db = openMemoryDatabase()
 
@@ -99,6 +145,7 @@ describe('threads search cache and cooldown', () => {
       useBrave: true,
       braveSearchApiKey: 'test-key',
       braveSearch: async () => { throw new Error('Brave rate limit') },
+      useGoogleCse: false,
       useBrowser: true,
       browserSearch: async () => ({
         candidates: [{ source: 'threads_search', url: 'https://www.threads.net/@cars/post/browser-after-brave', title: 'Urus Threads 討論', excerpt: 'Urus 車主分享保養心得' }],

@@ -96,6 +96,15 @@ export type BraveSearchStatus = {
   source: 'db' | 'env' | null
 }
 
+export type GoogleCseStatus = {
+  configured: boolean
+  keyConfigured: boolean
+  keySuffix: string | null
+  cx: string | null
+  keySource: 'db' | 'env' | null
+  cxSource: 'db' | 'env' | null
+}
+
 export type AdminSession = {
   configured: boolean
   authenticated: boolean

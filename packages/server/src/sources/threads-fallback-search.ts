@@ -5,7 +5,7 @@ export type ThreadsSearchCandidate = {
   source: 'threads_search'
 }
 
-export type ThreadsFallbackProvider = 'brave' | 'duckduckgo_browser' | 'google' | 'bing' | 'duckduckgo' | 'duckduckgo_lite'
+export type ThreadsFallbackProvider = 'brave' | 'google_cse' | 'duckduckgo_browser' | 'google' | 'bing' | 'duckduckgo' | 'duckduckgo_lite'
 
 export type ThreadsFallbackStatus = 'ok' | 'no_results' | 'blocked'
 
@@ -22,7 +22,7 @@ type ProviderProbe = {
   blocked: boolean
 }
 
-type HtmlSearchProvider = Exclude<ThreadsFallbackProvider, 'brave' | 'duckduckgo_browser'>
+type HtmlSearchProvider = Exclude<ThreadsFallbackProvider, 'brave' | 'google_cse' | 'duckduckgo_browser'>
 type SearchResult = { url: string; title: string; excerpt: string }
 type FetchProvider = (keyword: string) => Promise<{ html: string; finalUrl: string; status: number }>
 
