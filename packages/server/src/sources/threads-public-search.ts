@@ -48,12 +48,24 @@ export async function fetchThreadsPublicSearchOutcome(keyword: string, limit = 1
 
       function findResultText(anchor: HTMLAnchorElement) {
         let current: HTMLElement | null = anchor
+        let fallback = ''
         for (let depth = 0; current && depth < 10; depth += 1) {
           const text = clean(current.innerText || current.textContent || '')
-          if (text.length >= 8 && text.length <= 1_500) return text
+          if (!fallback && text) fallback = text
+          if (text.length >= 20 && text.length <= 1_500 && hasMeaningfulText(text)) return text
           current = current.parentElement
         }
-        return clean(anchor.innerText || anchor.textContent || '')
+        return fallback
+      }
+
+      function hasMeaningfulText(text: string) {
+        const content = text
+          .replace(/\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b/g, ' ')
+          .replace(/\b\d{1,3}(?:,\d{3})*\b/g, ' ')
+          .replace(/翻譯|登入|註冊|Threads/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+        return content.length >= 3 && /[\p{L}\p{Script=Han}]/u.test(content)
       }
 
       function titleFromText(text: string) {
