@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import { evaluateKeywordQuality, type KeywordQuality } from './keyword-quality'
@@ -865,7 +865,7 @@ function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanTh
     return <div className="border-4 border-asphalt p-8 text-center text-lg font-black sm:p-10">{loading ? '正在讀取觀察站資料...' : '請稍候…'}</div>
   }
   const { card, aggregate, highlights, posts, suggestedKeywords } = observation
-  const dominant = useMemo(() => dominantSentiment(aggregate.sentimentDistribution), [aggregate.sentimentDistribution])
+  const dominant = dominantSentiment(aggregate.sentimentDistribution)
   const hasAnyPost = highlights.length + posts.length > 0
 
   return (
@@ -897,6 +897,13 @@ function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanTh
           <div className="mt-4 flex items-center gap-3 border-2 border-asphalt bg-white px-3 py-2">
             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-asphalt border-t-transparent" />
             <span className="text-sm font-bold">{scanBusyLabel}</span>
+          </div>
+        )}
+        {observation.latestRun && !scanBusyLabel && (
+          <div className="mt-4 border-2 border-asphalt bg-white px-3 py-2 text-sm">
+            <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-signal">Last Dispatch</p>
+            <p className="mt-1 font-bold">{observation.latestRun.message ?? formatRunStatus(observation.latestRun.status)}</p>
+            <p className="mt-1 font-mono text-xs text-asphalt/55">{formatDate(observation.latestRun.createdAt)}</p>
           </div>
         )}
         <SentimentBar distribution={aggregate.sentimentDistribution} classifiedSamples={aggregate.classifiedSamples} />
@@ -1841,6 +1848,13 @@ function formatSchedulerStatus(status: SchedulerStatus['lastStatus']) {
   if (status === 'running') return '執行中'
   if (status === 'skipped_overlap') return '略過重疊'
   return '待命中'
+}
+
+function formatRunStatus(status: string) {
+  if (status === 'completed') return '出勤完成'
+  if (status === 'failed') return '出勤失敗'
+  if (status === 'running') return '出勤中'
+  return status
 }
 
 function recentTone(status: TaskStatus): string {

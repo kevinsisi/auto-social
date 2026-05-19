@@ -250,6 +250,7 @@ export type ObservedPost = {
 
 export type KeywordObservation = {
   card: { id: string; keyword: string }
+  latestRun: PatrolRun | null
   aggregate: {
     totalSamples: number
     classifiedSamples: number

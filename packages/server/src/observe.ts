@@ -53,6 +53,13 @@ export type ObservedPost = {
 
 export type KeywordObservation = {
   card: { id: string; keyword: string }
+  latestRun: {
+    id: string
+    status: string
+    message: string | null
+    createdAt: string
+    completedAt: string | null
+  } | null
   aggregate: {
     totalSamples: number
     classifiedSamples: number
@@ -68,6 +75,7 @@ export type KeywordObservation = {
 }
 
 type CardRow = { id: string; keyword: string }
+type PatrolRunRow = { id: string; status: string; message: string | null; created_at: string; completed_at: string | null }
 
 type CandidateRow = {
   id: string
@@ -127,7 +135,18 @@ export function getKeywordObservation(db: AppDatabase, cardId: string, now: Date
 
   const tail = observedPosts.filter((post) => !highlightIds.has(post.id)).sort(byRecencyDesc)
 
-  return { card, aggregate, highlights, posts: tail, suggestedKeywords: extractSuggestedKeywords(observedPosts, card.keyword) }
+  return { card, latestRun: getLatestRun(db, cardId), aggregate, highlights, posts: tail, suggestedKeywords: extractSuggestedKeywords(observedPosts, card.keyword) }
+}
+
+function getLatestRun(db: AppDatabase, cardId: string): KeywordObservation['latestRun'] {
+  const row = db.prepare(`
+    SELECT id, status, message, created_at, completed_at
+    FROM patrol_runs
+    WHERE card_id = ?
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).get(cardId) as PatrolRunRow | undefined
+  return row ? { id: row.id, status: row.status, message: row.message, createdAt: row.created_at, completedAt: row.completed_at } : null
 }
 
 function extractSuggestedKeywords(posts: ObservedPost[], currentKeyword: string): string[] {

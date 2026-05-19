@@ -71,6 +71,19 @@ describe('getKeywordObservation', () => {
     expect(getKeywordObservation(db, 'no-such-card')).toBeNull()
   })
 
+  it('includes the latest patrol run message even when there are no recent samples', () => {
+    const db = openMemoryDatabase()
+    const repo = new PatrolRepository(db)
+    const card = repo.createCard('Urus')
+    repo.createThreadsSearchRun(card.id, [], { outcomeKind: 'no_matching_threads_results', providerUsed: null, blockedProviders: [] })
+
+    const result = getKeywordObservation(db, card.id)
+
+    expect(result).not.toBeNull()
+    expect(result!.aggregate.totalSamples).toBe(0)
+    expect(result!.latestRun?.message).toContain('沒有找到「Urus」相關的 Threads 貼文')
+  })
+
   it('hides unrelated legacy rows that do not mention the card keyword', () => {
     const db = openMemoryDatabase()
     const repo = new PatrolRepository(db)
