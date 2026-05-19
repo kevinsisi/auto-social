@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import { evaluateKeywordQuality, type KeywordQuality } from './keyword-quality'
 import './styles.css'
-import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, PostDraft, QueueSnapshot, RadarTerm, ReplyAttempt, ReplyAttemptStatus, ScamSignal, SchedulerStatus, Sentiment, SponsoredSignal, TaskStatus, TaskType, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
+import type { AdminSession, BraveSearchStatus, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, PostDraft, QueueSnapshot, RadarTerm, ReplyAttempt, ReplyAttemptStatus, ScamSignal, SchedulerStatus, Sentiment, SponsoredSignal, TaskStatus, TaskType, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
 import { APP_VERSION } from './version'
 
 const SENTIMENT_LABELS: Record<Sentiment, string> = {
@@ -1399,7 +1399,9 @@ function SettingsPage() {
   const [keys, setKeys] = useState<KeyStatus[]>([])
   const [threadsSession, setThreadsSession] = useState<ThreadsSessionStatus | null>(null)
   const [threadsThrottle, setThreadsThrottle] = useState<ThreadsThrottleSnapshot | null>(null)
+  const [braveSearch, setBraveSearch] = useState<BraveSearchStatus | null>(null)
   const [searchLimitText, setSearchLimitText] = useState('')
+  const [braveSearchKey, setBraveSearchKey] = useState('')
   const [keyText, setKeyText] = useState('')
   const [threadsStorageState, setThreadsStorageState] = useState('')
   const [about, setAbout] = useState<{ version: string; geminiDefaultModel: string; keyManagerHost: string | null; sessionKeyConfigured: boolean; adminTokenConfigured: boolean; insecureTlsEnabled: boolean; node: string } | null>(null)
@@ -1414,6 +1416,7 @@ function SettingsPage() {
     void refreshAdminSession()
     void refreshThreadsSession()
     void refreshThreadsThrottle()
+    void refreshBraveSearch()
     void refreshAbout()
     void refreshImageGen()
     const onHashChange = () => setSection(getSettingsSection())
@@ -1494,6 +1497,28 @@ function SettingsPage() {
       const throttle = (await api.getThreadsThrottle()).throttle
       setThreadsThrottle(throttle)
       setSearchLimitText(String(throttle.dailyLimits.search))
+    } catch (err) { setError(getMessage(err)) }
+  }
+  async function refreshBraveSearch() {
+    try { setBraveSearch((await api.getBraveSearchStatus()).braveSearch) } catch (err) { setError(getMessage(err)) }
+  }
+  async function saveBraveSearchKey(e: React.FormEvent) {
+    e.preventDefault(); setError(null)
+    if (braveSearchKey.trim().length < 8) { setError('Brave Search API key 太短，請貼完整 key。'); return }
+    try {
+      const data = await api.setBraveSearchKey(braveSearchKey.trim())
+      setBraveSearch(data.braveSearch)
+      setBraveSearchKey('')
+      setMessage(`Brave Search key 已儲存（後綴 …${data.braveSearch.keySuffix}）。`)
+    } catch (err) { setError(getMessage(err)) }
+  }
+  async function clearBraveSearchKey() {
+    if (!window.confirm('要清除 Brave Search key 嗎？清除後海巡會退回 browser/raw 搜尋，可能很容易被擋。')) return
+    setError(null)
+    try {
+      const data = await api.clearBraveSearchKey()
+      setBraveSearch(data.braveSearch)
+      setMessage(data.braveSearch.configured ? '已清除 DB key；目前仍使用 env key。' : 'Brave Search key 已清除。')
     } catch (err) { setError(getMessage(err)) }
   }
   async function saveThreadsSearchLimit(e: React.FormEvent) {
@@ -1638,6 +1663,7 @@ function SettingsPage() {
           <Info label="Bound Handle" value={threadsSession?.boundHandle ?? '-'} />
           <Info label="Last Login" value={threadsSession?.lastLoginAt ? formatDate(threadsSession.lastLoginAt) : '-'} />
           <Info label="Search Quota" value={threadsThrottle ? `${threadsThrottle.todayCounts.search} / ${threadsThrottle.dailyLimits.search}（${threadsThrottle.date}）` : '讀取中'} />
+          <Info label="Brave Search" value={braveSearch ? (braveSearch.configured ? `已設定（${braveSearch.source === 'env' ? 'env' : 'DB'}，後綴 …${braveSearch.keySuffix}）` : '未設定') : '讀取中'} />
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshThreadsSession}>重新整理 Session</button>
@@ -1647,7 +1673,7 @@ function SettingsPage() {
         </div>
         <div className={`mt-4 border-t-2 border-asphalt pt-4`}>
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Threads Kill Switch</p>
-          <p className="mt-1 text-sm">出事時的緊急開關。啟用後，所有 Threads 搜尋（手動 + 排程）都會立刻停下；Google/Bing 備援也會被擋掉。</p>
+          <p className="mt-1 text-sm">出事時的緊急開關。啟用後，所有 Threads-targeted 海巡（手動 + 排程）都會立刻停下；Brave / browser / raw fallback 都會被擋掉。</p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <div className={`inline-flex min-h-11 items-center border-2 px-3 py-2 font-bold ${threadsThrottle?.killSwitch ? 'border-red-700 bg-red-700 text-white' : 'border-asphalt bg-paper'}`}>
               目前：{threadsThrottle?.killSwitch ? 'ON · 海巡停用中' : 'OFF · 海巡可運作'}
@@ -1660,7 +1686,7 @@ function SettingsPage() {
         </div>
         <form onSubmit={saveThreadsSearchLimit} className="mt-4 border-t-2 border-asphalt pt-4">
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Threads search quota</p>
-          <p className="mt-1 text-sm">這個上限只保護 Playwright Threads 搜尋，太低會讓海巡提早改走 fallback。</p>
+          <p className="mt-1 text-sm">這個上限控制自動關鍵字海巡每天最多掃幾次；設成 0 會讓排程完全不出勤。</p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
             <label className="text-sm font-bold">每日 search 上限
               <input className="mt-1 block min-h-11 w-full border-2 border-asphalt bg-[#fffaf2] px-3 font-mono text-base outline-none sm:w-40" inputMode="numeric" value={searchLimitText} onChange={(e) => setSearchLimitText(e.target.value)} />
@@ -1668,6 +1694,19 @@ function SettingsPage() {
             <button className="min-h-11 bg-asphalt px-4 py-2 font-bold text-paper" type="submit">儲存上限</button>
             <button className="min-h-11 border-2 border-red-600 px-4 py-2 font-bold text-red-700" type="button" onClick={resetThreadsSearchQuotaToday}>清除今天 search 用量</button>
           </div>
+        </form>
+        <form onSubmit={saveBraveSearchKey} className="mt-4 border-t-2 border-asphalt pt-4">
+          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Brave Search API</p>
+          <p className="mt-1 text-sm">這是目前最穩的 Threads-targeted 海巡資料源。key 只存在 server DB，不會貼到聊天，也不需要登入 Threads。</p>
+          {!braveSearch?.configured && <p className="mt-2 border-2 border-orange-500 bg-orange-100 p-2 text-sm font-bold text-orange-900">尚未設定 Brave key：海巡會退回 browser/raw 搜尋，production IP 很容易被搜尋引擎擋掉。</p>}
+          <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto_auto] md:items-end">
+            <label className="text-sm font-bold">貼入 Brave Search API key
+              <input className="mt-1 block min-h-11 w-full border-2 border-asphalt bg-[#fffaf2] px-3 font-mono text-sm outline-none" type="password" value={braveSearchKey} onChange={(e) => setBraveSearchKey(e.target.value)} placeholder="BSA... / Brave Search API key" autoComplete="off" />
+            </label>
+            <button className="min-h-11 bg-asphalt px-4 py-2 font-bold text-paper" type="submit">儲存 Brave key</button>
+            <button className="min-h-11 border-2 border-red-700 px-4 py-2 font-bold text-red-700 hover:bg-red-700 hover:text-white disabled:opacity-40" type="button" onClick={clearBraveSearchKey} disabled={braveSearch?.source !== 'db'}>清除 DB key</button>
+          </div>
+          <button className="mt-2 min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold" type="button" onClick={refreshBraveSearch}>重新檢查 Brave 狀態</button>
         </form>
         <div className="mt-4 border-t-2 border-asphalt pt-4 space-y-3">
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">兩步登入</p>
@@ -1704,7 +1743,7 @@ function SettingsPage() {
             <Info label="classify" value="已建立 JSON parser + StepRunner step" />
             <Info label="score" value="已建立 shouldDraft short-circuit" />
             <Info label="draft" value="已限制 exactly 3 variants + no-go 過濾" />
-            <Info label="Threads" value="Playwright 搜尋優先；失敗時自動退回 Google → Bing 備援。" />
+            <Info label="Threads" value="Brave Search API 優先；未設定或失敗時退回未登入 browser/raw 搜尋。" />
           </div>
         </div>
         <div className="border-2 border-asphalt bg-paper p-4">

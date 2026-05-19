@@ -8,7 +8,7 @@
 
 ## 目前狀態（2026-05-13）
 
-- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.2.65`
+- ✅ Production：`https://social.sisihome.org`，目前文件對齊版本 `1.2.66`
 - ✅ MVP 0.1.0 可跑（舊版「遇見好車海巡台」），UI 已轉為「社群海巡工作站」
 - ✅ 已完成官方 API 可行性盤點（見 [`openspec/specs/mvp/spec.md`](openspec/specs/mvp/spec.md)）
 - ✅ OpenSpec change `add-keyword-patrol-cards`（舊版 MVP，已實作完成）
@@ -26,7 +26,7 @@
 - ✅ **配額 fallback + 防連點回饋** — keyword scan 走 Threads-targeted search provider chain；UI 按下海巡後會立即顯示「海巡中」並鎖住按鈕，避免手機連點重複送出
 - ✅ **Settings 導航 + Threads quota 操作** — Settings 頁面提供明確「回儀表板」入口；Threads 設定可查看 search quota 今日用量、調整每日上限、清除今日 search 用量，預設 search 上限為 2000/day，避免 200/day 卡死海巡
 - ✅ **fallback 搜尋可靠度強化** — fallback 已改成 Bing 優先、Google 次要；可解析 Bing `/ck/a?...&u=a1...` redirect，並區分搜尋源被 Bing/Google challenge 擋住與真的沒結果
-- ✅ **Brave Search API 支援** — 若設定 `BRAVE_SEARCH_API_KEY`，Threads 出勤會先用 Brave Search API 查 `site:threads.net OR site:threads.com`，只保留 Threads post URL；未設定 key 時會安靜略過，改走未登入 browser/raw fallback
+- ✅ **Brave Search API 支援** — 若在 Settings → Threads 貼入 Brave Search API key（或設定 `BRAVE_SEARCH_API_KEY`），Threads 出勤會先用 Brave Search API 查 `site:threads.net OR site:threads.com`，只保留 Threads post URL；未設定 key 時會安靜略過，改走未登入 browser/raw fallback
 - ✅ Phase 0 Batch 1+2 基礎：`@kevinsisi/ai-core` + `playwright` + `node-cron`、KeyPool admin API、5 步 AI pipeline（classify + sponsored + scam + score + draft）、Threads Playwright 唯讀搜尋優先 + `site:threads.net OR site:threads.com` fallback、Settings 路由
 - 🚧 Phase A2 待辦：發文發想 composer（4h cron 從熱門關鍵字產文 → Gemini 生圖 → 半自動發布）、進貼文內頁抓留言、留言情緒、Voice Studio 整頁、voice profile 從 feedback 進化
 - ✅ Threads session 已支援電腦本機登入 helper：`npm run threads:login` 產生 `data/threads-storage-state.json`，Settings 可上傳並加密保存
@@ -91,7 +91,7 @@ Threads Session / Playwright：
 - `KEY_MANAGER_URL`：選填；不設定時 `從 key-manager 同步` 會停用，但 Settings 仍可手動貼 Gemini keys。
 - 本機登入：執行 `npm run threads:login`，完成 Instagram / Threads 驗證並進入 Threads 頁面後，工具會輸出 `data/threads-storage-state.json`。
 - Settings → Threads Session 可貼上 Playwright `storageState` JSON；目前只保留給明確 opt-in 的人工逐則留言流程，關鍵字海巡不載入這個 session。
-- `Threads 出勤海巡`：若設定 `BRAVE_SEARCH_API_KEY` 會先使用 Brave Search API；否則或 API 無結果時，才使用未登入 browser/raw 搜尋引擎 fallback。整條路徑只收 Threads post URL，不使用登入 Threads session，也不開 Threads Playwright 搜尋頁。
+- `Threads 出勤海巡`：若在 Settings → Threads 貼入 Brave Search API key（server 會存入 SQLite settings）或設定 `BRAVE_SEARCH_API_KEY`，會先使用 Brave Search API；否則或 API 無結果時，才使用未登入 browser/raw 搜尋引擎 fallback。整條路徑只收 Threads post URL，不使用登入 Threads session，也不開 Threads Playwright 搜尋頁。
 - `GET /api/scheduler/status`：查看 keyword 自動海巡是否在跑、上次執行時間、最近一次掃了幾張卡與新增幾筆。
 - 圖片辨識：觀察站有附圖的 Threads 樣本會在 AI 判讀前分析最多前 3 張圖；成功或部分成功的視覺摘要會顯示在貼文卡，也會進入留言草稿 prompt。若圖片過大、逾時或 Gemini vision 失敗，文字 pipeline 仍會繼續。
 - Threads 留言：預設停用；必須設定 `AUTO_SOCIAL_THREADS_REPLY_ENABLED=1` 才能啟用。啟用後觀察站貼文卡上的「用 Threads session 留言」仍只支援單則人工確認，不提供批次留言；成功必須由 Playwright 找到 reply URL 或 DOM match，否則會標為「可能已送出但無法確認」供人工複查。

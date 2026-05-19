@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { openMemoryDatabase } from '../src/db.js'
 import { fetchThreadsSearchOutcome } from '../src/sources/threads-search.js'
+import { setBraveSearchApiKey } from '../src/sources/search-settings.js'
 
 describe('threads search cache and cooldown', () => {
   const okResponse = (html: string, finalUrl = 'https://example.com', status = 200) => async () => ({ html, finalUrl, status })
@@ -65,6 +66,30 @@ describe('threads search cache and cooldown', () => {
     expect(outcome.status).toBe('ok')
     expect(outcome.providerUsed).toBe('brave')
     expect(outcome.candidates.map((candidate) => candidate.url)).toEqual(['https://www.threads.net/@cars/post/brave'])
+  })
+
+  it('uses the DB-stored Brave Search API key when no option override is provided', async () => {
+    const db = openMemoryDatabase()
+    setBraveSearchApiKey(db, 'db-brave-key')
+
+    const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      braveSearch: async (_keyword, _limit, apiKey) => {
+        expect(apiKey).toBe('db-brave-key')
+        return {
+          web: {
+            results: [
+              { url: 'https://www.threads.net/@cars/post/dbbrave', title: 'Urus DB Brave result', description: 'Threads 上的 Urus 討論' }
+            ]
+          }
+        }
+      },
+      useBrowser: true,
+      browserSearch: async () => { throw new Error('browser provider should not run') }
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.providerUsed).toBe('brave')
+    expect(outcome.candidates.map((candidate) => candidate.url)).toEqual(['https://www.threads.net/@cars/post/dbbrave'])
   })
 
   it('falls back to browser search when Brave Search API is blocked', async () => {

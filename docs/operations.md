@@ -4,7 +4,7 @@
 
 - Domain: `https://social.sisihome.org`
 - Health check: `https://social.sisihome.org/api/health`
-- Current expected API version after the latest deployment: `1.2.65`
+- Current expected API version after the latest deployment: `1.2.66`
 
 ## Threads Login
 
@@ -116,7 +116,7 @@ The add-keyword form gives immediate quality hints for broad terms, UI-noise ter
 
 Keyword scans use Threads-targeted discovery only. With `BRAVE_SEARCH_API_KEY` configured, the order is fresh cache -> Brave Search API -> unauthenticated DuckDuckGo browser -> raw Bing / DuckDuckGo / DuckDuckGo Lite / Google `site:threads.net OR site:threads.com` fallback. Without the Brave key, the API provider is skipped and the unauthenticated browser/raw fallbacks remain.
 
-Do not paste the Brave key in chat. Put it in the production `.env` as `BRAVE_SEARCH_API_KEY=...` through the normal secret/config path, then let CI/CD redeploy or restart the service.
+Do not paste the Brave key in chat. Preferred setup is Settings → Threads → Brave Search API, where the key is saved into the server SQLite `settings` table and used immediately. `BRAVE_SEARCH_API_KEY=...` in production `.env` is still supported as a deploy-time fallback.
 
 ## Transient 502s
 

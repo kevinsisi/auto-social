@@ -299,6 +299,7 @@ User feedback after A1 deploy drove a tight iteration cycle. Every item below is
 - [x] 17.E.2 `KeywordScanRun.outcomeKind` ∈ {`playwright_ok`, `fallback_ok`, `no_matching_threads_results`, `search_provider_blocked`} surfaces through `/api/cards/:cardId/scan-threads` and the SSE `done` event. `providerUsed` and `blockedProviders[]` are included for diagnostics. Run message distinguishes "備援搜尋（Google、Bing）被阻擋" from "備援搜尋未找到 ...".
 - [x] 17.E.3 `tests/threads-fallback-search.test.ts` (20 cases) covers Google `/sorry/` / `httpservice/retry/enablejs` / unusual-traffic detection, Bing CAPTCHA + Cloudflare Turnstile + ck/captcha URL detection, Bing `/ck/a?...&u=a1...` redirect decoding, provider ordering (Bing preferred, Google fallback), 429/5xx + fetch-throw handling, limit honouring, dedup. `tests/keyword-scan.test.ts` extended (5 cases) for outcome-kind branching including kill-switch still blocking fallback.
 - [x] 17.E.4 Add `BRAVE_SEARCH_API_KEY` support as the first non-cache discovery provider. Missing key skips silently; API failure marks `brave` blocked for cooldown; successful API results still pass the same Threads post URL + keyword relevance filters before entering the pipeline. (1.2.65)
+- [x] 17.E.5 Add Settings → Threads UI/API for Brave Search API key storage in SQLite settings, so production can be configured without SSH and without pasting secrets into chat. Search uses the DB key first, then `BRAVE_SEARCH_API_KEY` env. (1.2.66)
 
 ### 17.F Quota-aware keyword scheduler
 

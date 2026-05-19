@@ -1,4 +1,4 @@
-import type { AdminSession, CandidateStatus, FeedbackDecision, KeyStatus, KeywordObservation, PatrolCard, PatrolCardDetail, PostDraft, QueueSnapshot, RadarTrend, ReplyAttempt, SchedulerStatus, ThreadsLoginJob, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
+import type { AdminSession, BraveSearchStatus, CandidateStatus, FeedbackDecision, KeyStatus, KeywordObservation, PatrolCard, PatrolCardDetail, PostDraft, QueueSnapshot, RadarTrend, ReplyAttempt, SchedulerStatus, ThreadsLoginJob, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers)
@@ -124,13 +124,15 @@ export const api = {
     return request<{ throttle: ThreadsThrottleSnapshot }>('/api/threads/throttle')
   },
   async getThreadsKillSwitch() {
-    return request<{ killSwitch: boolean }>('/api/threads/kill-switch')
+    const data = await request<{ enabled: boolean }>('/api/threads/kill-switch')
+    return { killSwitch: data.enabled }
   },
   async setThreadsKillSwitch(enabled: boolean) {
-    return request<{ killSwitch: boolean }>('/api/threads/kill-switch', {
+    const data = await request<{ enabled: boolean }>('/api/threads/kill-switch', {
       method: 'PUT',
       body: JSON.stringify({ enabled })
     })
+    return { killSwitch: data.enabled }
   },
   async updateThreadsDailyLimits(limits: Partial<ThreadsThrottleSnapshot['dailyLimits']>) {
     return request<{ throttle: ThreadsThrottleSnapshot }>('/api/admin/threads/daily-limits', {
@@ -142,6 +144,20 @@ export const api = {
     return request<{ reset: number; throttle: ThreadsThrottleSnapshot }>('/api/admin/threads/quotas/search/reset-today', {
       method: 'POST',
       body: JSON.stringify({})
+    })
+  },
+  async getBraveSearchStatus() {
+    return request<{ braveSearch: BraveSearchStatus }>('/api/admin/search/brave')
+  },
+  async setBraveSearchKey(key: string) {
+    return request<{ braveSearch: BraveSearchStatus }>('/api/admin/search/brave/key', {
+      method: 'PUT',
+      body: JSON.stringify({ key })
+    })
+  },
+  async clearBraveSearchKey() {
+    return request<{ braveSearch: BraveSearchStatus }>('/api/admin/search/brave/key', {
+      method: 'DELETE'
     })
   },
   async startThreadsSession() {

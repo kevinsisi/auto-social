@@ -2,6 +2,7 @@ import type { AppDatabase } from '../db.js'
 import { extractThreadsLinks, fetchThreadsFallbackOutcome, type ThreadsFallbackOptions, type ThreadsFallbackOutcome, type ThreadsFallbackProvider, type ThreadsSearchCandidate } from './threads-fallback-search.js'
 import { fetchThreadsBrowserSearchOutcome } from './threads-browser-search.js'
 import { fetchThreadsBraveSearchOutcome, type BraveSearchProvider } from './threads-brave-search.js'
+import { getBraveSearchApiKey } from './search-settings.js'
 
 export type { ThreadsSearchCandidate, ThreadsFallbackOutcome, ThreadsFallbackProvider }
 export { extractThreadsLinks }
@@ -38,7 +39,7 @@ export async function fetchThreadsSearchOutcome(keyword: string, limit = MAX_RES
   if (fresh) return limitOutcome(fresh, limit)
 
   const skipProviders = getCoolingProviders(db)
-  const braveOutcome = await maybeRunBraveSearch(keyword, limit, skipProviders, options)
+  const braveOutcome = await maybeRunBraveSearch(db, keyword, limit, skipProviders, options)
   recordBlockedProviders(db, braveOutcome.blockedProviders)
   if (braveOutcome.status === 'ok') {
     storeCachedOutcome(db, keyword, braveOutcome)
@@ -91,13 +92,13 @@ async function maybeRunBrowserSearch(keyword: string, limit: number, skipProvide
   return (options.browserSearch ?? fetchThreadsBrowserSearchOutcome)(keyword, limit)
 }
 
-async function maybeRunBraveSearch(keyword: string, limit: number, skipProviders: ThreadsFallbackProvider[], options: ThreadsSearchOptions): Promise<ThreadsFallbackOutcome> {
+async function maybeRunBraveSearch(db: AppDatabase, keyword: string, limit: number, skipProviders: ThreadsFallbackProvider[], options: ThreadsSearchOptions): Promise<ThreadsFallbackOutcome> {
   const hasRawFetchOverride = Boolean(options.fetchBing || options.fetchDuckDuckGo || options.fetchDuckDuckGoLite || options.fetchGoogle)
   const useBrave = options.useBrave ?? !hasRawFetchOverride
   if (!useBrave || skipProviders.includes('brave')) {
     return { candidates: [], status: 'no_results', providerUsed: null, blockedProviders: [] }
   }
-  return fetchThreadsBraveSearchOutcome(keyword, limit, { apiKey: options.braveSearchApiKey, fetchBrave: options.braveSearch })
+  return fetchThreadsBraveSearchOutcome(keyword, limit, { apiKey: options.braveSearchApiKey ?? getBraveSearchApiKey(db) ?? undefined, fetchBrave: options.braveSearch })
 }
 
 function storeCachedOutcome(db: AppDatabase, keyword: string, outcome: ThreadsFallbackOutcome) {
