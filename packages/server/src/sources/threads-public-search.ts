@@ -49,13 +49,14 @@ export async function fetchThreadsPublicSearchOutcome(keyword: string, limit = 1
       function findResultText(anchor: HTMLAnchorElement) {
         let current: HTMLElement | null = anchor
         let fallback = ''
+        let best = ''
         for (let depth = 0; current && depth < 10; depth += 1) {
           const text = clean(current.innerText || current.textContent || '')
           if (!fallback && text) fallback = text
-          if (text.length >= 20 && text.length <= 1_500 && hasMeaningfulText(text)) return text
+          if (text.length >= 20 && text.length <= 1_500 && hasMeaningfulText(text) && text.length > best.length) best = text
           current = current.parentElement
         }
-        return fallback
+        return best || fallback
       }
 
       function hasMeaningfulText(text: string) {
