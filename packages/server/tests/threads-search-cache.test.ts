@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { openMemoryDatabase } from '../src/db.js'
 import { fetchThreadsSearchOutcome } from '../src/sources/threads-search.js'
-import { setBraveSearchApiKey } from '../src/sources/search-settings.js'
 
 describe('threads search cache and cooldown', () => {
   const okResponse = (html: string, finalUrl = 'https://example.com', status = 200) => async () => ({ html, finalUrl, status })
@@ -27,10 +26,32 @@ describe('threads search cache and cooldown', () => {
     expect(second.candidates.map((candidate) => candidate.url)).toEqual(['https://www.threads.net/@cars/post/1'])
   })
 
-  it('tries public browser search before raw HTML providers', async () => {
+  it('tries self-hosted Threads public search before external providers', async () => {
     const db = openMemoryDatabase()
 
     const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      usePublicSearch: true,
+      publicSearch: async () => ({
+        candidates: [{ source: 'threads_search', url: 'https://www.threads.net/@cars/post/public', title: 'Urus Threads 討論', excerpt: 'Urus 車主分享保養心得' }],
+        status: 'ok',
+        providerUsed: 'threads_public_search',
+        blockedProviders: []
+      }),
+      useBrowser: true,
+      useExternalSearchFallbacks: true,
+      browserSearch: async () => { throw new Error('browser provider should not run') }
+    })
+
+    expect(outcome.status).toBe('ok')
+    expect(outcome.providerUsed).toBe('threads_public_search')
+    expect(outcome.candidates.map((candidate) => candidate.url)).toEqual(['https://www.threads.net/@cars/post/public'])
+  })
+
+  it('tries external public browser search only when explicitly enabled', async () => {
+    const db = openMemoryDatabase()
+
+    const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      usePublicSearch: false,
       useBrowser: true,
       browserSearch: async () => ({
         candidates: [{ source: 'threads_search', url: 'https://www.threads.net/@cars/post/browser', title: 'Urus Threads 討論', excerpt: 'Urus 車主分享保養心得' }],
@@ -45,63 +66,26 @@ describe('threads search cache and cooldown', () => {
     expect(outcome.providerUsed).toBe('duckduckgo_browser')
   })
 
-  it('tries Brave Search API before browser and raw providers', async () => {
+  it('does not call external providers by default when self-hosted search has no results', async () => {
     const db = openMemoryDatabase()
 
     const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
-      useBrave: true,
-      braveSearchApiKey: 'test-key',
-      braveSearch: async () => ({
-        web: {
-          results: [
-            { url: 'https://www.threads.net/@cars/post/brave', title: 'Urus Brave result', description: 'Threads 上的 Urus 討論' }
-          ]
-        }
-      }),
-      useBrowser: true,
-      browserSearch: async () => { throw new Error('browser provider should not run') },
-      fetchBing: async () => { throw new Error('raw provider should not run') }
+      publicSearch: async () => ({ candidates: [], status: 'no_results', providerUsed: null, blockedProviders: [] })
     })
 
-    expect(outcome.status).toBe('ok')
-    expect(outcome.providerUsed).toBe('brave')
-    expect(outcome.candidates.map((candidate) => candidate.url)).toEqual(['https://www.threads.net/@cars/post/brave'])
+    expect(outcome.status).toBe('no_results')
+    expect(outcome.providerUsed).toBeNull()
   })
 
-  it('uses the DB-stored Brave Search API key when no option override is provided', async () => {
-    const db = openMemoryDatabase()
-    setBraveSearchApiKey(db, 'db-brave-key')
-
-    const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
-      braveSearch: async (_keyword, _limit, apiKey) => {
-        expect(apiKey).toBe('db-brave-key')
-        return {
-          web: {
-            results: [
-              { url: 'https://www.threads.net/@cars/post/dbbrave', title: 'Urus DB Brave result', description: 'Threads 上的 Urus 討論' }
-            ]
-          }
-        }
-      },
-      useBrowser: true,
-      browserSearch: async () => { throw new Error('browser provider should not run') }
-    })
-
-    expect(outcome.status).toBe('ok')
-    expect(outcome.providerUsed).toBe('brave')
-    expect(outcome.candidates.map((candidate) => candidate.url)).toEqual(['https://www.threads.net/@cars/post/dbbrave'])
-  })
-
-  it('falls back to browser search when Brave Search API is blocked', async () => {
+  it('falls back to browser search when self-hosted public search is blocked and external fallback is enabled', async () => {
     const db = openMemoryDatabase()
 
     const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
-      useBrave: true,
-      braveSearchApiKey: 'test-key',
-      braveSearch: async () => { throw new Error('Brave rate limit') },
+      usePublicSearch: true,
+      publicSearch: async () => ({ candidates: [], status: 'blocked', providerUsed: null, blockedProviders: ['threads_public_search'] }),
       useBrowser: true,
       browserSearch: async () => ({
-        candidates: [{ source: 'threads_search', url: 'https://www.threads.net/@cars/post/browser-after-brave', title: 'Urus Threads 討論', excerpt: 'Urus 車主分享保養心得' }],
+        candidates: [{ source: 'threads_search', url: 'https://www.threads.net/@cars/post/browser-after-public', title: 'Urus Threads 討論', excerpt: 'Urus 車主分享保養心得' }],
         status: 'ok',
         providerUsed: 'duckduckgo_browser',
         blockedProviders: []
@@ -111,13 +95,30 @@ describe('threads search cache and cooldown', () => {
 
     expect(outcome.status).toBe('ok')
     expect(outcome.providerUsed).toBe('duckduckgo_browser')
-    expect(outcome.blockedProviders).toEqual(['brave'])
+    expect(outcome.blockedProviders).toEqual(['threads_public_search'])
+  })
+
+  it('reports self-hosted public search as blocked while it is cooling down', async () => {
+    const db = openMemoryDatabase()
+    await fetchThreadsSearchOutcome('Urus', 10, db, {
+      usePublicSearch: true,
+      publicSearch: async () => ({ candidates: [], status: 'blocked', providerUsed: null, blockedProviders: ['threads_public_search'] })
+    })
+
+    const second = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      usePublicSearch: true,
+      publicSearch: async () => { throw new Error('public search should be cooling down') }
+    })
+
+    expect(second.status).toBe('blocked')
+    expect(second.blockedProviders).toEqual(['threads_public_search'])
   })
 
   it('falls back to raw HTML providers when browser search finds no results', async () => {
     const db = openMemoryDatabase()
 
     const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      usePublicSearch: false,
       useBrowser: true,
       browserSearch: async () => ({ candidates: [], status: 'no_results', providerUsed: null, blockedProviders: [] }),
       fetchBing: okResponse('<a href="https://www.threads.net/@cars/post/raw">Urus raw result</a>'),
@@ -134,6 +135,7 @@ describe('threads search cache and cooldown', () => {
   it('skips a provider after it was blocked once', async () => {
     const db = openMemoryDatabase()
     await fetchThreadsSearchOutcome('法拉利', 10, db, {
+      usePublicSearch: false,
       fetchBing: okResponse('<html>Verify you are human</html>'),
       fetchDuckDuckGo: okResponse('<html/>'),
       fetchDuckDuckGoLite: okResponse('<html/>'),
@@ -141,6 +143,7 @@ describe('threads search cache and cooldown', () => {
     })
 
     const second = await fetchThreadsSearchOutcome('法拉利', 10, db, {
+      usePublicSearch: false,
       fetchBing: async () => { throw new Error('Bing should be cooling down') },
       fetchDuckDuckGo: okResponse('<a href="https://www.threads.net/@cars/post/2">法拉利 車主心得</a>'),
       fetchDuckDuckGoLite: okResponse('<html/>'),

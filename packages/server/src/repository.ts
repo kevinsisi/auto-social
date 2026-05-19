@@ -217,6 +217,7 @@ function buildThreadsRunMessage(keyword: string, insertedCount: number, outcome:
   const { outcomeKind, providerUsed, blockedProviders } = outcome
   if (outcomeKind === 'fallback_ok' && insertedCount > 0) {
     const providerLabel = formatSearchProvider(providerUsed)
+    if (providerUsed === 'threads_public_search') return `已使用 ${providerLabel} 找到 ${insertedCount} 筆候選。`
     return `已使用 ${providerLabel} site:threads.net/site:threads.com 搜尋，找到 ${insertedCount} 筆候選。`
   }
   if (outcomeKind === 'search_provider_blocked') {
@@ -226,7 +227,7 @@ function buildThreadsRunMessage(keyword: string, insertedCount: number, outcome:
       : 'Threads 搜尋無法使用，請稍後再試。'
   }
   if (outcomeKind === 'no_matching_threads_results') {
-    return `Threads 海巡完成，備援搜尋未找到「${keyword}」相關的 Threads 貼文。`
+    return `Threads 海巡完成，沒有找到「${keyword}」相關的 Threads 貼文。`
   }
   if (insertedCount === 0) {
     return `Threads 海巡完成，但沒有找到「${keyword}」新的相關結果。`
@@ -235,7 +236,7 @@ function buildThreadsRunMessage(keyword: string, insertedCount: number, outcome:
 }
 
 function formatSearchProvider(provider: ThreadsRunOutcomeMeta['providerUsed']) {
-  if (provider === 'brave') return 'Brave Search API'
+  if (provider === 'threads_public_search') return 'Threads Public Search'
   if (provider === 'duckduckgo_browser') return 'DuckDuckGo Browser'
   if (provider === 'bing') return 'Bing'
   if (provider === 'google') return 'Google'

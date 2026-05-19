@@ -30,19 +30,19 @@ The system SHALL ship a `dcard` source adapter that uses the public Dcard popula
 - **THEN** the adapter backs off exponentially within the scan window, and if it cannot succeed before the per-source timeout it returns an empty result with `errors[].source = 'dcard'`
 
 ### Requirement: Threads adapter ships in Phase 0
-The system SHALL ship a `threads` source adapter that returns only Threads post URLs. Keyword-card discovery SHALL use Threads-targeted search providers without loading a logged-in Threads session; configured API providers SHALL be attempted before unauthenticated browser/raw search fallbacks. The active API-provider path is Brave Search API only; the system SHALL NOT require or expose Google Programmable Search API credentials for Threads patrol.
+The system SHALL ship a `threads` source adapter that returns only Threads post URLs. Keyword-card discovery SHALL use self-hosted Threads-targeted discovery without loading a logged-in Threads session. The default active provider SHALL be an unauthenticated Playwright visit to Threads public search, and the system SHALL NOT require or expose Google Programmable Search API credentials, Brave Search API credentials, Apify tokens, third-party data-provider keys, or a real Threads account for default Threads patrol.
 
 #### Scenario: Threads search succeeds
 - **WHEN** the adapter runs with keyword `中古車` and a search provider returns matching Threads post URLs
 - **THEN** it returns up to N parsed candidates with `source = 'threads_search'`, `url`, `title`, `excerpt`, and the provider used for diagnostics
 
-#### Scenario: Threads search provider blocked / API key missing
-- **WHEN** Brave Search API is unconfigured or a browser/raw provider is blocked by CAPTCHA / protection pages
-- **THEN** the adapter skips or cools down that provider, continues to the next configured provider, and returns `search_provider_blocked` only when every attempted provider is unusable; it does not invent candidates
+#### Scenario: Self-hosted Threads public search blocked
+- **WHEN** the self-hosted Threads public search provider is blocked by CAPTCHA / protection pages or cannot load public results
+- **THEN** the adapter cools down that provider and returns `search_provider_blocked` without inventing candidates or asking for third-party data-provider credentials
 
-#### Scenario: Brave key configured without SSH
-- **WHEN** the operator saves a Brave Search API key in Settings → Threads
-- **THEN** the server stores it in SQLite settings, reports only its suffix in status responses, and uses it for subsequent Threads discovery without requiring a production `.env` edit
+#### Scenario: External fallback is explicit opt-in
+- **WHEN** `AUTO_SOCIAL_EXTERNAL_SEARCH_FALLBACKS=1` is set on the server
+- **THEN** the adapter MAY use unauthenticated browser/raw search-engine fallback after self-hosted Threads public search fails, while preserving Threads-only URL filtering and kill-switch semantics
 
 #### Scenario: Google API key path is not exposed
 - **WHEN** the operator opens Settings → Threads

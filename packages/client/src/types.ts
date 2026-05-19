@@ -90,12 +90,6 @@ export type ThreadsThrottleSnapshot = {
   date: string
 }
 
-export type BraveSearchStatus = {
-  configured: boolean
-  keySuffix: string | null
-  source: 'db' | 'env' | null
-}
-
 export type AdminSession = {
   configured: boolean
   authenticated: boolean

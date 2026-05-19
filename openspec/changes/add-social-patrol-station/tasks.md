@@ -302,6 +302,7 @@ User feedback after A1 deploy drove a tight iteration cycle. Every item below is
 - [x] 17.E.5 Add Settings → Threads UI/API for Brave Search API key storage in SQLite settings, so production can be configured without SSH and without pasting secrets into chat. Search uses the DB key first, then `BRAVE_SEARCH_API_KEY` env. (1.2.66)
 - [x] 17.E.6 Add Google Programmable Search JSON API provider and Settings → Threads UI/API for Google API key + Search Engine ID (`cx`), used after Brave and before browser/raw fallback. (1.2.67; removed in 17.E.7)
 - [x] 17.E.7 Remove Google Programmable Search provider, Settings UI/API, and credential docs so Threads patrol does not ask for Google API key. (1.2.68)
+- [x] 17.E.8 Replace third-party API-key discovery with self-hosted Threads Public Search: unauthenticated Playwright opens `threads.com/search`, extracts public post URLs/snippets, removes Brave key UI/API/provider, and makes search-engine fallback explicit opt-in via `AUTO_SOCIAL_EXTERNAL_SEARCH_FALLBACKS=1`. (1.2.69)
 
 ### 17.F Quota-aware keyword scheduler
 

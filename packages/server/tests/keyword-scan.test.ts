@@ -57,6 +57,26 @@ describe('scanKeywordCard', () => {
     expect(run.message).toContain('已使用 Bing site:threads.net/site:threads.com 搜尋')
   })
 
+  it('reports self-hosted Threads Public Search without search-engine fallback wording', async () => {
+    const db = openMemoryDatabase()
+    const repo = new PatrolRepository(db)
+    const card = repo.createCard('Urus')
+    fetchThreadsSearchOutcomeMock.mockResolvedValue({
+      candidates: [
+        { source: 'threads_search', url: 'https://www.threads.com/@cars/post/public1', title: 'Urus Threads 討論', excerpt: 'Threads Public Search 結果' }
+      ],
+      status: 'ok',
+      providerUsed: 'threads_public_search',
+      blockedProviders: []
+    })
+
+    const run = await scanKeywordCard(db, card.id)
+
+    expect(run.providerUsed).toBe('threads_public_search')
+    expect(run.message).toContain('已使用 Threads Public Search 找到 1 筆候選')
+    expect(run.message).not.toContain('site:threads.net/site:threads.com')
+  })
+
   it('distinguishes search_provider_blocked from no_matching_threads_results', async () => {
     const db = openMemoryDatabase()
     const repo = new PatrolRepository(db)
@@ -90,7 +110,7 @@ describe('scanKeywordCard', () => {
     const run = await scanKeywordCard(db, card.id)
 
     expect(run.outcomeKind).toBe('no_matching_threads_results')
-    expect(run.message).toContain('備援搜尋未找到')
+    expect(run.message).toContain('沒有找到「Urus」相關的 Threads 貼文')
   })
 
   it('never calls Threads Playwright search', async () => {

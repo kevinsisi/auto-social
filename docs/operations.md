@@ -114,11 +114,9 @@ The add-keyword form gives immediate quality hints for broad terms, UI-noise ter
 
 ## Search Fallback
 
-Keyword scans use Threads-targeted discovery only. With API providers configured, the order is fresh cache -> Brave Search API -> unauthenticated DuckDuckGo browser -> raw Bing / DuckDuckGo / DuckDuckGo Lite / Google `site:threads.net OR site:threads.com` fallback. Missing API provider config is skipped and the unauthenticated browser/raw fallbacks remain.
+Keyword scans use Threads-targeted discovery only. The default order is fresh cache -> self-hosted Threads Public Search. The public search provider opens `https://www.threads.com/search?q=...` with an unauthenticated Playwright context and extracts public Threads post URLs and snippets. It does not load the saved Threads session and does not require Google, Brave, Apify, or any other third-party data provider key.
 
-Do not paste the Brave key in chat. Preferred setup is Settings → Threads → Brave Search API, where the key is saved into the server SQLite `settings` table and used immediately. `BRAVE_SEARCH_API_KEY=...` in production `.env` is still supported as a deploy-time fallback.
-
-Do not ask the operator for a Google API key for Threads patrol. Google Programmable Search credentials are not part of the active product path.
+External search-engine fallbacks are disabled by default. If emergency fallback is explicitly needed, set `AUTO_SOCIAL_EXTERNAL_SEARCH_FALLBACKS=1`; then the system may use unauthenticated DuckDuckGo browser search and raw Bing / DuckDuckGo / DuckDuckGo Lite / Google `site:threads.net OR site:threads.com` fallback. Do not ask the operator for Google API key, Brave key, Apify token, or a real Threads account for default Threads patrol.
 
 ## Transient 502s
 
