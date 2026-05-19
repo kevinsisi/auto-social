@@ -30,7 +30,7 @@ The system SHALL ship a `dcard` source adapter that uses the public Dcard popula
 - **THEN** the adapter backs off exponentially within the scan window, and if it cannot succeed before the per-source timeout it returns an empty result with `errors[].source = 'dcard'`
 
 ### Requirement: Threads adapter ships in Phase 0
-The system SHALL ship a `threads` source adapter that returns only Threads post URLs. Keyword-card discovery SHALL use Threads-targeted search providers without loading a logged-in Threads session; configured API providers SHALL be attempted before unauthenticated browser/raw search fallbacks, in this order: Brave Search API, then Google Programmable Search JSON API.
+The system SHALL ship a `threads` source adapter that returns only Threads post URLs. Keyword-card discovery SHALL use Threads-targeted search providers without loading a logged-in Threads session; configured API providers SHALL be attempted before unauthenticated browser/raw search fallbacks. The active API-provider path is Brave Search API only; the system SHALL NOT require or expose Google Programmable Search API credentials for Threads patrol.
 
 #### Scenario: Threads search succeeds
 - **WHEN** the adapter runs with keyword `中古車` and a search provider returns matching Threads post URLs
@@ -44,9 +44,9 @@ The system SHALL ship a `threads` source adapter that returns only Threads post 
 - **WHEN** the operator saves a Brave Search API key in Settings → Threads
 - **THEN** the server stores it in SQLite settings, reports only its suffix in status responses, and uses it for subsequent Threads discovery without requiring a production `.env` edit
 
-#### Scenario: Google Programmable Search configured without SSH
-- **WHEN** the operator saves a Google API key and Search Engine ID (`cx`) in Settings → Threads
-- **THEN** the server stores them in SQLite settings, reports only the key suffix plus `cx`, and uses Google Programmable Search after Brave and before browser/raw fallback
+#### Scenario: Google API key path is not exposed
+- **WHEN** the operator opens Settings → Threads
+- **THEN** no Google Programmable Search form or Google API key status is shown, and keyword-card discovery does not call a Google JSON API provider
 
 ### Requirement: Adapter health is observable
 The system SHALL track per-adapter recent success / failure counts and expose them at `/api/sources` so the dashboard can show which adapters are healthy.

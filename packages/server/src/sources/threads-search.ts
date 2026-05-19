@@ -2,8 +2,7 @@ import type { AppDatabase } from '../db.js'
 import { extractThreadsLinks, fetchThreadsFallbackOutcome, type ThreadsFallbackOptions, type ThreadsFallbackOutcome, type ThreadsFallbackProvider, type ThreadsSearchCandidate } from './threads-fallback-search.js'
 import { fetchThreadsBrowserSearchOutcome } from './threads-browser-search.js'
 import { fetchThreadsBraveSearchOutcome, type BraveSearchProvider } from './threads-brave-search.js'
-import { fetchThreadsGoogleCseSearchOutcome, type GoogleCseSearchProvider } from './threads-google-cse-search.js'
-import { getBraveSearchApiKey, getGoogleCseConfig, type GoogleCseConfig } from './search-settings.js'
+import { getBraveSearchApiKey } from './search-settings.js'
 
 export type { ThreadsSearchCandidate, ThreadsFallbackOutcome, ThreadsFallbackProvider }
 export { extractThreadsLinks }
@@ -13,7 +12,6 @@ const FRESH_CACHE_MS = 30 * 60 * 1000
 const STALE_CACHE_MS = 24 * 60 * 60 * 1000
 const PROVIDER_COOLDOWN_MS: Record<ThreadsFallbackProvider, number> = {
   brave: 60 * 60 * 1000,
-  google_cse: 60 * 60 * 1000,
   duckduckgo_browser: 20 * 60 * 1000,
   bing: 3 * 60 * 60 * 1000,
   google: 6 * 60 * 60 * 1000,
@@ -24,11 +22,8 @@ type BrowserSearchProvider = (keyword: string, limit: number) => Promise<Threads
 type ThreadsSearchOptions = ThreadsFallbackOptions & {
   braveSearch?: BraveSearchProvider
   braveSearchApiKey?: string
-  googleCseSearch?: GoogleCseSearchProvider
-  googleCseConfig?: GoogleCseConfig
   browserSearch?: BrowserSearchProvider
   useBrave?: boolean
-  useGoogleCse?: boolean
   useBrowser?: boolean
 }
 
@@ -51,27 +46,18 @@ export async function fetchThreadsSearchOutcome(keyword: string, limit = MAX_RES
     return braveOutcome
   }
 
-  const googleCseSkipProviders = uniqueProviders([...skipProviders, ...braveOutcome.blockedProviders])
-  const googleCseOutcome = await maybeRunGoogleCseSearch(db, keyword, limit, googleCseSkipProviders, options)
-  recordBlockedProviders(db, googleCseOutcome.blockedProviders)
-  if (googleCseOutcome.status === 'ok') {
-    const outcome = { ...googleCseOutcome, blockedProviders: uniqueProviders([...braveOutcome.blockedProviders, ...googleCseOutcome.blockedProviders]) }
-    storeCachedOutcome(db, keyword, outcome)
-    return outcome
-  }
-
-  const browserSkipProviders = uniqueProviders([...googleCseSkipProviders, ...googleCseOutcome.blockedProviders])
+  const browserSkipProviders = uniqueProviders([...skipProviders, ...braveOutcome.blockedProviders])
   const browserOutcome = await maybeRunBrowserSearch(keyword, limit, browserSkipProviders, options)
   recordBlockedProviders(db, browserOutcome.blockedProviders)
   if (browserOutcome.status === 'ok') {
-    const outcome = { ...browserOutcome, blockedProviders: uniqueProviders([...braveOutcome.blockedProviders, ...googleCseOutcome.blockedProviders, ...browserOutcome.blockedProviders]) }
+    const outcome = { ...browserOutcome, blockedProviders: uniqueProviders([...braveOutcome.blockedProviders, ...browserOutcome.blockedProviders]) }
     storeCachedOutcome(db, keyword, outcome)
     return outcome
   }
 
   const rawSkipProviders = browserSkipProviders.filter((provider) => provider !== 'duckduckgo_browser')
   const outcome = await fetchThreadsFallbackOutcome(keyword, { ...options, limit, skipProviders: rawSkipProviders })
-  outcome.blockedProviders = uniqueProviders([...braveOutcome.blockedProviders, ...googleCseOutcome.blockedProviders, ...browserOutcome.blockedProviders, ...outcome.blockedProviders])
+  outcome.blockedProviders = uniqueProviders([...braveOutcome.blockedProviders, ...browserOutcome.blockedProviders, ...outcome.blockedProviders])
   recordBlockedProviders(db, outcome.blockedProviders)
   if (outcome.status === 'ok') {
     storeCachedOutcome(db, keyword, outcome)
@@ -80,15 +66,6 @@ export async function fetchThreadsSearchOutcome(keyword: string, limit = MAX_RES
 
   const stale = getCachedOutcome(db, keyword, STALE_CACHE_MS)
   return stale ? limitOutcome(stale, limit) : outcome
-}
-
-async function maybeRunGoogleCseSearch(db: AppDatabase, keyword: string, limit: number, skipProviders: ThreadsFallbackProvider[], options: ThreadsSearchOptions): Promise<ThreadsFallbackOutcome> {
-  const hasRawFetchOverride = Boolean(options.fetchBing || options.fetchDuckDuckGo || options.fetchDuckDuckGoLite || options.fetchGoogle)
-  const useGoogleCse = options.useGoogleCse ?? !hasRawFetchOverride
-  if (!useGoogleCse || skipProviders.includes('google_cse')) {
-    return { candidates: [], status: 'no_results', providerUsed: null, blockedProviders: [] }
-  }
-  return fetchThreadsGoogleCseSearchOutcome(keyword, limit, { config: options.googleCseConfig ?? getGoogleCseConfig(db), fetchGoogleCse: options.googleCseSearch })
 }
 
 function normaliseKeyword(keyword: string) {
@@ -154,7 +131,7 @@ function limitOutcome(outcome: ThreadsFallbackOutcome, limit: number): ThreadsFa
 }
 
 function isThreadsFallbackProvider(value: string): value is ThreadsFallbackProvider {
-  return value === 'brave' || value === 'google_cse' || value === 'duckduckgo_browser' || value === 'bing' || value === 'google' || value === 'duckduckgo' || value === 'duckduckgo_lite'
+  return value === 'brave' || value === 'duckduckgo_browser' || value === 'bing' || value === 'google' || value === 'duckduckgo' || value === 'duckduckgo_lite'
 }
 
 function uniqueProviders(providers: ThreadsFallbackProvider[]) {

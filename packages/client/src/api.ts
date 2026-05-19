@@ -1,4 +1,4 @@
-import type { AdminSession, BraveSearchStatus, CandidateStatus, FeedbackDecision, GoogleCseStatus, KeyStatus, KeywordObservation, PatrolCard, PatrolCardDetail, PostDraft, QueueSnapshot, RadarTrend, ReplyAttempt, SchedulerStatus, ThreadsLoginJob, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
+import type { AdminSession, BraveSearchStatus, CandidateStatus, FeedbackDecision, KeyStatus, KeywordObservation, PatrolCard, PatrolCardDetail, PostDraft, QueueSnapshot, RadarTrend, ReplyAttempt, SchedulerStatus, ThreadsLoginJob, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers)
@@ -157,20 +157,6 @@ export const api = {
   },
   async clearBraveSearchKey() {
     return request<{ braveSearch: BraveSearchStatus }>('/api/admin/search/brave/key', {
-      method: 'DELETE'
-    })
-  },
-  async getGoogleCseStatus() {
-    return request<{ googleCse: GoogleCseStatus }>('/api/admin/search/google-cse')
-  },
-  async setGoogleCseConfig(config: { apiKey?: string; cx?: string }) {
-    return request<{ googleCse: GoogleCseStatus }>('/api/admin/search/google-cse', {
-      method: 'PUT',
-      body: JSON.stringify(config)
-    })
-  },
-  async clearGoogleCseConfig() {
-    return request<{ googleCse: GoogleCseStatus }>('/api/admin/search/google-cse', {
       method: 'DELETE'
     })
   },

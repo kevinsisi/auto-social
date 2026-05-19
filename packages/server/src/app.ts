@@ -18,7 +18,7 @@ import { getRadarTrends, scanRadarTrends, schedulePipelineForCandidates, upsertT
 import { getQueueSnapshot } from './scheduler/task-queue.js'
 import { getKeywordSchedulerStatus } from './scheduler/keyword-scheduler.js'
 import { PatrolRepository } from './repository.js'
-import { clearBraveSearchApiKey, clearGoogleCseConfig, getBraveSearchStatus, getGoogleCseStatus, setBraveSearchApiKey, setGoogleCseConfig } from './sources/search-settings.js'
+import { clearBraveSearchApiKey, getBraveSearchStatus, setBraveSearchApiKey } from './sources/search-settings.js'
 import { getKillSwitch, getThrottleSnapshot, KillSwitchActiveError, resetTodayCount, setDailyLimits, setKillSwitch } from './threads-bot/throttle.js'
 import { clearThreadsSession, getThreadsSessionStatus, importThreadsStorageState } from './threads-bot/session.js'
 import { probeBoundHandle } from './threads-bot/handle-probe.js'
@@ -55,10 +55,6 @@ const imageGenKeySchema = z.object({
   model: z.string().min(1).max(120).optional()
 })
 const braveSearchKeySchema = z.object({ key: z.string().min(8).max(512) })
-const googleCseConfigSchema = z.object({
-  apiKey: z.string().min(8).max(512).optional(),
-  cx: z.string().min(3).max(256).optional()
-}).refine((config) => Boolean(config.apiKey || config.cx), { message: '至少要提供 API key 或 Search Engine ID。' })
 const clickThreadsLoginSchema = z.object({ x: z.number().min(0), y: z.number().min(0) })
 const typeThreadsLoginSchema = z.object({ text: z.string().min(1).max(512) })
 const pressThreadsLoginSchema = z.object({ key: z.enum(['Enter', 'Tab', 'Escape', 'Backspace']) })
@@ -355,25 +351,6 @@ export function createApp(db: AppDatabase) {
   app.delete('/api/admin/search/brave/key', requireAdmin, (_req, res) => {
     clearBraveSearchApiKey(db)
     res.json({ braveSearch: getBraveSearchStatus(db) })
-  })
-
-  app.get('/api/admin/search/google-cse', requireAdmin, (_req, res) => {
-    res.json({ googleCse: getGoogleCseStatus(db) })
-  })
-
-  app.put('/api/admin/search/google-cse', requireAdmin, (req, res) => {
-    try {
-      const body = googleCseConfigSchema.parse(req.body)
-      setGoogleCseConfig(db, { apiKey: body.apiKey, cx: body.cx })
-      res.json({ googleCse: getGoogleCseStatus(db) })
-    } catch (error) {
-      sendError(res, error)
-    }
-  })
-
-  app.delete('/api/admin/search/google-cse', requireAdmin, (_req, res) => {
-    clearGoogleCseConfig(db)
-    res.json({ googleCse: getGoogleCseStatus(db) })
   })
 
   app.post('/api/admin/threads/quotas/search/reset-today', requireAdmin, (_req, res) => {

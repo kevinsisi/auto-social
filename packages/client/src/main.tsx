@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { api } from './api'
 import { evaluateKeywordQuality, type KeywordQuality } from './keyword-quality'
 import './styles.css'
-import type { AdminSession, BraveSearchStatus, FeedbackDecision, GoogleCseStatus, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, PostDraft, QueueSnapshot, RadarTerm, ReplyAttempt, ReplyAttemptStatus, ScamSignal, SchedulerStatus, Sentiment, SponsoredSignal, TaskStatus, TaskType, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
+import type { AdminSession, BraveSearchStatus, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, PostDraft, QueueSnapshot, RadarTerm, ReplyAttempt, ReplyAttemptStatus, ScamSignal, SchedulerStatus, Sentiment, SponsoredSignal, TaskStatus, TaskType, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
 import { APP_VERSION } from './version'
 
 const SENTIMENT_LABELS: Record<Sentiment, string> = {
@@ -1400,11 +1400,8 @@ function SettingsPage() {
   const [threadsSession, setThreadsSession] = useState<ThreadsSessionStatus | null>(null)
   const [threadsThrottle, setThreadsThrottle] = useState<ThreadsThrottleSnapshot | null>(null)
   const [braveSearch, setBraveSearch] = useState<BraveSearchStatus | null>(null)
-  const [googleCse, setGoogleCse] = useState<GoogleCseStatus | null>(null)
   const [searchLimitText, setSearchLimitText] = useState('')
   const [braveSearchKey, setBraveSearchKey] = useState('')
-  const [googleCseApiKey, setGoogleCseApiKey] = useState('')
-  const [googleCseCx, setGoogleCseCx] = useState('')
   const [keyText, setKeyText] = useState('')
   const [threadsStorageState, setThreadsStorageState] = useState('')
   const [about, setAbout] = useState<{ version: string; geminiDefaultModel: string; keyManagerHost: string | null; sessionKeyConfigured: boolean; adminTokenConfigured: boolean; insecureTlsEnabled: boolean; node: string } | null>(null)
@@ -1420,7 +1417,6 @@ function SettingsPage() {
     void refreshThreadsSession()
     void refreshThreadsThrottle()
     void refreshBraveSearch()
-    void refreshGoogleCse()
     void refreshAbout()
     void refreshImageGen()
     const onHashChange = () => setSection(getSettingsSection())
@@ -1506,13 +1502,6 @@ function SettingsPage() {
   async function refreshBraveSearch() {
     try { setBraveSearch((await api.getBraveSearchStatus()).braveSearch) } catch (err) { setError(getMessage(err)) }
   }
-  async function refreshGoogleCse() {
-    try {
-      const data = await api.getGoogleCseStatus()
-      setGoogleCse(data.googleCse)
-      setGoogleCseCx(data.googleCse.cx ?? '')
-    } catch (err) { setError(getMessage(err)) }
-  }
   async function saveBraveSearchKey(e: React.FormEvent) {
     e.preventDefault(); setError(null)
     if (braveSearchKey.trim().length < 8) { setError('Brave Search API key 太短，請貼完整 key。'); return }
@@ -1530,31 +1519,6 @@ function SettingsPage() {
       const data = await api.clearBraveSearchKey()
       setBraveSearch(data.braveSearch)
       setMessage(data.braveSearch.configured ? '已清除 DB key；目前仍使用 env key。' : 'Brave Search key 已清除。')
-    } catch (err) { setError(getMessage(err)) }
-  }
-  async function saveGoogleCseConfig(e: React.FormEvent) {
-    e.preventDefault(); setError(null)
-    const apiKey = googleCseApiKey.trim()
-    const cx = googleCseCx.trim()
-    if (!apiKey && !googleCse?.keyConfigured) { setError('Google API key 尚未設定，請先貼 API key。'); return }
-    if (!cx && !googleCse?.cx) { setError('Search Engine ID 尚未設定，請先貼 cx。'); return }
-    try {
-      const data = await api.setGoogleCseConfig({ ...(apiKey ? { apiKey } : {}), ...(cx ? { cx } : {}) })
-      setGoogleCse(data.googleCse)
-      setGoogleCseApiKey('')
-      setGoogleCseCx(data.googleCse.cx ?? '')
-      setMessage(`Google Programmable Search 已儲存（key 後綴 …${data.googleCse.keySuffix ?? '未設定'}）。`)
-    } catch (err) { setError(getMessage(err)) }
-  }
-  async function clearGoogleCseConfig() {
-    if (!window.confirm('要清除 Google Programmable Search 設定嗎？清除後會退回其他 provider。')) return
-    setError(null)
-    try {
-      const data = await api.clearGoogleCseConfig()
-      setGoogleCse(data.googleCse)
-      setGoogleCseApiKey('')
-      setGoogleCseCx(data.googleCse.cx ?? '')
-      setMessage(data.googleCse.configured ? '已清除 DB 設定；目前仍使用 env 設定。' : 'Google Programmable Search 設定已清除。')
     } catch (err) { setError(getMessage(err)) }
   }
   async function saveThreadsSearchLimit(e: React.FormEvent) {
@@ -1700,7 +1664,6 @@ function SettingsPage() {
           <Info label="Last Login" value={threadsSession?.lastLoginAt ? formatDate(threadsSession.lastLoginAt) : '-'} />
           <Info label="Search Quota" value={threadsThrottle ? `${threadsThrottle.todayCounts.search} / ${threadsThrottle.dailyLimits.search}（${threadsThrottle.date}）` : '讀取中'} />
           <Info label="Brave Search" value={braveSearch ? (braveSearch.configured ? `已設定（${braveSearch.source === 'env' ? 'env' : 'DB'}，後綴 …${braveSearch.keySuffix}）` : '未設定') : '讀取中'} />
-          <Info label="Google Search API" value={googleCse ? (googleCse.configured ? `已設定（key ${googleCse.keySource === 'env' ? 'env' : 'DB'}，cx ${googleCse.cxSource === 'env' ? 'env' : 'DB'}）` : '未設定') : '讀取中'} />
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshThreadsSession}>重新整理 Session</button>
@@ -1745,25 +1708,6 @@ function SettingsPage() {
           </div>
           <button className="mt-2 min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold" type="button" onClick={refreshBraveSearch}>重新檢查 Brave 狀態</button>
         </form>
-        <form onSubmit={saveGoogleCseConfig} className="mt-4 border-t-2 border-asphalt pt-4">
-          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">Google Programmable Search</p>
-          <p className="mt-1 text-sm">免費額度可先測自動海巡。需要 Google API key 和 Programmable Search Engine ID（cx）；key 只存在 server DB，不貼聊天。</p>
-          {!googleCse?.configured && <p className="mt-2 border-2 border-orange-500 bg-orange-100 p-2 text-sm font-bold text-orange-900">尚未設定 Google Search API：如果 Brave 也未設定，production 會退回容易被擋的 browser/raw 搜尋。</p>}
-          <div className="mt-3 grid gap-2 md:grid-cols-2">
-            <label className="text-sm font-bold">Google API key
-              <input className="mt-1 block min-h-11 w-full border-2 border-asphalt bg-[#fffaf2] px-3 font-mono text-sm outline-none" type="password" value={googleCseApiKey} onChange={(e) => setGoogleCseApiKey(e.target.value)} placeholder={googleCse?.keyConfigured ? '已設定；留空不變更' : 'AIza...'} autoComplete="off" />
-            </label>
-            <label className="text-sm font-bold">Search Engine ID（cx）
-              <input className="mt-1 block min-h-11 w-full border-2 border-asphalt bg-[#fffaf2] px-3 font-mono text-sm outline-none" value={googleCseCx} onChange={(e) => setGoogleCseCx(e.target.value)} placeholder="Programmable Search Engine ID" autoComplete="off" />
-            </label>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button className="min-h-11 bg-asphalt px-4 py-2 font-bold text-paper" type="submit">儲存 Google Search</button>
-            <button className="min-h-11 border-2 border-red-700 px-4 py-2 font-bold text-red-700 hover:bg-red-700 hover:text-white" type="button" onClick={clearGoogleCseConfig}>清除 DB 設定</button>
-            <button className="min-h-11 border-2 border-asphalt px-4 py-2 font-bold" type="button" onClick={refreshGoogleCse}>重新檢查</button>
-          </div>
-          <p className="mt-2 text-xs text-asphalt/60">目前 key：{googleCse?.keyConfigured ? `已設定（後綴 …${googleCse.keySuffix}）` : '未設定'}；cx：{googleCse?.cx ?? '未設定'}</p>
-        </form>
         <div className="mt-4 border-t-2 border-asphalt pt-4 space-y-3">
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">兩步登入</p>
           <ol className="list-decimal space-y-3 pl-5 text-sm">
@@ -1799,7 +1743,7 @@ function SettingsPage() {
             <Info label="classify" value="已建立 JSON parser + StepRunner step" />
             <Info label="score" value="已建立 shouldDraft short-circuit" />
             <Info label="draft" value="已限制 exactly 3 variants + no-go 過濾" />
-            <Info label="Threads" value="Brave / Google Programmable Search 優先；未設定或失敗時退回未登入 browser/raw 搜尋。" />
+            <Info label="Threads" value="Brave 優先；未設定或失敗時退回未登入 browser/raw 搜尋。" />
           </div>
         </div>
         <div className="border-2 border-asphalt bg-paper p-4">
