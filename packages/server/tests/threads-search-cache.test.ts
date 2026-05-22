@@ -8,6 +8,7 @@ describe('threads search cache and cooldown', () => {
   it('serves a fresh cached outcome without hitting providers again', async () => {
     const db = openMemoryDatabase()
     const first = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      hydratePosts: false,
       fetchBing: okResponse('<a href="https://www.threads.net/@cars/post/1">Urus 交車心得</a>'),
       fetchDuckDuckGo: okResponse('<html/>'),
       fetchDuckDuckGoLite: okResponse('<html/>'),
@@ -15,6 +16,7 @@ describe('threads search cache and cooldown', () => {
     })
 
     const second = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      hydratePosts: false,
       fetchBing: async () => { throw new Error('cache miss') },
       fetchDuckDuckGo: async () => { throw new Error('cache miss') },
       fetchDuckDuckGoLite: async () => { throw new Error('cache miss') },
@@ -30,6 +32,7 @@ describe('threads search cache and cooldown', () => {
     const db = openMemoryDatabase()
 
     const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      hydratePosts: false,
       usePublicSearch: true,
       publicSearch: async () => ({
         candidates: [{ source: 'threads_search', url: 'https://www.threads.net/@cars/post/public', title: 'Urus Threads 討論', excerpt: 'Urus 車主分享保養心得' }],
@@ -61,6 +64,7 @@ describe('threads search cache and cooldown', () => {
     )
 
     const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      hydratePosts: false,
       publicSearch: async () => ({
         candidates: [{ source: 'threads_search', url: 'https://www.threads.net/@cars/post/new', title: 'Urus', excerpt: 'Urus with media', images: ['https://cdninstagram.com/photo.webp'] }],
         status: 'ok',
@@ -75,10 +79,11 @@ describe('threads search cache and cooldown', () => {
     })
   })
 
-  it('tries external public browser search only when explicitly enabled', async () => {
+  it('tries external public browser search when public search is skipped', async () => {
     const db = openMemoryDatabase()
 
     const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      hydratePosts: false,
       usePublicSearch: false,
       useBrowser: true,
       browserSearch: async () => ({
@@ -94,21 +99,29 @@ describe('threads search cache and cooldown', () => {
     expect(outcome.providerUsed).toBe('duckduckgo_browser')
   })
 
-  it('does not call external providers by default when self-hosted search has no results', async () => {
+  it('falls back to external browser search by default when self-hosted search has no results', async () => {
     const db = openMemoryDatabase()
 
     const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
-      publicSearch: async () => ({ candidates: [], status: 'no_results', providerUsed: null, blockedProviders: [] })
+      hydratePosts: false,
+      publicSearch: async () => ({ candidates: [], status: 'no_results', providerUsed: null, blockedProviders: [] }),
+      browserSearch: async () => ({
+        candidates: [{ source: 'threads_search', url: 'https://www.threads.net/@cars/post/browser-default', title: 'Urus Threads 討論', excerpt: 'Urus 車主分享保養心得' }],
+        status: 'ok',
+        providerUsed: 'duckduckgo_browser',
+        blockedProviders: []
+      })
     })
 
-    expect(outcome.status).toBe('no_results')
-    expect(outcome.providerUsed).toBeNull()
+    expect(outcome.status).toBe('ok')
+    expect(outcome.providerUsed).toBe('duckduckgo_browser')
   })
 
   it('falls back to browser search when self-hosted public search is blocked and external fallback is enabled', async () => {
     const db = openMemoryDatabase()
 
     const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      hydratePosts: false,
       usePublicSearch: true,
       publicSearch: async () => ({ candidates: [], status: 'blocked', providerUsed: null, blockedProviders: ['threads_public_search'] }),
       useBrowser: true,
@@ -129,11 +142,15 @@ describe('threads search cache and cooldown', () => {
   it('reports self-hosted public search as blocked while it is cooling down', async () => {
     const db = openMemoryDatabase()
     await fetchThreadsSearchOutcome('Urus', 10, db, {
+      hydratePosts: false,
+      useExternalSearchFallbacks: false,
       usePublicSearch: true,
       publicSearch: async () => ({ candidates: [], status: 'blocked', providerUsed: null, blockedProviders: ['threads_public_search'] })
     })
 
     const second = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      hydratePosts: false,
+      useExternalSearchFallbacks: false,
       usePublicSearch: true,
       publicSearch: async () => { throw new Error('public search should be cooling down') }
     })
@@ -146,6 +163,7 @@ describe('threads search cache and cooldown', () => {
     const db = openMemoryDatabase()
 
     const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      hydratePosts: false,
       usePublicSearch: false,
       useBrowser: true,
       browserSearch: async () => ({ candidates: [], status: 'no_results', providerUsed: null, blockedProviders: [] }),
@@ -163,6 +181,7 @@ describe('threads search cache and cooldown', () => {
   it('skips a provider after it was blocked once', async () => {
     const db = openMemoryDatabase()
     await fetchThreadsSearchOutcome('法拉利', 10, db, {
+      hydratePosts: false,
       usePublicSearch: false,
       fetchBing: okResponse('<html>Verify you are human</html>'),
       fetchDuckDuckGo: okResponse('<html/>'),
@@ -171,6 +190,7 @@ describe('threads search cache and cooldown', () => {
     })
 
     const second = await fetchThreadsSearchOutcome('法拉利', 10, db, {
+      hydratePosts: false,
       usePublicSearch: false,
       fetchBing: async () => { throw new Error('Bing should be cooling down') },
       fetchDuckDuckGo: okResponse('<a href="https://www.threads.net/@cars/post/2">法拉利 車主心得</a>'),

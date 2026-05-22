@@ -1,6 +1,7 @@
 import type { AppDatabase } from '../db.js'
 import { extractThreadsLinks, fetchThreadsFallbackOutcome, type ThreadsFallbackOptions, type ThreadsFallbackOutcome, type ThreadsFallbackProvider, type ThreadsSearchCandidate } from './threads-fallback-search.js'
 import { fetchThreadsBrowserSearchOutcome } from './threads-browser-search.js'
+import { hydrateThreadsPostCandidates } from './threads-post-hydrator.js'
 import { fetchThreadsPublicSearchOutcome, type ThreadsPublicSearchProvider } from './threads-public-search.js'
 
 export type { ThreadsSearchCandidate, ThreadsFallbackOutcome, ThreadsFallbackProvider }
@@ -9,7 +10,7 @@ export { extractThreadsLinks }
 const MAX_RESULTS = 10
 const FRESH_CACHE_MS = 30 * 60 * 1000
 const STALE_CACHE_MS = 24 * 60 * 60 * 1000
-const THREADS_PUBLIC_MEDIA_CACHE_SCHEMA_VERSION = 1
+const THREADS_SEARCH_MEDIA_CACHE_SCHEMA_VERSION = 2
 const PROVIDER_COOLDOWN_MS: Record<ThreadsFallbackProvider, number> = {
   threads_public_search: 20 * 60 * 1000,
   duckduckgo_browser: 20 * 60 * 1000,
@@ -25,9 +26,10 @@ type ThreadsSearchOptions = ThreadsFallbackOptions & {
   usePublicSearch?: boolean
   useBrowser?: boolean
   useExternalSearchFallbacks?: boolean
+  hydratePosts?: boolean
 }
 type CachedThreadsFallbackOutcome = ThreadsFallbackOutcome & {
-  publicSearchMediaSchemaVersion?: number
+  searchMediaSchemaVersion?: number
 }
 
 export async function fetchThreadsSearchCandidates(keyword: string, limit = MAX_RESULTS, db?: AppDatabase, options: ThreadsSearchOptions = {}): Promise<ThreadsSearchCandidate[]> {
@@ -61,7 +63,7 @@ export async function fetchThreadsSearchOutcome(keyword: string, limit = MAX_RES
   const browserOutcome = await maybeRunBrowserSearch(keyword, limit, browserSkipProviders, options)
   recordBlockedProviders(db, browserOutcome.blockedProviders)
   if (browserOutcome.status === 'ok') {
-    const outcome = { ...browserOutcome, blockedProviders: uniqueProviders([...publicOutcome.blockedProviders, ...browserOutcome.blockedProviders]) }
+    const outcome = await maybeHydrateOutcome({ ...browserOutcome, blockedProviders: uniqueProviders([...publicOutcome.blockedProviders, ...browserOutcome.blockedProviders]) }, options)
     storeCachedOutcome(db, keyword, outcome)
     return outcome
   }
@@ -71,8 +73,9 @@ export async function fetchThreadsSearchOutcome(keyword: string, limit = MAX_RES
   outcome.blockedProviders = uniqueProviders([...publicOutcome.blockedProviders, ...browserOutcome.blockedProviders, ...outcome.blockedProviders])
   recordBlockedProviders(db, outcome.blockedProviders)
   if (outcome.status === 'ok') {
-    storeCachedOutcome(db, keyword, outcome)
-    return outcome
+    const hydrated = await maybeHydrateOutcome(outcome, options)
+    storeCachedOutcome(db, keyword, hydrated)
+    return hydrated
   }
 
   const stale = getCachedOutcome(db, keyword, STALE_CACHE_MS)
@@ -99,8 +102,8 @@ function getCachedOutcome(db: AppDatabase, keyword: string, maxAgeMs: number): T
   if (Date.now() - Date.parse(row.cached_at) > maxAgeMs) return null
   try {
     const parsed = JSON.parse(row.outcome_json) as CachedThreadsFallbackOutcome
-    if (parsed.providerUsed === 'threads_public_search' && parsed.publicSearchMediaSchemaVersion !== THREADS_PUBLIC_MEDIA_CACHE_SCHEMA_VERSION) return null
-    const { publicSearchMediaSchemaVersion: _schemaVersion, ...outcome } = parsed
+    if (parsed.searchMediaSchemaVersion !== THREADS_SEARCH_MEDIA_CACHE_SCHEMA_VERSION) return null
+    const { searchMediaSchemaVersion: _schemaVersion, ...outcome } = parsed
     return outcome
   } catch {
     return null
@@ -118,20 +121,22 @@ async function maybeRunBrowserSearch(keyword: string, limit: number, skipProvide
 }
 
 function shouldRunExternalSearchFallbacks(options: ThreadsSearchOptions) {
-  const hasRawFetchOverride = Boolean(options.fetchBing || options.fetchDuckDuckGo || options.fetchDuckDuckGoLite || options.fetchGoogle)
-  const explicitlyRequested = options.useBrowser === true || Boolean(options.browserSearch) || hasRawFetchOverride
-  return options.useExternalSearchFallbacks ?? (explicitlyRequested || process.env.AUTO_SOCIAL_EXTERNAL_SEARCH_FALLBACKS === '1')
+  return options.useExternalSearchFallbacks ?? process.env.AUTO_SOCIAL_EXTERNAL_SEARCH_FALLBACKS !== '0'
 }
 
 function storeCachedOutcome(db: AppDatabase, keyword: string, outcome: ThreadsFallbackOutcome) {
-  const cached: CachedThreadsFallbackOutcome = outcome.providerUsed === 'threads_public_search'
-    ? { ...outcome, publicSearchMediaSchemaVersion: THREADS_PUBLIC_MEDIA_CACHE_SCHEMA_VERSION }
-    : outcome
+  const cached: CachedThreadsFallbackOutcome = { ...outcome, searchMediaSchemaVersion: THREADS_SEARCH_MEDIA_CACHE_SCHEMA_VERSION }
   db.prepare(`
     INSERT INTO threads_search_cache (keyword, outcome_json, cached_at)
     VALUES (?, ?, ?)
     ON CONFLICT(keyword) DO UPDATE SET outcome_json = excluded.outcome_json, cached_at = excluded.cached_at
   `).run(normaliseKeyword(keyword), JSON.stringify(cached), new Date().toISOString())
+}
+
+async function maybeHydrateOutcome(outcome: ThreadsFallbackOutcome, options: ThreadsSearchOptions): Promise<ThreadsFallbackOutcome> {
+  if (options.hydratePosts === false || outcome.status !== 'ok' || outcome.providerUsed === 'threads_public_search') return outcome
+  const candidates = await hydrateThreadsPostCandidates(outcome.candidates)
+  return { ...outcome, candidates }
 }
 
 function getCoolingProviders(db: AppDatabase): ThreadsFallbackProvider[] {
