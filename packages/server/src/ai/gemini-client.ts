@@ -4,7 +4,7 @@ import { OpenCodeProviderAdapter } from '@kevinsisi/ai-core/provider'
 import type { TextGenerator } from './types.js'
 import { reportToManager } from '../key-pool/report.js'
 import type { AppDatabase } from '../db.js'
-import { getOpenCodePassword, getOpenCodeServers, getOpenCodeTextModel, type OpenCodeServer } from '../opencode-settings.js'
+import { getOpenCodePassword, getOpenCodeServers, getOpenCodeTextModel, getOpenCodeTextVariant, type OpenCodeServer } from '../opencode-settings.js'
 
 export const DEFAULT_GEMINI_MODEL = process.env.GEMINI_DEFAULT_MODEL ?? process.env.GEMINI_MODEL ?? 'gemini-2.5-flash'
 const DEFAULT_MAX_OUTPUT_TOKENS = 2048
@@ -17,10 +17,10 @@ interface CachedAdapter {
 let cachedAdapters: CachedAdapter[] = []
 let cachedSignature = ''
 
-function buildAdapter(server: OpenCodeServer, password: string): OpenCodeProviderAdapter {
+function buildAdapter(server: OpenCodeServer, password: string, variant: string): OpenCodeProviderAdapter {
   return new OpenCodeProviderAdapter(
     { type: 'api', provider: 'opencode', apiKey: password, baseURL: server.baseUrl, credentialLabel: server.id },
-    { defaultModel: { providerID: 'google', id: 'gemini-2.5-flash' }, basicAuth: !!password },
+    { defaultModel: { providerID: 'google', id: 'gemini-2.5-flash' }, basicAuth: !!password, variant },
   )
 }
 
@@ -44,9 +44,10 @@ function getOpenCodeAdapters(db: AppDatabase | null): CachedAdapter[] {
     return cachedAdapters
   }
   const password = process.env.OPENCODE_SERVER_PASSWORD ?? ''
-  const signature = `${password}|${servers.map((s) => `${s.id}=${s.baseUrl}`).join('|')}`
+  const variant = db ? getOpenCodeTextVariant(db) : 'medium'
+  const signature = `${password}|${variant}|${servers.map((s) => `${s.id}=${s.baseUrl}`).join('|')}`
   if (cachedSignature === signature && cachedAdapters.length === servers.length) return cachedAdapters
-  cachedAdapters = servers.map((server) => ({ server, adapter: buildAdapter(server, password) }))
+  cachedAdapters = servers.map((server) => ({ server, adapter: buildAdapter(server, password, variant) }))
   cachedSignature = signature
   return cachedAdapters
 }

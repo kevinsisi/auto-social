@@ -1418,10 +1418,13 @@ function SettingsPage() {
   const [openCodeServersText, setOpenCodeServersText] = useState('')
   const [openCodeTextModel, setOpenCodeTextModel] = useState('')
   const [openCodeVisionModel, setOpenCodeVisionModel] = useState('')
+  const [openCodeTextVariant, setOpenCodeTextVariant] = useState<'' | 'default' | 'medium' | 'high'>('')
+  const [openCodeVisionVariant, setOpenCodeVisionVariant] = useState<'' | 'default' | 'medium' | 'high'>('')
   const [openCodeModels, setOpenCodeModels] = useState<OpenCodeModel[]>([])
   const [openCodeModelsLoading, setOpenCodeModelsLoading] = useState(false)
   const [openCodeModelsWarning, setOpenCodeModelsWarning] = useState<string | null>(null)
   const [openCodeModelsSource, setOpenCodeModelsSource] = useState<string | null>(null)
+  const [openCodeModelSearch, setOpenCodeModelSearch] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -1477,17 +1480,20 @@ function SettingsPage() {
         : '')
       setOpenCodeTextModel(data.openCode.textModelSource === 'setting' ? data.openCode.textModel : '')
       setOpenCodeVisionModel(data.openCode.visionModelSource === 'setting' ? data.openCode.visionModel : '')
+      setOpenCodeTextVariant(data.openCode.textVariantSource === 'setting' ? data.openCode.textVariant : '')
+      setOpenCodeVisionVariant(data.openCode.visionVariantSource === 'setting' ? data.openCode.visionVariant : '')
     } catch (err) { setError(getMessage(err)) }
   }
   async function saveOpenCodeSettings(e: React.FormEvent) {
     e.preventDefault(); setError(null)
     try {
-      const body: { servers?: string; textModel?: string; visionModel?: string } = {}
-      // Always send servers (UI shows the textarea even when empty so the
-      // user can clear all rows by submitting an empty box).
-      body.servers = openCodeServersText
-      body.textModel = openCodeTextModel
-      body.visionModel = openCodeVisionModel
+      const body = {
+        servers: openCodeServersText,
+        textModel: openCodeTextModel,
+        visionModel: openCodeVisionModel,
+        textVariant: openCodeTextVariant,
+        visionVariant: openCodeVisionVariant,
+      }
       const data = await api.updateOpenCodeSettings(body)
       setOpenCode(data.openCode)
       setOpenCodeServersText(data.openCode.serversSource === 'setting'
@@ -1495,12 +1501,14 @@ function SettingsPage() {
         : '')
       setOpenCodeTextModel(data.openCode.textModelSource === 'setting' ? data.openCode.textModel : '')
       setOpenCodeVisionModel(data.openCode.visionModelSource === 'setting' ? data.openCode.visionModel : '')
+      setOpenCodeTextVariant(data.openCode.textVariantSource === 'setting' ? data.openCode.textVariant : '')
+      setOpenCodeVisionVariant(data.openCode.visionVariantSource === 'setting' ? data.openCode.visionVariant : '')
       await refreshOpenCodeModels()
       setMessage('OpenCode 設定已儲存到 DB。')
     } catch (err) { setError(getMessage(err)) }
   }
   async function clearOpenCodeSettings() {
-    if (!window.confirm('要清除 DB 的 OpenCode 設定嗎？清除後會回到 env (OPENCODE_SERVERS / OPENCODE_URL / OPENCODE_BASE_URL / OPENCODE_MODEL / OPENCODE_VISION_MODEL) fallback；若 env 也沒設定，AI 文字呼叫會直接走 Gemini key-pool。')) return
+    if (!window.confirm('要清除 DB 的 OpenCode 設定嗎？清除後會回到 env fallback；若 env 也沒設定，AI 文字呼叫會直接走 Gemini key-pool。')) return
     setError(null)
     try {
       const data = await api.clearOpenCodeSettings()
@@ -1508,6 +1516,8 @@ function SettingsPage() {
       setOpenCodeServersText('')
       setOpenCodeTextModel('')
       setOpenCodeVisionModel('')
+      setOpenCodeTextVariant('')
+      setOpenCodeVisionVariant('')
       await refreshOpenCodeModels()
       setMessage('OpenCode DB 設定已清除。')
     } catch (err) { setError(getMessage(err)) }
@@ -1831,64 +1841,121 @@ function SettingsPage() {
         </div>
       </>}
 
-      {section === 'opencode' && <form onSubmit={saveOpenCodeSettings} className="border-2 border-asphalt bg-paper p-4">
-        <h3 className="text-2xl font-black">OpenCode Provider</h3>
-        <p className="mt-1 text-sm">AI 文字呼叫優先走 OpenCode，逐個 server 嘗試直到成功；全部失敗才 fallback 到 Gemini key pool。DB 設定優先於 env（<code>OPENCODE_SERVERS</code> / <code>OPENCODE_URL</code> / <code>OPENCODE_MODEL</code> / <code>OPENCODE_VISION_MODEL</code>）。canonical 部署為 no-auth；server 密碼由 env <code>OPENCODE_SERVER_PASSWORD</code> 控制。</p>
-        <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
-          <Info label="目前 server 數" value={openCode ? String(openCode.servers.length) : '讀取中…'} />
-          <Info label="Text 模型" value={openCode?.textModel ?? '讀取中…'} />
-          <Info label="Vision 模型" value={openCode?.visionModel ?? '讀取中…'} />
-          <Info label="Servers 來源" value={openCode ? (openCode.serversSource === 'setting' ? 'DB 設定' : openCode.serversSource === 'env' ? '環境變數' : '未設定') : '讀取中…'} />
-          <Info label="Text 模型來源" value={openCode ? (openCode.textModelSource === 'setting' ? 'DB 設定' : openCode.textModelSource === 'env' ? '環境變數' : '預設值') : '讀取中…'} />
-          <Info label="Vision 模型來源" value={openCode ? (openCode.visionModelSource === 'setting' ? 'DB 設定' : openCode.visionModelSource === 'env' ? '環境變數' : '預設值') : '讀取中…'} />
-        </div>
-        <label className="mt-4 block text-sm font-bold">OpenCode Servers（一行一個 URL）</label>
-        <textarea
-          className="mt-1 min-h-32 w-full border-2 border-asphalt bg-[#fffaf2] p-3 font-mono text-sm outline-none"
-          value={openCodeServersText}
-          onChange={(e) => setOpenCodeServersText(e.target.value)}
-          placeholder={'https://provider-amd.sisihome.org\nhttps://provider-amd2.sisihome.org'}
-        />
-        <div className="mt-3 flex items-center gap-3">
-          <label className="text-sm font-bold">Model 列表</label>
-          <button
-            type="button"
-            onClick={refreshOpenCodeModels}
-            disabled={openCodeModelsLoading}
-            className="min-h-9 border-2 border-asphalt bg-paper px-3 py-1 text-xs font-bold disabled:opacity-50"
-          >{openCodeModelsLoading ? '載入中…' : '重新整理'}</button>
-          {openCodeModelsSource && <span className="text-xs text-asphalt/70">來源：{openCodeModelsSource}</span>}
-          {openCodeModelsWarning && <span className="text-xs text-signal">{openCodeModelsWarning}</span>}
-        </div>
-        <label className="mt-3 block text-sm font-bold">Text Model</label>
-        <select
-          className="mt-1 w-full border-2 border-asphalt bg-[#fffaf2] p-3 font-mono text-sm outline-none"
-          value={openCodeTextModel}
-          onChange={(e) => setOpenCodeTextModel(e.target.value)}
-          disabled={openCodeModels.length === 0}
-        >
-          <option value="">— 使用預設（{openCode?.textModel ?? 'google/gemini-2.5-flash'}）—</option>
-          {openCodeModels.map((m) => (
-            <option key={`text-${m.id}`} value={m.id}>{m.id}{m.name && m.name !== m.id.split('/').slice(-1)[0] ? ` — ${m.name}` : ''}</option>
-          ))}
-        </select>
-        <label className="mt-3 block text-sm font-bold">Vision Model</label>
-        <select
-          className="mt-1 w-full border-2 border-asphalt bg-[#fffaf2] p-3 font-mono text-sm outline-none"
-          value={openCodeVisionModel}
-          onChange={(e) => setOpenCodeVisionModel(e.target.value)}
-          disabled={openCodeModels.length === 0}
-        >
-          <option value="">— 使用預設（{openCode?.visionModel ?? 'google/gemini-2.5-flash'}）—</option>
-          {openCodeModels.map((m) => (
-            <option key={`vision-${m.id}`} value={m.id}>{m.id}{m.name && m.name !== m.id.split('/').slice(-1)[0] ? ` — ${m.name}` : ''}</option>
-          ))}
-        </select>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button type="submit" className="min-h-11 border-2 border-asphalt bg-asphalt px-4 py-2 font-bold text-paper">儲存到 DB</button>
-          <button type="button" onClick={clearOpenCodeSettings} className="min-h-11 border-2 border-asphalt bg-paper px-4 py-2 font-bold">清除 DB 設定</button>
-        </div>
-      </form>}
+      {section === 'opencode' && (() => {
+        // Group + filter models for the two select dropdowns.
+        const search = openCodeModelSearch.trim().toLowerCase()
+        const filtered = search
+          ? openCodeModels.filter((m) => m.id.toLowerCase().includes(search) || m.name.toLowerCase().includes(search))
+          : openCodeModels
+        const grouped = new Map<string, OpenCodeModel[]>()
+        for (const model of filtered) {
+          if (!grouped.has(model.provider)) grouped.set(model.provider, [])
+          grouped.get(model.provider)!.push(model)
+        }
+        const renderModelOptions = (selectId: string) => (
+          Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([provider, models]) => (
+            <optgroup key={`${selectId}-${provider}`} label={provider}>
+              {models.map((m) => (
+                <option key={`${selectId}-${m.id}`} value={m.id}>
+                  {m.id.split('/').slice(1).join('/')}{m.name && m.name !== m.id.split('/').slice(-1)[0] ? ` — ${m.name}` : ''}
+                </option>
+              ))}
+            </optgroup>
+          ))
+        )
+        return (
+        <form onSubmit={saveOpenCodeSettings} className="border-2 border-asphalt bg-paper p-4">
+          <h3 className="text-2xl font-black">OpenCode Provider</h3>
+          <p className="mt-1 text-sm">AI 文字呼叫優先走 OpenCode，逐個 server 嘗試直到成功；全部失敗才 fallback 到 Gemini key pool。DB 設定優先於 env。Server 密碼由 env <code>OPENCODE_SERVER_PASSWORD</code> 控制。預設 model = <code>openai/gpt-5.5</code> · variant = <code>medium</code>。</p>
+          <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
+            <Info label="目前 server 數" value={openCode ? String(openCode.servers.length) : '讀取中…'} />
+            <Info label="Text" value={openCode ? `${openCode.textModel} (${openCode.textVariant})` : '讀取中…'} />
+            <Info label="Vision" value={openCode ? `${openCode.visionModel} (${openCode.visionVariant})` : '讀取中…'} />
+          </div>
+          <label className="mt-4 block text-sm font-bold">OpenCode Servers（一行一個 URL）</label>
+          <textarea
+            className="mt-1 min-h-28 w-full border-2 border-asphalt bg-[#fffaf2] p-3 font-mono text-sm outline-none"
+            value={openCodeServersText}
+            onChange={(e) => setOpenCodeServersText(e.target.value)}
+            placeholder={'https://provider-amd.sisihome.org\nhttps://provider-amd2.sisihome.org'}
+          />
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <label className="text-sm font-bold">Model 列表</label>
+            <button
+              type="button"
+              onClick={refreshOpenCodeModels}
+              disabled={openCodeModelsLoading}
+              className="min-h-9 border-2 border-asphalt bg-paper px-3 py-1 text-xs font-bold disabled:opacity-50"
+            >{openCodeModelsLoading ? '載入中…' : '重新整理'}</button>
+            {openCodeModelsSource && <span className="text-xs text-asphalt/70">來源：{openCodeModelsSource}</span>}
+            {openCodeModelsWarning && <span className="text-xs text-signal">{openCodeModelsWarning}</span>}
+          </div>
+          <input
+            type="search"
+            className="mt-2 w-full border-2 border-asphalt bg-[#fffaf2] p-2 font-mono text-sm outline-none"
+            value={openCodeModelSearch}
+            onChange={(e) => setOpenCodeModelSearch(e.target.value)}
+            placeholder="搜尋 model id 或名稱..."
+          />
+          <div className="mt-3 grid gap-3 md:grid-cols-[2fr_1fr]">
+            <div>
+              <label className="block text-sm font-bold">Text Model</label>
+              <select
+                className="mt-1 w-full border-2 border-asphalt bg-[#fffaf2] p-3 font-mono text-sm outline-none"
+                value={openCodeTextModel}
+                onChange={(e) => setOpenCodeTextModel(e.target.value)}
+                disabled={openCodeModels.length === 0}
+              >
+                <option value="">— 使用預設（{openCode?.textModel ?? 'openai/gpt-5.5'}）—</option>
+                {renderModelOptions('text')}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-bold">Text Variant</label>
+              <select
+                className="mt-1 w-full border-2 border-asphalt bg-[#fffaf2] p-3 font-mono text-sm outline-none"
+                value={openCodeTextVariant}
+                onChange={(e) => setOpenCodeTextVariant(e.target.value as '' | 'default' | 'medium' | 'high')}
+              >
+                <option value="">— 使用預設（{openCode?.textVariant ?? 'medium'}）—</option>
+                <option value="default">default</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-bold">Vision Model</label>
+              <select
+                className="mt-1 w-full border-2 border-asphalt bg-[#fffaf2] p-3 font-mono text-sm outline-none"
+                value={openCodeVisionModel}
+                onChange={(e) => setOpenCodeVisionModel(e.target.value)}
+                disabled={openCodeModels.length === 0}
+              >
+                <option value="">— 使用預設（{openCode?.visionModel ?? 'openai/gpt-5.5'}）—</option>
+                {renderModelOptions('vision')}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-bold">Vision Variant</label>
+              <select
+                className="mt-1 w-full border-2 border-asphalt bg-[#fffaf2] p-3 font-mono text-sm outline-none"
+                value={openCodeVisionVariant}
+                onChange={(e) => setOpenCodeVisionVariant(e.target.value as '' | 'default' | 'medium' | 'high')}
+              >
+                <option value="">— 使用預設（{openCode?.visionVariant ?? 'medium'}）—</option>
+                <option value="default">default</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+              </select>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="submit" className="min-h-11 border-2 border-asphalt bg-asphalt px-4 py-2 font-bold text-paper">儲存到 DB</button>
+            <button type="button" onClick={clearOpenCodeSettings} className="min-h-11 border-2 border-asphalt bg-paper px-4 py-2 font-bold">清除 DB 設定</button>
+          </div>
+        </form>
+        )
+      })()}
 
       {section === 'about' && <div className="border-2 border-asphalt bg-paper p-4">
         <h3 className="text-2xl font-black">關於這個服務</h3>

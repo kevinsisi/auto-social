@@ -291,7 +291,7 @@ export const api = {
   async getOpenCodeSettings() {
     return request<{ openCode: OpenCodeStatus }>('/api/settings/opencode')
   },
-  async updateOpenCodeSettings(body: { servers?: OpenCodeServerInput[] | string; textModel?: string; visionModel?: string }) {
+  async updateOpenCodeSettings(body: { servers?: OpenCodeServerInput[] | string; textModel?: string; visionModel?: string; textVariant?: string; visionVariant?: string }) {
     return request<{ openCode: OpenCodeStatus }>('/api/settings/opencode', {
       method: 'PUT',
       body: JSON.stringify(body)
@@ -333,6 +333,8 @@ export type OpenCodeServerInput = {
   baseUrl: string
 }
 
+export type OpenCodeVariant = 'default' | 'medium' | 'high'
+
 export type OpenCodeStatus = {
   servers: OpenCodeServer[]
   serversSource: OpenCodeSettingSource
@@ -341,4 +343,8 @@ export type OpenCodeStatus = {
   textModelSource: OpenCodeSettingSource
   visionModel: string
   visionModelSource: OpenCodeSettingSource
+  textVariant: OpenCodeVariant
+  textVariantSource: OpenCodeSettingSource
+  visionVariant: OpenCodeVariant
+  visionVariantSource: OpenCodeSettingSource
 }

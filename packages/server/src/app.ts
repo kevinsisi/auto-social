@@ -20,7 +20,10 @@ import {
   listOpenCodeModels,
   setOpenCodeServers,
   setOpenCodeTextModel,
+  setOpenCodeTextVariant,
   setOpenCodeVisionModel,
+  setOpenCodeVisionVariant,
+  OPENCODE_VARIANTS,
 } from './opencode-settings.js'
 import { getRadarTrends, scanRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
 import { getQueueSnapshot } from './scheduler/task-queue.js'
@@ -73,10 +76,16 @@ const opencodeServerSchema = z.object({
 const opencodeSettingsSchema = z.object({
   servers: z.union([z.array(opencodeServerSchema), z.string().max(4096)]).optional(),
   textModel: z.string().max(120).optional(),
-  visionModel: z.string().max(120).optional()
-}).refine((body) => body.servers !== undefined || body.textModel !== undefined || body.visionModel !== undefined, {
-  message: 'opencode settings: 至少要提供 servers / textModel / visionModel 其中一個欄位。'
-})
+  visionModel: z.string().max(120).optional(),
+  textVariant: z.enum(OPENCODE_VARIANTS).optional().or(z.literal('')),
+  visionVariant: z.enum(OPENCODE_VARIANTS).optional().or(z.literal(''))
+}).refine((body) =>
+  body.servers !== undefined
+  || body.textModel !== undefined
+  || body.visionModel !== undefined
+  || body.textVariant !== undefined
+  || body.visionVariant !== undefined,
+{ message: 'opencode settings: 至少要提供一個欄位。' })
 const clickThreadsLoginSchema = z.object({ x: z.number().min(0), y: z.number().min(0) })
 const typeThreadsLoginSchema = z.object({ text: z.string().min(1).max(512) })
 const pressThreadsLoginSchema = z.object({ key: z.enum(['Enter', 'Tab', 'Escape', 'Backspace']) })
@@ -339,6 +348,8 @@ export function createApp(db: AppDatabase) {
       if (body.servers !== undefined) setOpenCodeServers(db, body.servers)
       if (typeof body.textModel === 'string') setOpenCodeTextModel(db, body.textModel)
       if (typeof body.visionModel === 'string') setOpenCodeVisionModel(db, body.visionModel)
+      if (typeof body.textVariant === 'string') setOpenCodeTextVariant(db, body.textVariant)
+      if (typeof body.visionVariant === 'string') setOpenCodeVisionVariant(db, body.visionVariant)
       res.json({ openCode: getOpenCodeStatus(db) })
     } catch (error) {
       sendError(res, error)

@@ -17,9 +17,15 @@ import type { AppDatabase } from './db.js'
 const SETTING_SERVERS = 'openCode.servers'
 const SETTING_TEXT_MODEL = 'openCode.textModel'
 const SETTING_VISION_MODEL = 'openCode.visionModel'
+const SETTING_TEXT_VARIANT = 'openCode.textVariant'
+const SETTING_VISION_VARIANT = 'openCode.visionVariant'
 
-export const DEFAULT_OPENCODE_TEXT_MODEL = 'google/gemini-2.5-flash'
-export const DEFAULT_OPENCODE_VISION_MODEL = 'google/gemini-2.5-flash'
+export const DEFAULT_OPENCODE_TEXT_MODEL = 'openai/gpt-5.5'
+export const DEFAULT_OPENCODE_VISION_MODEL = 'openai/gpt-5.5'
+export const DEFAULT_OPENCODE_TEXT_VARIANT = 'medium'
+export const DEFAULT_OPENCODE_VISION_VARIANT = 'medium'
+export const OPENCODE_VARIANTS = ['default', 'medium', 'high'] as const
+export type OpenCodeVariant = (typeof OPENCODE_VARIANTS)[number]
 
 export type OpenCodeServer = {
   id: string
@@ -37,6 +43,10 @@ export type OpenCodeStatus = {
   textModelSource: OpenCodeSettingSource
   visionModel: string
   visionModelSource: OpenCodeSettingSource
+  textVariant: OpenCodeVariant
+  textVariantSource: OpenCodeSettingSource
+  visionVariant: OpenCodeVariant
+  visionVariantSource: OpenCodeSettingSource
 }
 
 function trimUrl(value: string): string {
@@ -150,10 +160,48 @@ export function setOpenCodeVisionModel(db: AppDatabase, model: string): void {
   writeJsonSetting(db, SETTING_VISION_MODEL, trimmed)
 }
 
+function normalizeVariant(raw: unknown): OpenCodeVariant | null {
+  if (typeof raw !== 'string') return null
+  const trimmed = raw.trim()
+  return OPENCODE_VARIANTS.includes(trimmed as OpenCodeVariant) ? (trimmed as OpenCodeVariant) : null
+}
+
+export function getOpenCodeTextVariant(db: AppDatabase): OpenCodeVariant {
+  return normalizeVariant(readJsonSetting(db, SETTING_TEXT_VARIANT))
+    ?? normalizeVariant(process.env.OPENCODE_TEXT_VARIANT)
+    ?? DEFAULT_OPENCODE_TEXT_VARIANT
+}
+
+export function setOpenCodeTextVariant(db: AppDatabase, raw: string): void {
+  const variant = normalizeVariant(raw)
+  if (!variant) {
+    deleteSetting(db, SETTING_TEXT_VARIANT)
+    return
+  }
+  writeJsonSetting(db, SETTING_TEXT_VARIANT, variant)
+}
+
+export function getOpenCodeVisionVariant(db: AppDatabase): OpenCodeVariant {
+  return normalizeVariant(readJsonSetting(db, SETTING_VISION_VARIANT))
+    ?? normalizeVariant(process.env.OPENCODE_VISION_VARIANT)
+    ?? DEFAULT_OPENCODE_VISION_VARIANT
+}
+
+export function setOpenCodeVisionVariant(db: AppDatabase, raw: string): void {
+  const variant = normalizeVariant(raw)
+  if (!variant) {
+    deleteSetting(db, SETTING_VISION_VARIANT)
+    return
+  }
+  writeJsonSetting(db, SETTING_VISION_VARIANT, variant)
+}
+
 export function clearOpenCodeSettings(db: AppDatabase): void {
   deleteSetting(db, SETTING_SERVERS)
   deleteSetting(db, SETTING_TEXT_MODEL)
   deleteSetting(db, SETTING_VISION_MODEL)
+  deleteSetting(db, SETTING_TEXT_VARIANT)
+  deleteSetting(db, SETTING_VISION_VARIANT)
 }
 
 export function getOpenCodeStatus(db: AppDatabase): OpenCodeStatus {
@@ -175,7 +223,23 @@ export function getOpenCodeStatus(db: AppDatabase): OpenCodeStatus {
   const visionModel = visionFromSetting ?? visionFromEnv ?? DEFAULT_OPENCODE_VISION_MODEL
   const visionModelSource: OpenCodeSettingSource = visionFromSetting ? 'setting' : visionFromEnv ? 'env' : 'none'
 
-  return { servers, serversSource, envUrl, textModel, textModelSource, visionModel, visionModelSource }
+  const textVariantFromSetting = normalizeVariant(readJsonSetting(db, SETTING_TEXT_VARIANT))
+  const textVariantFromEnv = normalizeVariant(process.env.OPENCODE_TEXT_VARIANT)
+  const textVariant = textVariantFromSetting ?? textVariantFromEnv ?? DEFAULT_OPENCODE_TEXT_VARIANT
+  const textVariantSource: OpenCodeSettingSource = textVariantFromSetting ? 'setting' : textVariantFromEnv ? 'env' : 'none'
+
+  const visionVariantFromSetting = normalizeVariant(readJsonSetting(db, SETTING_VISION_VARIANT))
+  const visionVariantFromEnv = normalizeVariant(process.env.OPENCODE_VISION_VARIANT)
+  const visionVariant = visionVariantFromSetting ?? visionVariantFromEnv ?? DEFAULT_OPENCODE_VISION_VARIANT
+  const visionVariantSource: OpenCodeSettingSource = visionVariantFromSetting ? 'setting' : visionVariantFromEnv ? 'env' : 'none'
+
+  return {
+    servers, serversSource, envUrl,
+    textModel, textModelSource,
+    visionModel, visionModelSource,
+    textVariant, textVariantSource,
+    visionVariant, visionVariantSource,
+  }
 }
 
 /** Server password stays env-only per HomeProject standard (canonical OpenCode is no-auth). */
