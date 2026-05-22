@@ -76,7 +76,7 @@ export function enqueueComposePostDraft(db: AppDatabase) {
 
 export async function composePostTaskHandler(db: AppDatabase, payload: ComposePostInput, options: { generator?: TextGenerator } = {}) {
   const pool = createKeyPool(db)
-  const generator = options.generator ?? createGeminiTextGenerator()
+  const generator = options.generator ?? createGeminiTextGenerator(db)
   const runner = new StepRunner(pool)
   const prompt = buildComposePostPrompt(payload)
   const raw = await runner.runStep({

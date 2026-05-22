@@ -14,6 +14,13 @@ import { DEFAULT_GEMINI_MODEL } from './ai/gemini-client.js'
 import { enqueueComposePostDraft, listPostDrafts, regenerateImageForPostDraft } from './post-drafts.js'
 import { createConfirmedReplyAttempt, getReplyAttempt } from './reply-attempts.js'
 import { clearImageGenKey, DEFAULT_IMAGE_MODEL, getImageGenStatus, setImageGenKey } from './image-gen/settings.js'
+import {
+  clearOpenCodeSettings,
+  getOpenCodeStatus,
+  setOpenCodeServers,
+  setOpenCodeTextModel,
+  setOpenCodeVisionModel,
+} from './opencode-settings.js'
 import { getRadarTrends, scanRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
 import { getQueueSnapshot } from './scheduler/task-queue.js'
 import { getKeywordSchedulerStatus } from './scheduler/keyword-scheduler.js'
@@ -52,6 +59,22 @@ const adminLoginSchema = z.object({ token: z.string().min(1) })
 const imageGenKeySchema = z.object({
   key: z.string().min(8).max(256),
   model: z.string().min(1).max(120).optional()
+})
+const opencodeServerSchema = z.object({
+  id: z.string().max(64).optional(),
+  label: z.string().max(64).optional(),
+  baseUrl: z.string().min(1).max(512)
+}).or(z.object({
+  id: z.string().max(64).optional(),
+  label: z.string().max(64).optional(),
+  url: z.string().min(1).max(512)
+}))
+const opencodeSettingsSchema = z.object({
+  servers: z.union([z.array(opencodeServerSchema), z.string().max(4096)]).optional(),
+  textModel: z.string().max(120).optional(),
+  visionModel: z.string().max(120).optional()
+}).refine((body) => body.servers !== undefined || body.textModel !== undefined || body.visionModel !== undefined, {
+  message: 'opencode settings: 至少要提供 servers / textModel / visionModel 其中一個欄位。'
 })
 const clickThreadsLoginSchema = z.object({ x: z.number().min(0), y: z.number().min(0) })
 const typeThreadsLoginSchema = z.object({ text: z.string().min(1).max(512) })
@@ -299,6 +322,31 @@ export function createApp(db: AppDatabase) {
   app.delete('/api/admin/image-gen/key', requireAdmin, (_req, res) => {
     clearImageGenKey(db)
     res.json({ imageGen: getImageGenStatus(db) })
+  })
+
+  // OpenCode endpoint settings: deliberately no admin-token gate. The values
+  // are deployment-side configuration (server URLs + model ids), not user
+  // secrets, and the canonical HomeProject OpenCode deployment is no-auth
+  // already. Server password is env-only (OPENCODE_SERVER_PASSWORD).
+  app.get('/api/settings/opencode', (_req, res) => {
+    res.json({ openCode: getOpenCodeStatus(db) })
+  })
+
+  app.put('/api/settings/opencode', (req, res) => {
+    try {
+      const body = opencodeSettingsSchema.parse(req.body)
+      if (body.servers !== undefined) setOpenCodeServers(db, body.servers)
+      if (typeof body.textModel === 'string') setOpenCodeTextModel(db, body.textModel)
+      if (typeof body.visionModel === 'string') setOpenCodeVisionModel(db, body.visionModel)
+      res.json({ openCode: getOpenCodeStatus(db) })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.delete('/api/settings/opencode', (_req, res) => {
+    clearOpenCodeSettings(db)
+    res.json({ openCode: getOpenCodeStatus(db) })
   })
 
   app.get('/api/radar/trends', async (_req, res) => {

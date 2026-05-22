@@ -287,5 +287,43 @@ export const api = {
     return request<{ imageGen: { configured: boolean; keySuffix: string | null; model: string } }>('/api/admin/image-gen/key', {
       method: 'DELETE'
     })
+  },
+  async getOpenCodeSettings() {
+    return request<{ openCode: OpenCodeStatus }>('/api/settings/opencode')
+  },
+  async updateOpenCodeSettings(body: { servers?: OpenCodeServerInput[] | string; textModel?: string; visionModel?: string }) {
+    return request<{ openCode: OpenCodeStatus }>('/api/settings/opencode', {
+      method: 'PUT',
+      body: JSON.stringify(body)
+    })
+  },
+  async clearOpenCodeSettings() {
+    return request<{ openCode: OpenCodeStatus }>('/api/settings/opencode', {
+      method: 'DELETE'
+    })
   }
+}
+
+export type OpenCodeSettingSource = 'setting' | 'env' | 'none'
+
+export type OpenCodeServer = {
+  id: string
+  label: string
+  baseUrl: string
+}
+
+export type OpenCodeServerInput = {
+  id?: string
+  label?: string
+  baseUrl: string
+}
+
+export type OpenCodeStatus = {
+  servers: OpenCodeServer[]
+  serversSource: OpenCodeSettingSource
+  envUrl: string
+  textModel: string
+  textModelSource: OpenCodeSettingSource
+  visionModel: string
+  visionModelSource: OpenCodeSettingSource
 }

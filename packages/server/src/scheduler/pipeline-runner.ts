@@ -60,7 +60,7 @@ export async function runPipelineOnCandidate(db: AppDatabase, candidateId: strin
   }
 
   candidate.imageAnalysis = await resolveImageAnalysis(db, candidate, row.image_analysis_json, pool, options.imageAnalyzer ?? createGeminiImageAnalyzer())
-  const generator = options.generator ?? createGeminiTextGenerator()
+  const generator = options.generator ?? createGeminiTextGenerator(db)
   const pipeline = new SocialPipeline(pool, generator, options.voiceProfile ?? DEFAULT_VOICE_PROFILE, options.pipelineOptions ?? A1_PIPELINE_OPTIONS)
 
   try {
