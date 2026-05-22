@@ -301,7 +301,22 @@ export const api = {
     return request<{ openCode: OpenCodeStatus }>('/api/settings/opencode', {
       method: 'DELETE'
     })
+  },
+  async listOpenCodeModels() {
+    return request<OpenCodeModelsResult>('/api/settings/opencode/models')
   }
+}
+
+export type OpenCodeModel = {
+  id: string
+  name: string
+  provider: string
+}
+
+export type OpenCodeModelsResult = {
+  models: OpenCodeModel[]
+  sourceServerId: string | null
+  warning: string | null
 }
 
 export type OpenCodeSettingSource = 'setting' | 'env' | 'none'

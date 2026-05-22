@@ -182,3 +182,95 @@ export function getOpenCodeStatus(db: AppDatabase): OpenCodeStatus {
 export function getOpenCodePassword(): string {
   return process.env.OPENCODE_SERVER_PASSWORD ?? ''
 }
+
+export type OpenCodeModel = {
+  /** Fully-qualified id, e.g. "openai/gpt-5.5" — pass this back as the textModel / visionModel setting. */
+  id: string
+  /** Display name from the server, falls back to the bare model id. */
+  name: string
+  /** Underlying provider id within the OpenCode server, e.g. "openai", "google". */
+  provider: string
+}
+
+export type OpenCodeModelsResult = {
+  models: OpenCodeModel[]
+  /** id of the server that actually answered; null when every server failed. */
+  sourceServerId: string | null
+  /** Truncated error message from the last attempted server when all fail. */
+  warning: string | null
+}
+
+function authHeaders(password: string): Record<string, string> {
+  if (!password) return {}
+  return {
+    Authorization: `Basic ${Buffer.from(`opencode:${password}`).toString('base64')}`,
+  }
+}
+
+async function fetchOpenCodeProviders(baseUrl: string, password: string): Promise<unknown> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 10_000)
+  try {
+    const response = await fetch(`${baseUrl}/provider`, {
+      headers: authHeaders(password),
+      signal: controller.signal,
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    return await response.json()
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+function flattenProviders(raw: unknown): OpenCodeModel[] {
+  const providers: Array<{ id?: unknown; models?: unknown }> = Array.isArray(raw)
+    ? (raw as Array<{ id?: unknown; models?: unknown }>)
+    : Array.isArray((raw as { all?: unknown[] })?.all)
+      ? ((raw as { all: Array<{ id?: unknown; models?: unknown }> }).all)
+      : []
+  const out: OpenCodeModel[] = []
+  for (const provider of providers) {
+    const pid = typeof provider.id === 'string' ? provider.id : ''
+    const modelMap = provider.models
+    if (!pid || !modelMap || typeof modelMap !== 'object' || Array.isArray(modelMap)) continue
+    for (const [modelId, info] of Object.entries(modelMap as Record<string, unknown>)) {
+      const name = info && typeof info === 'object' && typeof (info as { name?: unknown }).name === 'string'
+        ? (info as { name: string }).name
+        : modelId
+      out.push({ id: `${pid}/${modelId}`, name, provider: pid })
+    }
+  }
+  return out
+}
+
+/**
+ * Walk every configured OpenCode server until one returns its provider list,
+ * then flatten the response into `<providerID>/<modelID>` ids the UI can pass
+ * back as textModel / visionModel. Result is shaped so the UI can show
+ * `sourceServerId` and surface a warning when no server is reachable.
+ */
+export async function listOpenCodeModels(db: AppDatabase): Promise<OpenCodeModelsResult> {
+  const servers = getOpenCodeServers(db)
+  if (servers.length === 0) {
+    return { models: [], sourceServerId: null, warning: '尚未設定 OpenCode server。' }
+  }
+  const password = getOpenCodePassword()
+  let lastError: unknown = null
+  for (const server of servers) {
+    try {
+      const raw = await fetchOpenCodeProviders(server.baseUrl, password)
+      const models = flattenProviders(raw)
+      if (models.length > 0) {
+        return { models, sourceServerId: server.id, warning: null }
+      }
+    } catch (err) {
+      lastError = err
+    }
+  }
+  const detail = lastError instanceof Error ? lastError.message.slice(0, 160) : null
+  return {
+    models: [],
+    sourceServerId: null,
+    warning: detail ?? '無法從任何已設定的 OpenCode server 取得 model 列表。',
+  }
+}

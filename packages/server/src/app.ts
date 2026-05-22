@@ -17,6 +17,7 @@ import { clearImageGenKey, DEFAULT_IMAGE_MODEL, getImageGenStatus, setImageGenKe
 import {
   clearOpenCodeSettings,
   getOpenCodeStatus,
+  listOpenCodeModels,
   setOpenCodeServers,
   setOpenCodeTextModel,
   setOpenCodeVisionModel,
@@ -347,6 +348,15 @@ export function createApp(db: AppDatabase) {
   app.delete('/api/settings/opencode', (_req, res) => {
     clearOpenCodeSettings(db)
     res.json({ openCode: getOpenCodeStatus(db) })
+  })
+
+  app.get('/api/settings/opencode/models', async (_req, res) => {
+    try {
+      const result = await listOpenCodeModels(db)
+      res.json(result)
+    } catch (error) {
+      sendError(res, error)
+    }
   })
 
   app.get('/api/radar/trends', async (_req, res) => {

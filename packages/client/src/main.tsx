@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { api, type OpenCodeStatus } from './api'
+import { api, type OpenCodeModel, type OpenCodeStatus } from './api'
 import { evaluateKeywordQuality, type KeywordQuality } from './keyword-quality'
 import './styles.css'
 import type { AdminSession, FeedbackDecision, KeyStatus, KeywordObservation, ObservedPost, PatrolCard, PostDraft, QueueSnapshot, RadarTerm, ReplyAttempt, ReplyAttemptStatus, ScamSignal, SchedulerStatus, Sentiment, SponsoredSignal, TaskStatus, TaskType, ThreadsSessionStatus, ThreadsThrottleSnapshot } from './types'
@@ -1418,6 +1418,10 @@ function SettingsPage() {
   const [openCodeServersText, setOpenCodeServersText] = useState('')
   const [openCodeTextModel, setOpenCodeTextModel] = useState('')
   const [openCodeVisionModel, setOpenCodeVisionModel] = useState('')
+  const [openCodeModels, setOpenCodeModels] = useState<OpenCodeModel[]>([])
+  const [openCodeModelsLoading, setOpenCodeModelsLoading] = useState(false)
+  const [openCodeModelsWarning, setOpenCodeModelsWarning] = useState<string | null>(null)
+  const [openCodeModelsSource, setOpenCodeModelsSource] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -1428,6 +1432,7 @@ function SettingsPage() {
     void refreshAbout()
     void refreshImageGen()
     void refreshOpenCode()
+    void refreshOpenCodeModels()
     const onHashChange = () => setSection(getSettingsSection())
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
@@ -1490,6 +1495,7 @@ function SettingsPage() {
         : '')
       setOpenCodeTextModel(data.openCode.textModelSource === 'setting' ? data.openCode.textModel : '')
       setOpenCodeVisionModel(data.openCode.visionModelSource === 'setting' ? data.openCode.visionModel : '')
+      await refreshOpenCodeModels()
       setMessage('OpenCode 設定已儲存到 DB。')
     } catch (err) { setError(getMessage(err)) }
   }
@@ -1502,8 +1508,24 @@ function SettingsPage() {
       setOpenCodeServersText('')
       setOpenCodeTextModel('')
       setOpenCodeVisionModel('')
+      await refreshOpenCodeModels()
       setMessage('OpenCode DB 設定已清除。')
     } catch (err) { setError(getMessage(err)) }
+  }
+  async function refreshOpenCodeModels() {
+    setOpenCodeModelsLoading(true)
+    try {
+      const data = await api.listOpenCodeModels()
+      setOpenCodeModels(data.models)
+      setOpenCodeModelsWarning(data.warning)
+      setOpenCodeModelsSource(data.sourceServerId)
+    } catch (err) {
+      setOpenCodeModels([])
+      setOpenCodeModelsWarning(getMessage(err))
+      setOpenCodeModelsSource(null)
+    } finally {
+      setOpenCodeModelsLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -1827,20 +1849,41 @@ function SettingsPage() {
           onChange={(e) => setOpenCodeServersText(e.target.value)}
           placeholder={'https://provider-amd.sisihome.org\nhttps://provider-amd2.sisihome.org'}
         />
+        <div className="mt-3 flex items-center gap-3">
+          <label className="text-sm font-bold">Model 列表</label>
+          <button
+            type="button"
+            onClick={refreshOpenCodeModels}
+            disabled={openCodeModelsLoading}
+            className="min-h-9 border-2 border-asphalt bg-paper px-3 py-1 text-xs font-bold disabled:opacity-50"
+          >{openCodeModelsLoading ? '載入中…' : '重新整理'}</button>
+          {openCodeModelsSource && <span className="text-xs text-asphalt/70">來源：{openCodeModelsSource}</span>}
+          {openCodeModelsWarning && <span className="text-xs text-signal">{openCodeModelsWarning}</span>}
+        </div>
         <label className="mt-3 block text-sm font-bold">Text Model</label>
-        <input
+        <select
           className="mt-1 w-full border-2 border-asphalt bg-[#fffaf2] p-3 font-mono text-sm outline-none"
           value={openCodeTextModel}
           onChange={(e) => setOpenCodeTextModel(e.target.value)}
-          placeholder="google/gemini-2.5-flash"
-        />
+          disabled={openCodeModels.length === 0}
+        >
+          <option value="">— 使用預設（{openCode?.textModel ?? 'google/gemini-2.5-flash'}）—</option>
+          {openCodeModels.map((m) => (
+            <option key={`text-${m.id}`} value={m.id}>{m.id}{m.name && m.name !== m.id.split('/').slice(-1)[0] ? ` — ${m.name}` : ''}</option>
+          ))}
+        </select>
         <label className="mt-3 block text-sm font-bold">Vision Model</label>
-        <input
+        <select
           className="mt-1 w-full border-2 border-asphalt bg-[#fffaf2] p-3 font-mono text-sm outline-none"
           value={openCodeVisionModel}
           onChange={(e) => setOpenCodeVisionModel(e.target.value)}
-          placeholder="google/gemini-2.5-flash"
-        />
+          disabled={openCodeModels.length === 0}
+        >
+          <option value="">— 使用預設（{openCode?.visionModel ?? 'google/gemini-2.5-flash'}）—</option>
+          {openCodeModels.map((m) => (
+            <option key={`vision-${m.id}`} value={m.id}>{m.id}{m.name && m.name !== m.id.split('/').slice(-1)[0] ? ` — ${m.name}` : ''}</option>
+          ))}
+        </select>
         <div className="mt-4 flex flex-wrap gap-2">
           <button type="submit" className="min-h-11 border-2 border-asphalt bg-asphalt px-4 py-2 font-bold text-paper">儲存到 DB</button>
           <button type="button" onClick={clearOpenCodeSettings} className="min-h-11 border-2 border-asphalt bg-paper px-4 py-2 font-bold">清除 DB 設定</button>
