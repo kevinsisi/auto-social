@@ -30,6 +30,39 @@ describe('normaliseThreadsPublicResults', () => {
 
     expect(candidates.map((candidate) => candidate.url)).toEqual(['https://www.threads.com/@cars/post/c'])
   })
+
+  it('preserves public Threads media and engagement for downstream display and image analysis', () => {
+    const image = 'https://scontent.cdninstagram.com/v/t51.82787-15/photo.webp'
+    const poster = 'https://scontent.cdninstagram.com/v/t51.82787-15/poster.webp'
+    const candidates = normaliseThreadsPublicResults([
+      {
+        url: 'https://www.threads.com/@cars/post/media1',
+        title: 'cars',
+        excerpt: 'Lamborghini Urus SE 實拍分享',
+        author: '@cars',
+        postedAt: '2026-05-22T08:00:00.000Z',
+        likes: 12,
+        replyCount: 3,
+        reposts: 2,
+        shares: 1,
+        images: [image],
+        videos: [{ src: poster, poster }]
+      }
+    ], 'Urus')
+
+    expect(candidates[0]).toMatchObject({
+      url: 'https://www.threads.com/@cars/post/media1',
+      source: 'threads_search',
+      author: '@cars',
+      postedAt: '2026-05-22T08:00:00.000Z',
+      likes: 12,
+      replyCount: 3,
+      reposts: 2,
+      shares: 1,
+      images: [image],
+      videos: [{ src: poster, poster }]
+    })
+  })
 })
 
 describe('isThreadsPublicSearchBlock', () => {

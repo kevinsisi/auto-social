@@ -30,6 +30,7 @@ type CandidateRow = {
   text: string
   engagement_json: string | null
   images_json: string | null
+  videos_json: string | null
   image_analysis_json: string | null
 }
 
@@ -40,13 +41,13 @@ export type PipelineRunOutcome =
 
 export async function runPipelineOnCandidate(db: AppDatabase, candidateId: string, options: PipelineRunnerOptions = {}): Promise<PipelineRunOutcome> {
   const row = db.prepare(`
-    SELECT id, source, url, author, title, text, engagement_json, images_json, image_analysis_json
+    SELECT id, source, url, author, title, text, engagement_json, images_json, videos_json, image_analysis_json
     FROM trend_candidates WHERE id = ?
   `).get(candidateId) as CandidateRow | undefined
   if (!row) return { candidateId, status: 'skipped', reason: 'candidate not found' }
 
   const pool = createKeyPool(db)
-  const imageUrls = parseStringArray(row.images_json)
+  const imageUrls = uniqueStrings([...parseStringArray(row.images_json), ...parseVideoPosterUrls(row.videos_json)])
 
   const candidate: SourceCandidateInput = {
     id: row.id,
@@ -188,6 +189,18 @@ function parseJson(text: string | null): unknown {
 function parseStringArray(text: string | null): string[] {
   const parsed = parseJson(text)
   return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string' && value.trim().length > 0) : []
+}
+
+function parseVideoPosterUrls(text: string | null): string[] {
+  const parsed = parseJson(text)
+  if (!Array.isArray(parsed)) return []
+  return parsed
+    .map((value) => value && typeof value === 'object' ? (value as { poster?: unknown }).poster : null)
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))]
 }
 
 export async function runPipelineOnPending(db: AppDatabase, limit = 20, options: PipelineRunnerOptions = {}): Promise<PipelineRunOutcome[]> {

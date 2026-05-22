@@ -9,6 +9,7 @@ export { extractThreadsLinks }
 const MAX_RESULTS = 10
 const FRESH_CACHE_MS = 30 * 60 * 1000
 const STALE_CACHE_MS = 24 * 60 * 60 * 1000
+const THREADS_PUBLIC_MEDIA_CACHE_SCHEMA_VERSION = 1
 const PROVIDER_COOLDOWN_MS: Record<ThreadsFallbackProvider, number> = {
   threads_public_search: 20 * 60 * 1000,
   duckduckgo_browser: 20 * 60 * 1000,
@@ -24,6 +25,9 @@ type ThreadsSearchOptions = ThreadsFallbackOptions & {
   usePublicSearch?: boolean
   useBrowser?: boolean
   useExternalSearchFallbacks?: boolean
+}
+type CachedThreadsFallbackOutcome = ThreadsFallbackOutcome & {
+  publicSearchMediaSchemaVersion?: number
 }
 
 export async function fetchThreadsSearchCandidates(keyword: string, limit = MAX_RESULTS, db?: AppDatabase, options: ThreadsSearchOptions = {}): Promise<ThreadsSearchCandidate[]> {
@@ -94,7 +98,10 @@ function getCachedOutcome(db: AppDatabase, keyword: string, maxAgeMs: number): T
   if (!row) return null
   if (Date.now() - Date.parse(row.cached_at) > maxAgeMs) return null
   try {
-    return JSON.parse(row.outcome_json) as ThreadsFallbackOutcome
+    const parsed = JSON.parse(row.outcome_json) as CachedThreadsFallbackOutcome
+    if (parsed.providerUsed === 'threads_public_search' && parsed.publicSearchMediaSchemaVersion !== THREADS_PUBLIC_MEDIA_CACHE_SCHEMA_VERSION) return null
+    const { publicSearchMediaSchemaVersion: _schemaVersion, ...outcome } = parsed
+    return outcome
   } catch {
     return null
   }
@@ -117,11 +124,14 @@ function shouldRunExternalSearchFallbacks(options: ThreadsSearchOptions) {
 }
 
 function storeCachedOutcome(db: AppDatabase, keyword: string, outcome: ThreadsFallbackOutcome) {
+  const cached: CachedThreadsFallbackOutcome = outcome.providerUsed === 'threads_public_search'
+    ? { ...outcome, publicSearchMediaSchemaVersion: THREADS_PUBLIC_MEDIA_CACHE_SCHEMA_VERSION }
+    : outcome
   db.prepare(`
     INSERT INTO threads_search_cache (keyword, outcome_json, cached_at)
     VALUES (?, ?, ?)
     ON CONFLICT(keyword) DO UPDATE SET outcome_json = excluded.outcome_json, cached_at = excluded.cached_at
-  `).run(normaliseKeyword(keyword), JSON.stringify(outcome), new Date().toISOString())
+  `).run(normaliseKeyword(keyword), JSON.stringify(cached), new Date().toISOString())
 }
 
 function getCoolingProviders(db: AppDatabase): ThreadsFallbackProvider[] {

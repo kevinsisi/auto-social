@@ -220,6 +220,10 @@ function buildThreadsRunMessage(keyword: string, insertedCount: number, outcome:
     if (providerUsed === 'threads_public_search') return `已使用 ${providerLabel} 找到 ${insertedCount} 筆候選。`
     return `已使用 ${providerLabel} site:threads.net/site:threads.com 搜尋，找到 ${insertedCount} 筆候選。`
   }
+  if (outcomeKind === 'fallback_ok' && providerUsed) {
+    const providerLabel = formatSearchProvider(providerUsed)
+    return `已使用 ${providerLabel} 完成海巡，但沒有找到「${keyword}」新的相關結果。`
+  }
   if (outcomeKind === 'search_provider_blocked') {
     const blockedList = (blockedProviders ?? []).map(formatSearchProvider).join('、')
     return blockedList

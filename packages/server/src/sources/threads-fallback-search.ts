@@ -3,6 +3,14 @@ export type ThreadsSearchCandidate = {
   title: string
   excerpt: string
   source: 'threads_search'
+  author?: string | null
+  postedAt?: string | null
+  likes?: number | null
+  replyCount?: number | null
+  reposts?: number | null
+  shares?: number | null
+  images?: string[] | null
+  videos?: Array<{ src: string; poster: string | null }> | null
 }
 
 export type ThreadsFallbackProvider = 'threads_public_search' | 'duckduckgo_browser' | 'google' | 'bing' | 'duckduckgo' | 'duckduckgo_lite'
@@ -23,7 +31,7 @@ type ProviderProbe = {
 }
 
 type HtmlSearchProvider = Exclude<ThreadsFallbackProvider, 'threads_public_search' | 'duckduckgo_browser'>
-type SearchResult = { url: string; title: string; excerpt: string }
+type SearchResult = Omit<ThreadsSearchCandidate, 'source'>
 type FetchProvider = (keyword: string) => Promise<{ html: string; finalUrl: string; status: number }>
 
 export type ThreadsFallbackOptions = {
@@ -174,12 +182,21 @@ export function normaliseSearchResults(results: SearchResult[], keyword: string)
     if (!result.title && !result.excerpt) continue
     if (!isRelevantSearchResult(result, keyword)) continue
     if (seen.has(url)) continue
-    seen.set(url, {
+    const candidate: ThreadsSearchCandidate = {
       url,
       title: result.title || `Threads 搜尋結果：${keyword}`,
       excerpt: result.excerpt || result.title,
       source: 'threads_search'
-    })
+    }
+    if (result.author !== undefined) candidate.author = result.author
+    if (result.postedAt !== undefined) candidate.postedAt = result.postedAt
+    if (result.likes !== undefined) candidate.likes = result.likes
+    if (result.replyCount !== undefined) candidate.replyCount = result.replyCount
+    if (result.reposts !== undefined) candidate.reposts = result.reposts
+    if (result.shares !== undefined) candidate.shares = result.shares
+    if (result.images && result.images.length > 0) candidate.images = result.images
+    if (result.videos && result.videos.length > 0) candidate.videos = result.videos
+    seen.set(url, candidate)
   }
   return [...seen.values()]
 }

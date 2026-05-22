@@ -6,12 +6,12 @@ import { runPipelineOnCandidate } from '../src/scheduler/pipeline-runner.js'
 import { nowIso } from '../src/time.js'
 import type { ImageAnalyzer, TextGenerator } from '../src/ai/types.js'
 
-function seedCandidate(db: ReturnType<typeof openMemoryDatabase>, images: string[] = []) {
+function seedCandidate(db: ReturnType<typeof openMemoryDatabase>, images: string[] = [], videos: Array<{ src: string; poster: string | null }> = []) {
   const id = nanoid()
   db.prepare(`
-    INSERT INTO trend_candidates (id, source, external_id, fingerprint, is_trending, url, title, text, images_json, fetched_at, pipeline_status)
-    VALUES (?, 'threads_playwright', ?, ?, 0, ?, '測試貼文', '我覺得這家手搖飲真的爛，又難喝又貴', ?, ?, 'pending')
-  `).run(id, `cand-${id}`, `fp-${id}`, `https://www.threads.com/@user/post/${id}`, JSON.stringify(images), nowIso())
+    INSERT INTO trend_candidates (id, source, external_id, fingerprint, is_trending, url, title, text, images_json, videos_json, fetched_at, pipeline_status)
+    VALUES (?, 'threads_playwright', ?, ?, 0, ?, '測試貼文', '我覺得這家手搖飲真的爛，又難喝又貴', ?, ?, ?, 'pending')
+  `).run(id, `cand-${id}`, `fp-${id}`, `https://www.threads.com/@user/post/${id}`, JSON.stringify(images), JSON.stringify(videos), nowIso())
   return id
 }
 
@@ -121,6 +121,30 @@ describe('runPipelineOnCandidate', () => {
     expect(analysis.summary).toContain('紅色跑車')
     expect(calls.find((call) => call.stepId === 'classify')?.prompt).toContain('visualSummary')
     expect(calls.find((call) => call.stepId === 'draft')?.prompt).toContain('紅色跑車')
+  })
+
+  it('uses video posters as image-recognition input', async () => {
+    const db = openMemoryDatabase()
+    seedKeyPool(db)
+    const poster = 'https://cdn.example.com/video-poster.jpg'
+    const id = seedCandidate(db, [], [{ src: 'https://cdn.example.com/video.mp4', poster }])
+    let analyzedUrls: string[] = []
+    const analyzer: ImageAnalyzer = async ({ imageUrls }) => {
+      analyzedUrls = imageUrls
+      return {
+        status: 'success',
+        summary: '影片縮圖是一台跑車',
+        images: imageUrls.map((url) => ({ url, description: '影片縮圖是一台跑車', textDetected: null, notableObjects: ['跑車'] })),
+        error: null,
+        model: 'test-vision',
+        analyzedAt: nowIso()
+      }
+    }
+
+    const outcome = await runPipelineOnCandidate(db, id, { generator: fixtures(), imageAnalyzer: analyzer })
+
+    expect(outcome.status).toBe('drafted')
+    expect(analyzedUrls).toEqual([poster])
   })
 
   it('continues text pipeline when image analysis fails', async () => {

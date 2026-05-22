@@ -78,7 +78,7 @@ function persistAndSchedule(db: AppDatabase, cardId: string, items: ScanCandidat
   const newIds: string[] = []
   for (const item of items) {
     const result = upsertTrendCandidate(db, item, { cardId, isTrending: false })
-    if (result.inserted && result.id) newIds.push(result.id)
+    if ((result.inserted || result.mediaUpdated) && result.id) newIds.push(result.id)
   }
   schedulePipelineForCandidates(db, newIds)
 }

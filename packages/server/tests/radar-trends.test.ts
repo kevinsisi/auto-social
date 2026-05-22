@@ -49,7 +49,7 @@ describe('upsertTrendCandidate', () => {
     const row = db.prepare('SELECT id, title, text, engagement_json, images_json FROM trend_candidates WHERE url = ?').get('https://www.threads.com/@u/post/1') as { id: string; title: string; text: string; engagement_json: string; images_json: string }
 
     expect(first.inserted).toBe(true)
-    expect(second).toEqual({ id: first.id, inserted: false })
+    expect(second).toEqual({ id: first.id, inserted: false, mediaUpdated: true })
     expect(row.title).toBe('新標題')
     expect(row.text).toBe('乾淨貼文')
     expect(JSON.parse(row.engagement_json)).toMatchObject({ likes: 10, replies: 64, reposts: 1, shares: 949 })

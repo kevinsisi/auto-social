@@ -120,7 +120,7 @@ export async function scanRadarTrends(db: AppDatabase): Promise<RadarScanResult>
     }
     for (const candidate of batch.value) {
       const result = upsertTrendCandidate(db, candidate, { cardId: query?.cardId ?? null, isTrending: true })
-      if (result.inserted && result.id) newCandidateIds.push(result.id)
+      if ((result.inserted || result.mediaUpdated) && result.id) newCandidateIds.push(result.id)
     }
   }
 
@@ -183,6 +183,7 @@ export type UpsertTrendCandidateOptions = {
 export type UpsertTrendCandidateResult = {
   id: string | null
   inserted: boolean
+  mediaUpdated: boolean
 }
 
 export function upsertTrendCandidate(db: AppDatabase, candidate: RadarCandidate, options: UpsertTrendCandidateOptions = {}): UpsertTrendCandidateResult {
@@ -220,9 +221,11 @@ export function upsertTrendCandidate(db: AppDatabase, candidate: RadarCandidate,
     videosJson,
     nowIso()
   )
-  if (result.changes > 0) return { id, inserted: true }
-  const existing = db.prepare('SELECT id FROM trend_candidates WHERE fingerprint = ?').get(fingerprint) as { id: string } | undefined
+  if (result.changes > 0) return { id, inserted: true, mediaUpdated: false }
+  const existing = db.prepare('SELECT id, images_json, videos_json FROM trend_candidates WHERE fingerprint = ?').get(fingerprint) as { id: string; images_json: string | null; videos_json: string | null } | undefined
+  let mediaUpdated = false
   if (existing) {
+    mediaUpdated = (imagesJson !== null && existing.images_json === null) || (videosJson !== null && existing.videos_json === null)
     db.prepare(`
       UPDATE trend_candidates
       SET card_id = COALESCE(card_id, ?),
@@ -250,7 +253,7 @@ export function upsertTrendCandidate(db: AppDatabase, candidate: RadarCandidate,
       existing.id
     )
   }
-  return { id: existing?.id ?? null, inserted: false }
+  return { id: existing?.id ?? null, inserted: false, mediaUpdated }
 }
 
 function sanitizeTrendText(text: string) {

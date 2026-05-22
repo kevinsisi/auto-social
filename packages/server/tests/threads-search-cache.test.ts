@@ -47,6 +47,34 @@ describe('threads search cache and cooldown', () => {
     expect(outcome.candidates.map((candidate) => candidate.url)).toEqual(['https://www.threads.net/@cars/post/public'])
   })
 
+  it('refreshes old public-search cache entries that predate media extraction', async () => {
+    const db = openMemoryDatabase()
+    db.prepare('INSERT INTO threads_search_cache (keyword, outcome_json, cached_at) VALUES (?, ?, ?)').run(
+      'urus',
+      JSON.stringify({
+        candidates: [{ source: 'threads_search', url: 'https://www.threads.net/@cars/post/old', title: 'Urus', excerpt: 'Urus old cache' }],
+        status: 'ok',
+        providerUsed: 'threads_public_search',
+        blockedProviders: []
+      }),
+      new Date().toISOString()
+    )
+
+    const outcome = await fetchThreadsSearchOutcome('Urus', 10, db, {
+      publicSearch: async () => ({
+        candidates: [{ source: 'threads_search', url: 'https://www.threads.net/@cars/post/new', title: 'Urus', excerpt: 'Urus with media', images: ['https://cdninstagram.com/photo.webp'] }],
+        status: 'ok',
+        providerUsed: 'threads_public_search',
+        blockedProviders: []
+      })
+    })
+
+    expect(outcome.candidates[0]).toMatchObject({
+      url: 'https://www.threads.net/@cars/post/new',
+      images: ['https://cdninstagram.com/photo.webp']
+    })
+  })
+
   it('tries external public browser search only when explicitly enabled', async () => {
     const db = openMemoryDatabase()
 
