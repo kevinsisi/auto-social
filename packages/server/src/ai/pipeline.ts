@@ -103,7 +103,7 @@ export class SocialPipeline {
       }
     } catch (error) {
       if (error instanceof NoAvailableKeyError) {
-        throw new Error('pipeline_blocked: no available Gemini key')
+        throw new Error('pipeline_blocked: OpenCode unavailable and Gemini key pool exhausted')
       }
       throw error
     }
