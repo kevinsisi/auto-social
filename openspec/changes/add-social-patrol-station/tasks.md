@@ -306,6 +306,7 @@ User feedback after A1 deploy drove a tight iteration cycle. Every item below is
 - [x] 17.E.9 Fix Threads Public Search DOM extraction so post links whose anchor text is only a date climb to the surrounding result text before keyword relevance filtering. (1.2.70)
 - [x] 17.E.10 Keep climbing result ancestors and choose the richest public result text, because Threads sometimes keeps the post body in a sibling container above the date anchor header. (1.2.71)
 - [x] 17.E.11 Show the latest Threads dispatch result inside the keyword observation panel so no-result or duplicate-result scans visibly update the page instead of only flashing a toast. (1.2.72)
+- [x] 17.E.12 Fix mobile overflow in observed post cards by constraining grid items, long URLs/topics/errors, stats, and action buttons to the viewport. (1.2.73)
 
 ### 17.F Quota-aware keyword scheduler
 

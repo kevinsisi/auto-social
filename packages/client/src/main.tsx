@@ -931,7 +931,7 @@ function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanTh
             </div>
             <p className="font-mono text-xs text-asphalt/60">讚 + 留言×3 計分，門檻 ≥ 50</p>
           </div>
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid min-w-0 gap-4 xl:grid-cols-2">
             {highlights.map((post) => <ObservedPostCard key={post.id} cardId={card.id} post={post} onFeedback={onFeedback} onRepipelinePost={onRepipelinePost} highlight />)}
           </div>
         </section>
@@ -940,7 +940,7 @@ function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanTh
       {posts.length > 0 && (
         <div className="space-y-2">
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">其它樣本（最新優先）</p>
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid min-w-0 gap-4 xl:grid-cols-2">
             {posts.map((post) => <ObservedPostCard key={post.id} cardId={card.id} post={post} onFeedback={onFeedback} onRepipelinePost={onRepipelinePost} />)}
           </div>
         </div>
@@ -1016,27 +1016,27 @@ function ObservedPostCard({ cardId, post, onFeedback, onRepipelinePost, highligh
   }
 
   return (
-    <article className={`p-4 ${highlight ? 'border-4 border-signal bg-white shadow-[8px_8px_0_#f97316]' : 'border-4 border-asphalt bg-[#fffaf2] shadow-[6px_6px_0_#171717]'}`}>
-      {highlight && <p className="mb-2 inline-block bg-signal px-2 py-0.5 text-xs font-black text-white">熱門 · 互動分 {engagementScore}</p>}
-      <header className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">{post.author ?? '匿名作者'} · {post.source}</p>
-          <a className="mt-1 block break-all text-sm underline" href={post.url} target="_blank" rel="noreferrer">{post.url}</a>
+    <article className={`min-w-0 max-w-full overflow-hidden p-3 sm:p-4 ${highlight ? 'border-4 border-signal bg-white shadow-[8px_8px_0_#f97316]' : 'border-4 border-asphalt bg-[#fffaf2] shadow-[6px_6px_0_#171717]'}`}>
+      {highlight && <p className="mb-2 inline-block max-w-full break-words bg-signal px-2 py-0.5 text-xs font-black text-white">熱門 · 互動分 {engagementScore}</p>}
+      <header className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 max-w-full flex-1">
+          <p className="break-words font-mono text-xs uppercase tracking-[0.18em] text-signal sm:tracking-[0.25em]">{post.author ?? '匿名作者'} · {post.source}</p>
+          <a className="mt-1 block max-w-full break-all text-sm underline" href={post.url} target="_blank" rel="noreferrer">{post.url}</a>
         </div>
         {post.postedAt && <span className="border-2 border-asphalt px-2 py-1 font-mono text-xs">{formatDate(post.postedAt)}</span>}
       </header>
 
-      <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+      <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 text-center sm:grid-cols-4">
         <Stat label="讚" value={post.likes} accent="bg-red-100" />
         <Stat label="留言" value={post.replyCount} accent="bg-blue-100" />
         <Stat label="轉發" value={post.reposts} accent="bg-green-100" />
         <Stat label="分享" value={post.shares} accent="bg-yellow-100" />
       </div>
 
-      <p className="mt-3 whitespace-pre-line border-l-4 border-signal pl-3 text-sm">{post.excerpt}</p>
+      <p className="mt-3 min-w-0 max-w-full whitespace-pre-line break-words border-l-4 border-signal pl-3 text-sm">{post.excerpt}</p>
 
       {(post.images.length > 0 || post.videos.length > 0) && (
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3">
           {post.videos.slice(0, 4).map((video) => (
             <a key={video.src} href={post.url} target="_blank" rel="noreferrer" className="relative block overflow-hidden border-2 border-asphalt bg-black">
               {video.poster ? <img src={video.poster} alt="影片預覽" loading="lazy" referrerPolicy="no-referrer" className="h-32 w-full object-cover opacity-90" /> : <div className="flex h-32 w-full items-center justify-center bg-asphalt text-paper font-mono text-xs">影片</div>}
@@ -1053,52 +1053,52 @@ function ObservedPostCard({ cardId, post, onFeedback, onRepipelinePost, highligh
 
       {post.imageAnalysis && post.imageAnalysis.status !== 'none' && <ImageAnalysisBox analysis={post.imageAnalysis} />}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold">
-        {post.sentiment ? <span className="border-2 border-asphalt px-2 py-1 text-white" style={{ background: SENTIMENT_COLORS[post.sentiment] }}>{SENTIMENT_LABELS[post.sentiment]}</span>
+      <div className="mt-3 flex min-w-0 max-w-full flex-wrap items-center gap-2 text-xs font-bold">
+        {post.sentiment ? <span className="max-w-full break-words border-2 border-asphalt px-2 py-1 text-white" style={{ background: SENTIMENT_COLORS[post.sentiment] }}>{SENTIMENT_LABELS[post.sentiment]}</span>
           : post.pipelineStatus === 'pipeline_blocked' ? null
-          : <span className="border-2 border-asphalt bg-paper px-2 py-1">情緒判讀中</span>}
-        {post.topic && <span className="border-2 border-asphalt bg-paper px-2 py-1">主題：{post.topic}</span>}
-        {sponsoredBadge && <button type="button" onClick={() => setExpandedReasons((v) => !v)} className={`border-2 px-2 py-1 ${SPONSORED_TONE[sponsoredBadge]}`}>{SPONSORED_LABELS[sponsoredBadge]} {post.sponsoredReasons.length > 0 ? (expandedReasons ? '▲' : '▼') : ''}</button>}
-        {scamBadge && scamBadge !== 'none' && <button type="button" onClick={() => setScamExpanded((v) => !v)} className={`border-2 px-2 py-1 ${SCAM_TONE[scamBadge]}`}>{SCAM_LABELS[scamBadge]} {post.scamReasons.length > 0 ? (scamExpanded ? '▲' : '▼') : ''}</button>}
-        {post.pipelineStatus === 'pipeline_blocked' && <span className="border-2 border-red-600 bg-red-100 px-2 py-1 text-red-700">AI 判讀失敗</span>}
+          : <span className="max-w-full break-words border-2 border-asphalt bg-paper px-2 py-1">情緒判讀中</span>}
+        {post.topic && <span className="max-w-full whitespace-normal break-words border-2 border-asphalt bg-paper px-2 py-1">主題：{post.topic}</span>}
+        {sponsoredBadge && <button type="button" onClick={() => setExpandedReasons((v) => !v)} className={`max-w-full whitespace-normal break-words border-2 px-2 py-1 text-left ${SPONSORED_TONE[sponsoredBadge]}`}>{SPONSORED_LABELS[sponsoredBadge]} {post.sponsoredReasons.length > 0 ? (expandedReasons ? '▲' : '▼') : ''}</button>}
+        {scamBadge && scamBadge !== 'none' && <button type="button" onClick={() => setScamExpanded((v) => !v)} className={`max-w-full whitespace-normal break-words border-2 px-2 py-1 text-left ${SCAM_TONE[scamBadge]}`}>{SCAM_LABELS[scamBadge]} {post.scamReasons.length > 0 ? (scamExpanded ? '▲' : '▼') : ''}</button>}
+        {post.pipelineStatus === 'pipeline_blocked' && <span className="max-w-full break-words border-2 border-red-600 bg-red-100 px-2 py-1 text-red-700">AI 判讀失敗</span>}
         {post.pipelineStatus === 'pipeline_blocked' && (
           <button
             type="button"
             disabled={retrying}
             onClick={async () => { setRetrying(true); try { await onRepipelinePost(post.id) } finally { setRetrying(false) } }}
-            className={`border-2 border-asphalt px-2 py-1 ${retrying ? 'cursor-wait bg-asphalt/10 text-asphalt/50' : 'bg-paper hover:bg-asphalt hover:text-paper'}`}
+            className={`max-w-full whitespace-normal break-words border-2 border-asphalt px-2 py-1 text-left ${retrying ? 'cursor-wait bg-asphalt/10 text-asphalt/50' : 'bg-paper hover:bg-asphalt hover:text-paper'}`}
           >
             {retrying ? '重排中...' : '重跑這則'}
           </button>
         )}
       </div>
-      {post.pipelineStatus === 'pipeline_blocked' && post.pipelineError && <p className="mt-2 border-2 border-red-600 bg-red-50 p-2 text-xs text-red-900">失敗原因：{post.pipelineError}</p>}
-      {expandedReasons && post.sponsoredReasons.length > 0 && <ul className="mt-2 list-disc border-2 border-asphalt bg-paper p-3 pl-6 text-sm">{post.sponsoredReasons.map((r, i) => <li key={i}>{r}</li>)}</ul>}
-      {scamExpanded && post.scamReasons.length > 0 && <ul className="mt-2 list-disc border-2 border-red-700 bg-red-50 p-3 pl-6 text-sm text-red-900">{post.scamReasons.map((r, i) => <li key={i}>{r}</li>)}</ul>}
+      {post.pipelineStatus === 'pipeline_blocked' && post.pipelineError && <p className="mt-2 max-w-full break-words border-2 border-red-600 bg-red-50 p-2 text-xs text-red-900">失敗原因：{post.pipelineError}</p>}
+      {expandedReasons && post.sponsoredReasons.length > 0 && <ul className="mt-2 max-w-full list-disc break-words border-2 border-asphalt bg-paper p-3 pl-6 text-sm">{post.sponsoredReasons.map((r, i) => <li key={i}>{r}</li>)}</ul>}
+      {scamExpanded && post.scamReasons.length > 0 && <ul className="mt-2 max-w-full list-disc break-words border-2 border-red-700 bg-red-50 p-3 pl-6 text-sm text-red-900">{post.scamReasons.map((r, i) => <li key={i}>{r}</li>)}</ul>}
 
-      <section className="mt-4 border-2 border-asphalt bg-paper p-3">
-        <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">AI 建議留言</p>
+      <section className="mt-4 min-w-0 max-w-full overflow-hidden border-2 border-asphalt bg-paper p-3">
+        <p className="break-words font-mono text-xs uppercase tracking-[0.18em] text-signal sm:tracking-[0.25em]">AI 建議留言</p>
         {post.draft ? (
           <>
-            <p className="mt-1 whitespace-pre-line text-sm">{post.draft.text}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button onClick={() => copyText(post.draft!.text)} className="min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold hover:bg-asphalt hover:text-paper">複製</button>
-              <button onClick={() => setReplyModalOpen(true)} disabled={isReplyBlocked(replyAttempt)} className={`min-h-10 border-2 border-asphalt px-3 py-1 text-sm font-bold ${isReplyBlocked(replyAttempt) ? 'cursor-not-allowed bg-asphalt/10 text-asphalt/50' : 'hover:bg-signal hover:text-white'}`}>用 Threads session 留言</button>
-              <button onClick={() => { setLastDecision('like'); void onFeedback(post, 'like') }} className={`min-h-10 border-2 px-3 py-1 text-sm font-bold ${lastDecision === 'like' ? 'border-green-700 bg-green-100' : 'border-asphalt'}`}>👍 像我</button>
-              <button onClick={() => { setLastDecision('dislike'); void onFeedback(post, 'dislike') }} className={`min-h-10 border-2 px-3 py-1 text-sm font-bold ${lastDecision === 'dislike' ? 'border-red-700 bg-red-100' : 'border-asphalt'}`}>👎 不像</button>
-              <button onClick={() => setRewriting((v) => !v)} className={`min-h-10 border-2 px-3 py-1 text-sm font-bold ${rewriting ? 'border-signal bg-signal text-white' : 'border-asphalt'}`}>✏️ 改寫</button>
+            <p className="mt-1 max-w-full whitespace-pre-line break-words text-sm">{post.draft.text}</p>
+            <div className="mt-3 flex min-w-0 max-w-full flex-wrap gap-2">
+              <button onClick={() => copyText(post.draft!.text)} className="min-h-10 max-w-full whitespace-normal break-words border-2 border-asphalt px-3 py-1 text-sm font-bold hover:bg-asphalt hover:text-paper">複製</button>
+              <button onClick={() => setReplyModalOpen(true)} disabled={isReplyBlocked(replyAttempt)} className={`min-h-10 max-w-full whitespace-normal break-words border-2 border-asphalt px-3 py-1 text-left text-sm font-bold ${isReplyBlocked(replyAttempt) ? 'cursor-not-allowed bg-asphalt/10 text-asphalt/50' : 'hover:bg-signal hover:text-white'}`}>用 Threads session 留言</button>
+              <button onClick={() => { setLastDecision('like'); void onFeedback(post, 'like') }} className={`min-h-10 max-w-full whitespace-normal break-words border-2 px-3 py-1 text-sm font-bold ${lastDecision === 'like' ? 'border-green-700 bg-green-100' : 'border-asphalt'}`}>👍 像我</button>
+              <button onClick={() => { setLastDecision('dislike'); void onFeedback(post, 'dislike') }} className={`min-h-10 max-w-full whitespace-normal break-words border-2 px-3 py-1 text-sm font-bold ${lastDecision === 'dislike' ? 'border-red-700 bg-red-100' : 'border-asphalt'}`}>👎 不像</button>
+              <button onClick={() => setRewriting((v) => !v)} className={`min-h-10 max-w-full whitespace-normal break-words border-2 px-3 py-1 text-sm font-bold ${rewriting ? 'border-signal bg-signal text-white' : 'border-asphalt'}`}>✏️ 改寫</button>
             </div>
             {rewriting && (
               <form className="mt-3 space-y-2" onSubmit={(e) => { e.preventDefault(); if (!rewriteText.trim()) return; setLastDecision('rewrite'); void onFeedback(post, 'rewrite', rewriteText.trim()); setRewriteText(''); setRewriting(false) }}>
                 <textarea className="min-h-20 w-full border-2 border-asphalt bg-[#fffaf2] p-2 text-sm" placeholder="這版怎樣改才更像我？" value={rewriteText} onChange={(e) => setRewriteText(e.target.value)} />
-                <button type="submit" className="min-h-10 bg-asphalt px-3 py-1 text-sm font-bold text-paper">送出改寫建議</button>
+                <button type="submit" className="min-h-10 max-w-full whitespace-normal break-words bg-asphalt px-3 py-1 text-sm font-bold text-paper">送出改寫建議</button>
               </form>
             )}
             {replyAttempt && <ReplyAttemptStatusLine attempt={replyAttempt} />}
             {replyModalOpen && <ReplyConfirmModal post={post} initialText={post.draft.text} onClose={() => setReplyModalOpen(false)} onConfirm={confirmReply} />}
           </>
         ) : (
-          <p className="mt-1 text-sm text-asphalt/60">{post.scoreReason ? `沒有產 AI 草稿：${post.scoreReason}` : '草稿暫不可用'}</p>
+          <p className="mt-1 max-w-full break-words text-sm text-asphalt/60">{post.scoreReason ? `沒有產 AI 草稿：${post.scoreReason}` : '草稿暫不可用'}</p>
         )}
       </section>
     </article>
@@ -1112,16 +1112,16 @@ function ImageAnalysisBox({ analysis }: { analysis: NonNullable<ObservedPost['im
       ? 'border-orange-600 bg-orange-50 text-orange-900'
       : 'border-green-700 bg-green-50 text-green-900'
   return (
-    <section className={`mt-3 border-2 p-3 text-sm ${tone}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-mono text-xs uppercase tracking-[0.2em]">Image Recognition</p>
+    <section className={`mt-3 min-w-0 max-w-full overflow-hidden break-words border-2 p-3 text-sm ${tone}`}>
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <p className="break-words font-mono text-xs uppercase tracking-[0.2em]">Image Recognition</p>
         <span className="border border-current px-2 py-0.5 text-xs font-black">{IMAGE_ANALYSIS_LABELS[analysis.status]}</span>
       </div>
       {analysis.summary && <p className="mt-2 font-bold">{analysis.summary}</p>}
       {analysis.images.length > 0 && (
         <details className="mt-2">
           <summary className="cursor-pointer text-xs font-bold underline">看每張圖描述</summary>
-          <ul className="mt-2 space-y-1 text-xs">
+          <ul className="mt-2 space-y-1 break-words text-xs">
             {analysis.images.map((image, index) => (
               <li key={`${image.url}-${index}`}>
                 圖{index + 1}：{image.description}{image.textDetected ? `；文字：${image.textDetected}` : ''}
@@ -1144,10 +1144,10 @@ function ReplyAttemptStatusLine({ attempt }: { attempt: ReplyAttempt }) {
         ? 'border-orange-600 bg-orange-100 text-orange-900'
         : 'border-blue-700 bg-blue-100 text-blue-900'
   return (
-    <div className={`mt-3 border-2 p-2 text-sm ${tone}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className={`mt-3 min-w-0 max-w-full overflow-hidden break-words border-2 p-2 text-sm ${tone}`}>
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <span className="font-black">{REPLY_STATUS_LABELS[attempt.status]}</span>
-        {attempt.replyUrl && <a href={attempt.replyUrl} target="_blank" rel="noreferrer" className="underline font-bold">查看留言</a>}
+        {attempt.replyUrl && <a href={attempt.replyUrl} target="_blank" rel="noreferrer" className="break-all font-bold underline">查看留言</a>}
       </div>
       {attempt.status === 'running' || attempt.status === 'pending' ? <p className="mt-1 text-xs">Threads session 正在送出並驗證留言。</p> : null}
       {attempt.error && <p className="mt-1 text-xs">{attempt.error}</p>}
@@ -1989,18 +1989,18 @@ function Info({ label, value }: { label: string; value: string }) {
 
 function Stat({ label, value, accent }: { label: string; value: number | null; accent: string }) {
   return (
-    <div className={`border-2 border-asphalt ${value === null ? 'bg-paper text-asphalt/40' : accent} py-1`}>
-      <div className="text-xl font-black leading-tight">{value === null ? '—' : formatCount(value)}</div>
-      <div className="font-mono text-[0.65rem] uppercase tracking-[0.15em] opacity-70">{label}</div>
+    <div className={`min-w-0 border-2 border-asphalt ${value === null ? 'bg-paper text-asphalt/40' : accent} py-1`}>
+      <div className="truncate text-lg font-black leading-tight sm:text-xl">{value === null ? '—' : formatCount(value)}</div>
+      <div className="truncate font-mono text-[0.65rem] uppercase tracking-[0.12em] opacity-70 sm:tracking-[0.15em]">{label}</div>
     </div>
   )
 }
 
 function Message({ text, tone, onClose }: { text: string; tone: 'notice' | 'error'; onClose: () => void }) {
   return (
-    <div className={`mb-3 flex items-center justify-between gap-3 border-2 border-asphalt p-3 ${tone === 'error' ? 'bg-red-100' : 'bg-[#fffaf2]'}`}>
-      <span className="font-bold">{text}</span>
-      <button onClick={onClose} className="font-mono text-sm">close</button>
+    <div className={`mb-3 flex min-w-0 items-center justify-between gap-3 border-2 border-asphalt p-3 ${tone === 'error' ? 'bg-red-100' : 'bg-[#fffaf2]'}`}>
+      <span className="min-w-0 break-words font-bold">{text}</span>
+      <button onClick={onClose} className="shrink-0 font-mono text-sm">close</button>
     </div>
   )
 }

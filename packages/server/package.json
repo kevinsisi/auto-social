@@ -1,6 +1,6 @@
 {
   "name": "@auto-social/server",
-  "version": "1.2.72",
+  "version": "1.2.73",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
@@ -13,7 +13,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@kevinsisi/ai-core": "github:kevinsisi/ai-core#v3.4.3",
+    "@kevinsisi/ai-core": "git+https://github.com/kevinsisi/ai-core.git#v3.4.3",
     "better-sqlite3": "^11.9.1",
     "cors": "^2.8.5",
     "express": "^4.21.2",
