@@ -390,6 +390,20 @@ function App() {
     } catch (err) { setError(getMessage(err)) }
   }
 
+  async function rerunImageRecognition(candidateId: string) {
+    if (!selectedId) return
+    setError(null)
+    try {
+      const { imageRecognition } = await api.rerunImageRecognition(selectedId, candidateId)
+      if (imageRecognition.status === 'analyzed') {
+        setNotice('已重新跑完這則的圖片辨識。')
+      } else {
+        setNotice(`圖片辨識未執行：${imageRecognition.reason ?? '沒有可辨識的圖片'}`)
+      }
+      await loadObservation(selectedId)
+    } catch (err) { setError(getMessage(err)) }
+  }
+
   async function removeCard(card: PatrolCard) {
     if (!window.confirm(`確認刪除「${card.keyword}」？這會把該關鍵字的監控、候選樣本一起清掉。`)) return
     setError(null)
@@ -514,6 +528,7 @@ function App() {
                             onScanThreads={scanThreads}
                             onRepipeline={repipelineKeyword}
                             onRepipelinePost={repipelinePost}
+                            onRerunImageRecognition={rerunImageRecognition}
                             onAddManualLink={addManualLink}
                             onFeedback={submitFeedback}
                             onSelectSuggestedKeyword={(term) => void monitorRadarTerm(term)}
@@ -536,6 +551,7 @@ function App() {
                           onScanThreads={scanThreads}
                           onRepipeline={repipelineKeyword}
                           onRepipelinePost={repipelinePost}
+                          onRerunImageRecognition={rerunImageRecognition}
                           onAddManualLink={addManualLink}
                           onFeedback={submitFeedback}
                           onSelectSuggestedKeyword={(term) => void monitorRadarTerm(term)}
@@ -801,7 +817,7 @@ function WorkstationTab({ drafts, queue, scheduler, onRunCompose, onRegenerateIm
 
 // ─── Keyword Detail Page ─────────────────────────────────────────────────────
 
-function KeywordDetailPage({ card, observation, loading, scanBusyLabel, onBack, onScanThreads, onRepipeline, onRepipelinePost, onAddManualLink, onFeedback, onSelectSuggestedKeyword, onDeleteCard }: {
+function KeywordDetailPage({ card, observation, loading, scanBusyLabel, onBack, onScanThreads, onRepipeline, onRepipelinePost, onRerunImageRecognition, onAddManualLink, onFeedback, onSelectSuggestedKeyword, onDeleteCard }: {
   card: PatrolCard | null
   observation: KeywordObservation | null
   loading: boolean
@@ -810,6 +826,7 @@ function KeywordDetailPage({ card, observation, loading, scanBusyLabel, onBack, 
   onScanThreads: () => void
   onRepipeline: () => void
   onRepipelinePost: (candidateId: string) => Promise<void>
+  onRerunImageRecognition: (candidateId: string) => Promise<void>
   onAddManualLink: (url: string, title: string, excerpt: string) => Promise<void>
   onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>
   onSelectSuggestedKeyword: (term: string) => void
@@ -840,6 +857,7 @@ function KeywordDetailPage({ card, observation, loading, scanBusyLabel, onBack, 
         onScanThreads={onScanThreads}
         onRepipeline={onRepipeline}
         onRepipelinePost={onRepipelinePost}
+        onRerunImageRecognition={onRerunImageRecognition}
         onAddManualLink={onAddManualLink}
         onFeedback={onFeedback}
         onSelectSuggestedKeyword={onSelectSuggestedKeyword}
@@ -850,13 +868,14 @@ function KeywordDetailPage({ card, observation, loading, scanBusyLabel, onBack, 
 
 // ─── Existing panels (unchanged logic, kept as-is) ───────────────────────────
 
-function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanThreads, onRepipeline, onRepipelinePost, onAddManualLink, onFeedback, onSelectSuggestedKeyword }: {
+function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanThreads, onRepipeline, onRepipelinePost, onRerunImageRecognition, onAddManualLink, onFeedback, onSelectSuggestedKeyword }: {
   observation: KeywordObservation | null
   loading: boolean
   scanBusyLabel: string | null
   onScanThreads: () => void
   onRepipeline: () => void
   onRepipelinePost: (candidateId: string) => Promise<void>
+  onRerunImageRecognition: (candidateId: string) => Promise<void>
   onAddManualLink: (url: string, title: string, excerpt: string) => Promise<void>
   onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>
   onSelectSuggestedKeyword: (term: string) => void
@@ -932,7 +951,7 @@ function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanTh
             <p className="font-mono text-xs text-asphalt/60">讚 + 留言×3 計分，門檻 ≥ 50</p>
           </div>
           <div className="grid min-w-0 gap-4 xl:grid-cols-2">
-            {highlights.map((post) => <ObservedPostCard key={post.id} cardId={card.id} post={post} onFeedback={onFeedback} onRepipelinePost={onRepipelinePost} highlight />)}
+            {highlights.map((post) => <ObservedPostCard key={post.id} cardId={card.id} post={post} onFeedback={onFeedback} onRepipelinePost={onRepipelinePost} onRerunImageRecognition={onRerunImageRecognition} highlight />)}
           </div>
         </section>
       )}
@@ -941,7 +960,7 @@ function KeywordObservationPanel({ observation, loading, scanBusyLabel, onScanTh
         <div className="space-y-2">
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal">其它樣本（最新優先）</p>
           <div className="grid min-w-0 gap-4 xl:grid-cols-2">
-            {posts.map((post) => <ObservedPostCard key={post.id} cardId={card.id} post={post} onFeedback={onFeedback} onRepipelinePost={onRepipelinePost} />)}
+            {posts.map((post) => <ObservedPostCard key={post.id} cardId={card.id} post={post} onFeedback={onFeedback} onRepipelinePost={onRepipelinePost} onRerunImageRecognition={onRerunImageRecognition} />)}
           </div>
         </div>
       )}
@@ -986,13 +1005,14 @@ function SentimentBar({ distribution, classifiedSamples }: { distribution: Recor
   )
 }
 
-function ObservedPostCard({ cardId, post, onFeedback, onRepipelinePost, highlight = false }: { cardId: string; post: ObservedPost; onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>; onRepipelinePost: (candidateId: string) => Promise<void>; highlight?: boolean }) {
+function ObservedPostCard({ cardId, post, onFeedback, onRepipelinePost, onRerunImageRecognition, highlight = false }: { cardId: string; post: ObservedPost; onFeedback: (post: ObservedPost, decision: FeedbackDecision, comment?: string) => Promise<void>; onRepipelinePost: (candidateId: string) => Promise<void>; onRerunImageRecognition: (candidateId: string) => Promise<void>; highlight?: boolean }) {
   const [expandedReasons, setExpandedReasons] = useState(false)
   const [rewriting, setRewriting] = useState(false)
   const [rewriteText, setRewriteText] = useState('')
   const [lastDecision, setLastDecision] = useState<FeedbackDecision | null>(null)
   const [scamExpanded, setScamExpanded] = useState(false)
   const [retrying, setRetrying] = useState(false)
+  const [imageRetrying, setImageRetrying] = useState(false)
   const [replyAttempt, setReplyAttempt] = useState<ReplyAttempt | null>(post.latestReplyAttempt)
   const [replyModalOpen, setReplyModalOpen] = useState(false)
   const sponsoredBadge = post.sponsoredSignal ?? null
@@ -1051,7 +1071,13 @@ function ObservedPostCard({ cardId, post, onFeedback, onRepipelinePost, highligh
         </div>
       )}
 
-      {post.imageAnalysis && post.imageAnalysis.status !== 'none' && <ImageAnalysisBox analysis={post.imageAnalysis} />}
+      {post.imageAnalysis && post.imageAnalysis.status !== 'none' && (
+        <ImageAnalysisBox
+          analysis={post.imageAnalysis}
+          retrying={imageRetrying}
+          onRerun={async () => { setImageRetrying(true); try { await onRerunImageRecognition(post.id) } finally { setImageRetrying(false) } }}
+        />
+      )}
 
       <div className="mt-3 flex min-w-0 max-w-full flex-wrap items-center gap-2 text-xs font-bold">
         {post.sentiment ? <span className="max-w-full break-words border-2 border-asphalt px-2 py-1 text-white" style={{ background: SENTIMENT_COLORS[post.sentiment] }}>{SENTIMENT_LABELS[post.sentiment]}</span>
@@ -1105,7 +1131,7 @@ function ObservedPostCard({ cardId, post, onFeedback, onRepipelinePost, highligh
   )
 }
 
-function ImageAnalysisBox({ analysis }: { analysis: NonNullable<ObservedPost['imageAnalysis']> }) {
+function ImageAnalysisBox({ analysis, retrying, onRerun }: { analysis: NonNullable<ObservedPost['imageAnalysis']>; retrying: boolean; onRerun: () => Promise<void> }) {
   const tone = analysis.status === 'failed'
     ? 'border-red-700 bg-red-50 text-red-900'
     : analysis.status === 'partial'
@@ -1115,7 +1141,19 @@ function ImageAnalysisBox({ analysis }: { analysis: NonNullable<ObservedPost['im
     <section className={`mt-3 min-w-0 max-w-full overflow-hidden break-words border-2 p-3 text-sm ${tone}`}>
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <p className="break-words font-mono text-xs uppercase tracking-[0.2em]">Image Recognition</p>
-        <span className="border border-current px-2 py-0.5 text-xs font-black">{IMAGE_ANALYSIS_LABELS[analysis.status]}</span>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="border border-current px-2 py-0.5 text-xs font-black">{IMAGE_ANALYSIS_LABELS[analysis.status]}</span>
+          {analysis.status === 'failed' && (
+            <button
+              type="button"
+              disabled={retrying}
+              onClick={() => { void onRerun() }}
+              className={`border border-current px-2 py-0.5 text-xs font-black ${retrying ? 'cursor-wait opacity-60' : 'bg-paper hover:bg-red-900 hover:text-paper'}`}
+            >
+              {retrying ? '圖片重跑中...' : '重跑圖片'}
+            </button>
+          )}
+        </div>
       </div>
       {analysis.summary && <p className="mt-2 font-bold">{analysis.summary}</p>}
       {analysis.images.length > 0 && (

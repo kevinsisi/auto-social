@@ -26,6 +26,7 @@ import {
   OPENCODE_VARIANTS,
 } from './opencode-settings.js'
 import { getRadarTrends, scanRadarTrends, schedulePipelineForCandidates, upsertTrendCandidate } from './radar-trends.js'
+import { rerunImageRecognitionOnCandidate } from './scheduler/pipeline-runner.js'
 import { getQueueSnapshot } from './scheduler/task-queue.js'
 import { getKeywordSchedulerStatus } from './scheduler/keyword-scheduler.js'
 import { PatrolRepository } from './repository.js'
@@ -196,6 +197,19 @@ export function createApp(db: AppDatabase) {
     try {
       const result = repipelineCandidate(db, String(req.params.cardId), String(req.params.candidateId))
       res.status(result.queued ? 202 : 200).json({ repipeline: result })
+    } catch (error) {
+      sendError(res, error)
+    }
+  })
+
+  app.post('/api/keywords/:cardId/candidates/:candidateId/image-recognition', async (req, res) => {
+    try {
+      const cardId = String(req.params.cardId)
+      const candidateId = String(req.params.candidateId)
+      const row = db.prepare('SELECT id FROM trend_candidates WHERE id = ? AND card_id = ?').get(candidateId, cardId) as { id: string } | undefined
+      if (!row) return res.status(404).json({ error: '找不到這則樣本。' })
+      const result = await rerunImageRecognitionOnCandidate(db, candidateId)
+      res.status(200).json({ imageRecognition: result })
     } catch (error) {
       sendError(res, error)
     }

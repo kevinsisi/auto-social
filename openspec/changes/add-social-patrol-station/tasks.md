@@ -310,6 +310,7 @@ User feedback after A1 deploy drove a tight iteration cycle. Every item below is
 - [x] 17.E.13 Preserve Threads Public Search media/engagement metadata so observed posts display images/videos and the image-recognition pipeline analyzes images plus video posters. (1.2.74)
 - [x] 17.E.14 Rotate through external Threads-targeted search providers by default when Threads Public Search is blocked or empty, and hydrate search-engine results from Threads post pages for media analysis. (1.2.75)
 - [x] 17.E.15 Let OpenCode-backed text and image-recognition pipelines run without pre-leasing Gemini fallback keys, so empty Gemini pools no longer block AI judgment before OpenCode is called. (1.2.76)
+- [x] 17.E.16 Add a per-candidate image-recognition rerun action so failed media analysis can be retried independently without rerunning the text pipeline or changing draft status. (1.2.77)
 
 ### 17.F Quota-aware keyword scheduler
 

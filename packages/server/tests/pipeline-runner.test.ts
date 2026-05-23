@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { nanoid } from 'nanoid'
 import { openMemoryDatabase } from '../src/db.js'
 import { KeyPoolRepository } from '../src/key-pool/key-pool.js'
-import { runPipelineOnCandidate } from '../src/scheduler/pipeline-runner.js'
+import { rerunImageRecognitionOnCandidate, runPipelineOnCandidate } from '../src/scheduler/pipeline-runner.js'
 import { nowIso } from '../src/time.js'
 import type { ImageAnalyzer, TextGenerator } from '../src/ai/types.js'
 
@@ -195,5 +195,22 @@ describe('runPipelineOnCandidate', () => {
     expect(outcome.status).toBe('drafted')
     expect(row.pipeline_status).toBe('drafted')
     expect(JSON.parse(row.image_analysis_json)).toMatchObject({ status: 'failed', error: 'image timeout' })
+  })
+
+  it('reruns only image recognition without changing pipeline status', async () => {
+    const db = openMemoryDatabase()
+    const id = seedCandidate(db, ['https://cdn.example.com/car.jpg'])
+    db.prepare(`
+      UPDATE trend_candidates
+      SET pipeline_status = 'drafted', image_analysis_json = ?
+      WHERE id = ?
+    `).run(JSON.stringify({ status: 'failed', summary: null, images: [], error: 'old Gemini error', model: 'gemini-2.5-flash', analyzedAt: nowIso() }), id)
+
+    const outcome = await rerunImageRecognitionOnCandidate(db, id, { imageAnalyzer: imageAnalyzer('OpenCode 重新看見跑車') })
+
+    expect(outcome.status).toBe('analyzed')
+    const row = db.prepare('SELECT pipeline_status, image_analysis_json FROM trend_candidates WHERE id = ?').get(id) as { pipeline_status: string; image_analysis_json: string }
+    expect(row.pipeline_status).toBe('drafted')
+    expect(JSON.parse(row.image_analysis_json)).toMatchObject({ status: 'success', summary: 'OpenCode 重新看見跑車' })
   })
 })

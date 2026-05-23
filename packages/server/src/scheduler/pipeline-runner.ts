@@ -39,26 +39,16 @@ export type PipelineRunOutcome =
   | { candidateId: string; status: 'pipeline_blocked'; error: string }
   | { candidateId: string; status: 'skipped'; reason: string }
 
+export type ImageRecognitionRunOutcome =
+  | { candidateId: string; status: 'analyzed'; result: ImageAnalysisResult }
+  | { candidateId: string; status: 'skipped'; reason: string }
+
 export async function runPipelineOnCandidate(db: AppDatabase, candidateId: string, options: PipelineRunnerOptions = {}): Promise<PipelineRunOutcome> {
-  const row = db.prepare(`
-    SELECT id, source, url, author, title, text, engagement_json, images_json, videos_json, image_analysis_json
-    FROM trend_candidates WHERE id = ?
-  `).get(candidateId) as CandidateRow | undefined
+  const row = loadCandidateRow(db, candidateId)
   if (!row) return { candidateId, status: 'skipped', reason: 'candidate not found' }
 
   const pool = createKeyPool(db)
-  const imageUrls = uniqueStrings([...parseStringArray(row.images_json), ...parseVideoPosterUrls(row.videos_json)])
-
-  const candidate: SourceCandidateInput = {
-    id: row.id,
-    source: row.source,
-    url: row.url,
-    title: row.title,
-    text: row.text,
-    author: row.author,
-    engagement: row.engagement_json ? safeJson(row.engagement_json) : null,
-    imageUrls
-  }
+  const candidate = toSourceCandidate(row)
 
   candidate.imageAnalysis = await resolveImageAnalysis(db, candidate, row.image_analysis_json, pool, options.imageAnalyzer ?? createGeminiImageAnalyzer(db))
   const generator = options.generator ?? createGeminiTextGenerator(db)
@@ -76,6 +66,37 @@ export async function runPipelineOnCandidate(db: AppDatabase, candidateId: strin
       WHERE id = ?
     `).run(message, nowIso(), candidateId)
     return { candidateId, status: 'pipeline_blocked', error: message }
+  }
+}
+
+export async function rerunImageRecognitionOnCandidate(db: AppDatabase, candidateId: string, options: Pick<PipelineRunnerOptions, 'imageAnalyzer'> = {}): Promise<ImageRecognitionRunOutcome> {
+  const row = loadCandidateRow(db, candidateId)
+  if (!row) return { candidateId, status: 'skipped', reason: 'candidate not found' }
+
+  const pool = createKeyPool(db)
+  const candidate = toSourceCandidate(row)
+  const result = await resolveImageAnalysis(db, candidate, null, pool, options.imageAnalyzer ?? createGeminiImageAnalyzer(db))
+  return { candidateId, status: 'analyzed', result }
+}
+
+function loadCandidateRow(db: AppDatabase, candidateId: string): CandidateRow | undefined {
+  return db.prepare(`
+    SELECT id, source, url, author, title, text, engagement_json, images_json, videos_json, image_analysis_json
+    FROM trend_candidates WHERE id = ?
+  `).get(candidateId) as CandidateRow | undefined
+}
+
+function toSourceCandidate(row: CandidateRow): SourceCandidateInput {
+  const imageUrls = uniqueStrings([...parseStringArray(row.images_json), ...parseVideoPosterUrls(row.videos_json)])
+  return {
+    id: row.id,
+    source: row.source,
+    url: row.url,
+    title: row.title,
+    text: row.text,
+    author: row.author,
+    engagement: row.engagement_json ? safeJson(row.engagement_json) : null,
+    imageUrls
   }
 }
 

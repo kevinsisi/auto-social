@@ -224,6 +224,12 @@ export const api = {
       body: JSON.stringify({})
     })
   },
+  async rerunImageRecognition(cardId: string, candidateId: string) {
+    return request<{ imageRecognition: { candidateId: string; status: 'analyzed' | 'skipped'; result?: unknown; reason?: string } }>(`/api/keywords/${cardId}/candidates/${candidateId}/image-recognition`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    })
+  },
   async createReplyAttempt(cardId: string, candidateId: string, text: string) {
     return request<{ replyAttempt: ReplyAttempt }>(`/api/keywords/${cardId}/candidates/${candidateId}/replies`, {
       method: 'POST',
