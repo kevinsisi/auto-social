@@ -60,7 +60,7 @@ export async function runPipelineOnCandidate(db: AppDatabase, candidateId: strin
     imageUrls
   }
 
-  candidate.imageAnalysis = await resolveImageAnalysis(db, candidate, row.image_analysis_json, pool, options.imageAnalyzer ?? createGeminiImageAnalyzer())
+  candidate.imageAnalysis = await resolveImageAnalysis(db, candidate, row.image_analysis_json, pool, options.imageAnalyzer ?? createGeminiImageAnalyzer(db))
   const generator = options.generator ?? createGeminiTextGenerator(db)
   const pipeline = new SocialPipeline(pool, generator, options.voiceProfile ?? DEFAULT_VOICE_PROFILE, options.pipelineOptions ?? A1_PIPELINE_OPTIONS)
 
@@ -93,6 +93,11 @@ async function resolveImageAnalysis(db: AppDatabase, candidate: SourceCandidateI
   try {
     const assignments = await planPreferredKeys(pool, [{ id: 'image-recognition', name: 'Image recognition', allowSharedFallback: true }])
     const assignment = assignments.find((item) => item.stepId === 'image-recognition')
+    if (!assignment?.preferredKey) {
+      const result = await analyzer({ candidate, imageUrls, preferredKey: null })
+      persistImageAnalysis(db, candidate.id, result)
+      return result
+    }
     const runner = new StepRunner(pool)
     const result = await runner.runStep({
       id: 'image-recognition',

@@ -1,7 +1,10 @@
 import { z } from 'zod'
+import { OpenCodeProviderAdapter } from '@kevinsisi/ai-core/provider'
 import { parseJsonObject } from './json.js'
 import { DEFAULT_GEMINI_MODEL } from './gemini-client.js'
 import type { ImageAnalysisResult, ImageAnalyzer, SourceCandidateInput } from './types.js'
+import type { AppDatabase } from '../db.js'
+import { getOpenCodePassword, getOpenCodeServers, getOpenCodeVisionModel, getOpenCodeVisionVariant, type OpenCodeServer } from '../opencode-settings.js'
 import { nowIso } from '../time.js'
 
 const MAX_IMAGES = 3
@@ -9,6 +12,7 @@ const MAX_IMAGE_BYTES = 6 * 1024 * 1024
 const IMAGE_FETCH_TIMEOUT_MS = 20_000
 const GEMINI_VISION_TIMEOUT_MS = 45_000
 const DEFAULT_GEMINI_VISION_MODEL = process.env.GEMINI_VISION_MODEL ?? DEFAULT_GEMINI_MODEL
+const DEFAULT_MAX_OUTPUT_TOKENS = 1024
 
 const visionSchema = z.object({
   summary: z.string().min(1).max(500),
@@ -32,17 +36,34 @@ type FetchedImage = {
   data: string
 }
 
-export function createGeminiImageAnalyzer(model = DEFAULT_GEMINI_VISION_MODEL): ImageAnalyzer {
+export function createGeminiImageAnalyzer(db: AppDatabase | null = null, model = DEFAULT_GEMINI_VISION_MODEL): ImageAnalyzer {
   return async ({ candidate, imageUrls, preferredKey }) => {
-    if (!preferredKey) throw new Error('image_recognition_blocked: StepRunner did not allocate a Gemini key')
-    return analyzeImagesWithGemini({ candidate, imageUrls, apiKey: preferredKey, model })
+    return analyzeImagesWithOpenCodeThenGemini({ db, candidate, imageUrls, apiKey: preferredKey, model })
   }
+}
+
+export async function analyzeImagesWithOpenCodeThenGemini(input: { db: AppDatabase | null; candidate: SourceCandidateInput; imageUrls: string[]; apiKey: string | null; model?: string }): Promise<ImageAnalysisResult> {
+  const model = input.model ?? DEFAULT_GEMINI_VISION_MODEL
+  const prepared = await prepareImages(input.imageUrls, model)
+  if (prepared.result) return prepared.result
+
+  const openCode = input.db ? await analyzeWithOpenCode(input.db, input.candidate, prepared.fetched, prepared.failures, prepared.urls.length) : null
+  if (openCode) return openCode
+
+  if (!input.apiKey) throw new Error('image_recognition_blocked: OpenCode unavailable and no Gemini fallback key')
+  return analyzeFetchedImagesWithGemini({ candidate: input.candidate, fetched: prepared.fetched, failures: prepared.failures, requestedImageCount: prepared.urls.length, apiKey: input.apiKey, model })
 }
 
 export async function analyzeImagesWithGemini(input: { candidate: SourceCandidateInput; imageUrls: string[]; apiKey: string; model?: string }): Promise<ImageAnalysisResult> {
   const model = input.model ?? DEFAULT_GEMINI_VISION_MODEL
-  const urls = uniqueImageUrls(input.imageUrls).slice(0, MAX_IMAGES)
-  if (urls.length === 0) return imageAnalysisNone(model)
+  const prepared = await prepareImages(input.imageUrls, model)
+  if (prepared.result) return prepared.result
+  return analyzeFetchedImagesWithGemini({ candidate: input.candidate, fetched: prepared.fetched, failures: prepared.failures, requestedImageCount: prepared.urls.length, apiKey: input.apiKey, model })
+}
+
+async function prepareImages(imageUrls: string[], model: string): Promise<{ result: ImageAnalysisResult | null; urls: string[]; fetched: FetchedImage[]; failures: string[] }> {
+  const urls = uniqueImageUrls(imageUrls).slice(0, MAX_IMAGES)
+  if (urls.length === 0) return { result: imageAnalysisNone(model), urls, fetched: [], failures: [] }
 
   const fetched: FetchedImage[] = []
   const failures: string[] = []
@@ -56,17 +77,65 @@ export async function analyzeImagesWithGemini(input: { candidate: SourceCandidat
   }
 
   if (fetched.length === 0) {
-    return {
+    return { result: {
       status: 'failed',
       summary: null,
       images: [],
       error: failures.join('；') || '沒有可分析的圖片',
       model,
       analyzedAt: nowIso()
-    }
+    }, urls, fetched, failures }
   }
 
-  const raw = await callGeminiVision(input.apiKey, model, buildVisionPrompt(input.candidate, fetched), fetched)
+  return { result: null, urls, fetched, failures }
+}
+
+async function analyzeFetchedImagesWithGemini(input: { candidate: SourceCandidateInput; fetched: FetchedImage[]; failures: string[]; requestedImageCount: number; apiKey: string; model: string }): Promise<ImageAnalysisResult> {
+  const raw = await callGeminiVision(input.apiKey, input.model, buildVisionPrompt(input.candidate, input.fetched), input.fetched)
+  return parseVisionResult(raw, input.fetched, input.failures, input.requestedImageCount, input.model, 'Gemini vision 沒有回傳可對應的圖片描述')
+}
+
+async function analyzeWithOpenCode(db: AppDatabase, candidate: SourceCandidateInput, fetched: FetchedImage[], failures: string[], requestedImageCount: number): Promise<ImageAnalysisResult | null> {
+  const servers = getOpenCodeServers(db)
+  if (servers.length === 0) return null
+  const model = getOpenCodeVisionModel(db)
+  const variant = getOpenCodeVisionVariant(db)
+  const password = getOpenCodePassword()
+  let lastError: unknown = null
+  for (const server of servers) {
+    try {
+      const adapter = buildOpenCodeVisionAdapter(server, password, variant, model)
+      const response = await adapter.generateContent({
+        model,
+        prompt: buildVisionPrompt(candidate, fetched),
+        images: fetched.map((image) => ({ type: 'inline' as const, mimeType: image.mimeType, data: image.data })),
+        maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS
+      })
+      return parseVisionResult(response.text, fetched, failures, requestedImageCount, model, 'OpenCode vision 沒有回傳可對應的圖片描述')
+    } catch (error) {
+      lastError = error
+      const detail = error instanceof Error ? error.message.slice(0, 160) : String(error).slice(0, 160)
+      console.warn(`[auto-social] OpenCode vision ${server.id} failed: ${detail}`)
+    }
+  }
+  if (lastError) return null
+  return null
+}
+
+function buildOpenCodeVisionAdapter(server: OpenCodeServer, password: string, variant: string, model: string) {
+  return new OpenCodeProviderAdapter(
+    { type: 'api', provider: 'opencode', apiKey: password, baseURL: server.baseUrl, credentialLabel: server.id },
+    { defaultModel: parseOpenCodeModelRef(model), basicAuth: !!password, variant },
+  )
+}
+
+function parseOpenCodeModelRef(model: string) {
+  const slash = model.indexOf('/')
+  if (slash > 0 && slash < model.length - 1) return { providerID: model.slice(0, slash), id: model.slice(slash + 1) }
+  return { providerID: 'openai', id: model }
+}
+
+function parseVisionResult(raw: string, fetched: FetchedImage[], failures: string[], requestedImageCount: number, model: string, emptyMessage: string): ImageAnalysisResult {
   const parsed = parseJsonObject(raw, visionSchema, 'image-recognition')
   const analyzedImages = parsed.images
     .map((image) => {
@@ -86,14 +155,14 @@ export async function analyzeImagesWithGemini(input: { candidate: SourceCandidat
       status: 'failed',
       summary: null,
       images: [],
-      error: 'Gemini 沒有回傳可對應的圖片描述',
+      error: emptyMessage,
       model,
       analyzedAt: nowIso()
     }
   }
 
   return {
-    status: failures.length > 0 || analyzedImages.length < urls.length ? 'partial' : 'success',
+    status: failures.length > 0 || analyzedImages.length < requestedImageCount ? 'partial' : 'success',
     summary: parsed.summary,
     images: analyzedImages,
     error: failures.length > 0 ? failures.join('；') : null,

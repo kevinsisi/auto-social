@@ -65,6 +65,18 @@ describe('runPipelineOnCandidate', () => {
     expect(variants).toHaveLength(3)
   })
 
+  it('runs text pipeline without a Gemini key when the generator is OpenCode-backed', async () => {
+    const db = openMemoryDatabase()
+    const id = seedCandidate(db)
+
+    const outcome = await runPipelineOnCandidate(db, id, { generator: fixtures() })
+
+    expect(outcome.status).toBe('drafted')
+    const row = db.prepare('SELECT pipeline_status, pipeline_error FROM trend_candidates WHERE id = ?').get(id) as { pipeline_status: string; pipeline_error: string | null }
+    expect(row.pipeline_status).toBe('drafted')
+    expect(row.pipeline_error).toBeNull()
+  })
+
   it('records short_circuited when score says do not draft', async () => {
     const db = openMemoryDatabase()
     seedKeyPool(db)
@@ -145,6 +157,28 @@ describe('runPipelineOnCandidate', () => {
 
     expect(outcome.status).toBe('drafted')
     expect(analyzedUrls).toEqual([poster])
+  })
+
+  it('does not require a Gemini lease before calling an OpenCode-backed image analyzer', async () => {
+    const db = openMemoryDatabase()
+    const id = seedCandidate(db, ['https://cdn.example.com/car.jpg'])
+    let preferredKeySeen: string | null | undefined = undefined
+    const analyzer: ImageAnalyzer = async ({ imageUrls, preferredKey }) => {
+      preferredKeySeen = preferredKey
+      return {
+        status: 'success',
+        summary: 'OpenCode 看見一台車',
+        images: imageUrls.map((url) => ({ url, description: 'OpenCode 看見一台車', textDetected: null, notableObjects: ['車'] })),
+        error: null,
+        model: 'openai/gpt-5.5',
+        analyzedAt: nowIso()
+      }
+    }
+
+    const outcome = await runPipelineOnCandidate(db, id, { generator: fixtures(), imageAnalyzer: analyzer })
+
+    expect(outcome.status).toBe('drafted')
+    expect(preferredKeySeen).toBeNull()
   })
 
   it('continues text pipeline when image analysis fails', async () => {

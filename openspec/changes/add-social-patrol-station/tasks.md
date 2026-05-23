@@ -309,6 +309,7 @@ User feedback after A1 deploy drove a tight iteration cycle. Every item below is
 - [x] 17.E.12 Fix mobile overflow in observed post cards by constraining grid items, long URLs/topics/errors, stats, and action buttons to the viewport. (1.2.73)
 - [x] 17.E.13 Preserve Threads Public Search media/engagement metadata so observed posts display images/videos and the image-recognition pipeline analyzes images plus video posters. (1.2.74)
 - [x] 17.E.14 Rotate through external Threads-targeted search providers by default when Threads Public Search is blocked or empty, and hydrate search-engine results from Threads post pages for media analysis. (1.2.75)
+- [x] 17.E.15 Let OpenCode-backed text and image-recognition pipelines run without pre-leasing Gemini fallback keys, so empty Gemini pools no longer block AI judgment before OpenCode is called. (1.2.76)
 
 ### 17.F Quota-aware keyword scheduler
 

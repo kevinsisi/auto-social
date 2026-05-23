@@ -117,6 +117,9 @@ export class SocialPipeline {
     assignments: PlannedStepAssignment[]
   ) {
     const assignment = assignments.find((item) => item.stepId === stepId)
+    if (!assignment?.preferredKey) {
+      return this.generator({ stepId, systemInstruction, prompt, preferredKey: null })
+    }
     const result = await runner.runStep({
       id: stepId,
       name: assignment?.stepName ?? stepId,
