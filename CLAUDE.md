@@ -6,7 +6,7 @@ Edit this file freely to add stack-, domain-, or team-specific rules for your pr
 
 ## Local Docker Build — Company Network (READ FIRST)
 
-If you are about to run `docker compose build` / `docker compose up --build` on a development workstation **inside the company network** (Redacted / HousePrice / 公司 office Wi-Fi, wired, VPN, or `oredacted`), the default build path **will fail** because of corporate TLS inspection. Use this exact sequence:
+If you are about to run `docker compose build` / `docker compose up --build` on a development workstation **inside the company network** (corporate Wi-Fi, wired, or VPN with TLS inspection), the default build path **will fail** because of corporate TLS inspection. Use this exact sequence:
 
 ```bash
 # 1. Make sure the node base image is already pulled (host CA trusts the company root cert, container doesn't).
