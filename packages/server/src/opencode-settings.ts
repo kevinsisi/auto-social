@@ -20,8 +20,10 @@ const SETTING_VISION_MODEL = 'openCode.visionModel'
 const SETTING_TEXT_VARIANT = 'openCode.textVariant'
 const SETTING_VISION_VARIANT = 'openCode.visionVariant'
 
-export const DEFAULT_OPENCODE_TEXT_MODEL = 'openai/gpt-5.5'
-export const DEFAULT_OPENCODE_VISION_MODEL = 'openai/gpt-5.5'
+// opencode-go (paid Zen subscription) is cancelled and openai/gpt-5.5 is dead
+// (No-OpenAI rule + 0 Zen balance). Default to free opencode/* models.
+export const DEFAULT_OPENCODE_TEXT_MODEL = 'opencode/nemotron-3-ultra-free'
+export const DEFAULT_OPENCODE_VISION_MODEL = 'opencode/mimo-v2.5-free'
 export const DEFAULT_OPENCODE_TEXT_VARIANT = 'medium'
 export const DEFAULT_OPENCODE_VISION_VARIANT = 'medium'
 export const OPENCODE_VARIANTS = ['default', 'medium', 'high'] as const
@@ -248,7 +250,7 @@ export function getOpenCodePassword(): string {
 }
 
 export type OpenCodeModel = {
-  /** Fully-qualified id, e.g. "openai/gpt-5.5" — pass this back as the textModel / visionModel setting. */
+  /** Fully-qualified id, e.g. "opencode/mimo-v2.5-free" — pass this back as the textModel / visionModel setting. */
   id: string
   /** Display name from the server, falls back to the bare model id. */
   name: string
@@ -297,7 +299,13 @@ function flattenProviders(raw: unknown): OpenCodeModel[] {
     const pid = typeof provider.id === 'string' ? provider.id : ''
     const modelMap = provider.models
     if (!pid || !modelMap || typeof modelMap !== 'object' || Array.isArray(modelMap)) continue
+    // opencode-go is the dead paid Zen subscription (every model 401s on a 0
+    // balance); openai is banned by the No-OpenAI rule. Never surface either.
+    if (pid === 'opencode-go' || pid === 'openai') continue
     for (const [modelId, info] of Object.entries(modelMap as Record<string, unknown>)) {
+      // Only free models: paid Zen models return 401 "Insufficient balance".
+      const cost = info && typeof info === 'object' ? (info as { cost?: { input?: number; output?: number } }).cost : undefined
+      if (!(cost?.input === 0 && cost?.output === 0)) continue
       const name = info && typeof info === 'object' && typeof (info as { name?: unknown }).name === 'string'
         ? (info as { name: string }).name
         : modelId

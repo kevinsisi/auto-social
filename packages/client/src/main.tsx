@@ -1904,7 +1904,7 @@ function SettingsPage() {
         return (
         <form onSubmit={saveOpenCodeSettings} className="border-2 border-asphalt bg-paper p-4">
           <h3 className="text-2xl font-black">OpenCode Provider</h3>
-          <p className="mt-1 text-sm">AI 文字呼叫優先走 OpenCode，逐個 server 嘗試直到成功；全部失敗才 fallback 到 Gemini key pool。DB 設定優先於 env。Server 密碼由 env <code>OPENCODE_SERVER_PASSWORD</code> 控制。預設 model = <code>openai/gpt-5.5</code> · variant = <code>medium</code>。</p>
+          <p className="mt-1 text-sm">AI 文字呼叫優先走 OpenCode，逐個 server 嘗試直到成功；全部失敗才 fallback 到 Gemini key pool。DB 設定優先於 env。Server 密碼由 env <code>OPENCODE_SERVER_PASSWORD</code> 控制。預設 文字 model = <code>opencode/nemotron-3-ultra-free</code>、vision model = <code>opencode/mimo-v2.5-free</code> · variant = <code>medium</code>。</p>
           <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
             <Info label="目前 server 數" value={openCode ? String(openCode.servers.length) : '讀取中…'} />
             <Info label="Text" value={openCode ? `${openCode.textModel} (${openCode.textVariant})` : '讀取中…'} />
@@ -1944,7 +1944,7 @@ function SettingsPage() {
                 onChange={(e) => setOpenCodeTextModel(e.target.value)}
                 disabled={openCodeModels.length === 0}
               >
-                <option value="">— 使用預設（{openCode?.textModel ?? 'openai/gpt-5.5'}）—</option>
+                <option value="">— 使用預設（{openCode?.textModel ?? 'opencode/nemotron-3-ultra-free'}）—</option>
                 {renderModelOptions('text')}
               </select>
             </div>
@@ -1969,7 +1969,7 @@ function SettingsPage() {
                 onChange={(e) => setOpenCodeVisionModel(e.target.value)}
                 disabled={openCodeModels.length === 0}
               >
-                <option value="">— 使用預設（{openCode?.visionModel ?? 'openai/gpt-5.5'}）—</option>
+                <option value="">— 使用預設（{openCode?.visionModel ?? 'opencode/mimo-v2.5-free'}）—</option>
                 {renderModelOptions('vision')}
               </select>
             </div>
