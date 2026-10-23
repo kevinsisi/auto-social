@@ -18,7 +18,7 @@ env:
   DOCKERHUB_USERNAME: kevin950805
   IMAGE_NAME: auto-social
   HOST_PORT: 4323
-  DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'kevin' }}
+  DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'root' }}
 
 jobs:
   deploy:
@@ -66,7 +66,7 @@ jobs:
           IMAGE_TAG: ${{ steps.resolve-image.outputs.image_tag }}
         run: |
           ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" "mkdir -p '${DEPLOY_PATH}'"
-          scp -i ~/.ssh/deploy_key deploy/docker-compose.yml "${DEPLOY_USER}@${DEPLOY_SERVER_IP}:${DEPLOY_PATH}/docker-compose.yml"
+          scp -O -i ~/.ssh/deploy_key deploy/docker-compose.yml "${DEPLOY_USER}@${DEPLOY_SERVER_IP}:${DEPLOY_PATH}/docker-compose.yml"
           ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" "test -f '${DEPLOY_PATH}/.env' || touch '${DEPLOY_PATH}/.env'"
           ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_SERVER_IP}" "grep -v '^IMAGE_TAG=' '${DEPLOY_PATH}/.env' > '${DEPLOY_PATH}/.env.tmp' || true; printf 'IMAGE_TAG=${IMAGE_TAG}\n' >> '${DEPLOY_PATH}/.env.tmp'; mv '${DEPLOY_PATH}/.env.tmp' '${DEPLOY_PATH}/.env'"
 
